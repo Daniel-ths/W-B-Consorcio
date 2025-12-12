@@ -1,53 +1,58 @@
 import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
+import { Settings } from "lucide-react";
 
 interface CarCardProps {
     id: string;
     model: string;
-    brand: string;
     price: number;
-    year: number;
     image_url: string | null;
-    description: string;
 }
 
-export default function CarCard({ id, model, brand, price, year, image_url }: CarCardProps) {
+export default function CarCard({ id, model, price, image_url }: CarCardProps) {
   return (
-    <Link href={`/carros/${id}`} className="group block relative">
-        {/* Imagem (Foco Total) */}
-        <div className="relative aspect-[4/3] overflow-hidden bg-gray-900">
+    // Aumentei o padding (p-8) para ficar mais espaçado
+    <div className="group block bg-white border border-transparent hover:border-gray-200 hover:shadow-2xl transition-all duration-500 ease-out p-8 rounded-3xl text-center relative flex flex-col h-full hover:-translate-y-2">
+        
+        {/* Nome Maior */}
+        <h3 className="text-2xl font-extrabold text-gray-900 uppercase tracking-tight mb-2">
+            {model}
+        </h3>
+        
+        <p className="text-sm text-gray-500 uppercase font-bold tracking-widest mb-6">
+            A partir de {formatCurrency(price)}
+        </p>
+
+        {/* IMAGEM BEM MAIOR (h-60) */}
+        <div className="relative h-60 w-full mb-8 flex items-center justify-center flex-1">
             {image_url && (
-                <img 
-                    src={image_url} 
-                    alt={model} 
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-90 group-hover:opacity-100"
-                />
+                <Link href={`/carros/${id}`} className="w-full h-full flex items-center justify-center">
+                    <img 
+                        src={image_url} 
+                        alt={model} 
+                        // O 'object-contain' garante que o carro inteiro apareça sem cortes
+                        className="max-h-full max-w-full object-contain transition-transform duration-700 ease-in-out group-hover:scale-110 cursor-pointer drop-shadow-lg group-hover:drop-shadow-2xl"
+                    />
+                </Link>
             )}
-            
-            {/* Overlay sutil no hover */}
-            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-500"></div>
-
-            {/* Tag do Ano */}
-            <div className="absolute top-4 left-4 bg-white text-black text-xs font-bold px-2 py-1 uppercase tracking-widest">
-                {year}
-            </div>
         </div>
 
-        {/* Informações (Minimalista em baixo) */}
-        <div className="pt-4 flex justify-between items-end border-b border-gray-800 pb-4 group-hover:border-white transition-colors duration-500">
-            <div>
-                <span className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1 block">{brand}</span>
-                <h3 className="text-xl font-medium text-white group-hover:text-gray-200 uppercase tracking-wide">
-                    {model}
-                </h3>
-                <p className="text-gray-400 text-sm mt-1">A partir de {formatCurrency(price)}</p>
-            </div>
-            
-            <div className="bg-transparent border border-gray-600 rounded-full p-2 group-hover:bg-white group-hover:text-black group-hover:border-white transition-all">
-                <ArrowUpRight size={20} />
-            </div>
+        {/* Botões Maiores */}
+        <div className="grid grid-cols-2 gap-4 mt-auto">
+            <Link 
+                href={`/carros/${id}`}
+                className="flex items-center justify-center gap-2 py-4 border border-gray-200 text-gray-600 font-bold uppercase text-xs tracking-widest rounded-lg hover:bg-gray-50 transition-colors"
+            >
+                Detalhes
+            </Link>
+
+            <Link 
+                href={`/monte-o-seu/${id}`}
+                className="flex items-center justify-center gap-2 py-4 bg-yellow-500 text-white font-bold uppercase text-xs tracking-widest rounded-lg hover:bg-yellow-600 transition-colors shadow-md hover:shadow-lg"
+            >
+                <Settings size={14}/> Montar
+            </Link>
         </div>
-    </Link>
+    </div>
   );
 }

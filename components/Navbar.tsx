@@ -1,43 +1,72 @@
+"use client" // <--- Agora é um componente interativo
+
+import { useState } from "react";
 import Link from "next/link";
-import { Car, Lock, User } from "lucide-react"; 
+import { Search, User, MapPin, ChevronDown, X } from "lucide-react"; 
+import VehiclesMenu from "./VehiclesMenu"; // Importa o menu novo
 
 export default function Navbar() {
-  return (
-    <nav className="fixed w-full z-50 top-0 transition-all duration-300 bg-gradient-to-b from-black/80 to-transparent">
-      <div className="max-w-[1400px] mx-auto px-6 h-20 flex items-center justify-between">
-        
-        {/* Logo Minimalista */}
-        <Link href="/" className="flex items-center gap-2 group">
-          <div className="bg-white text-black p-1">
-            <Car size={20} />
-          </div>
-          <span className="text-lg font-bold tracking-widest uppercase group-hover:text-gray-300 transition-colors">
-            WB<span className="font-light">Auto</span>
-          </span>
-        </Link>
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-        {/* Links Centrais (Estilo BMW) */}
-        <div className="hidden md:flex items-center gap-8 text-sm font-medium tracking-wide uppercase text-gray-300">
-          <Link href="/" className="hover:text-white border-b-2 border-transparent hover:border-white pb-1 transition-all">
-            Modelos
-          </Link>
-          <Link href="#estoque" className="hover:text-white border-b-2 border-transparent hover:border-white pb-1 transition-all">
-            Seminovos
-          </Link>
-          <Link href="/carros/1" className="hover:text-white border-b-2 border-transparent hover:border-white pb-1 transition-all">
-            Financiamento
-          </Link>
+  return (
+    <>
+        <nav className="fixed w-full z-50 top-0 bg-[#f8f8f8] border-b border-gray-200 h-16 flex items-center justify-between px-6 lg:px-12">
+        
+        {/* ESQUERDA: Botão Veículos com Ação */}
+        <div className="flex items-center gap-8">
+            <div className="hidden md:flex gap-6 items-center">
+                
+                {/* BOTÃO QUE ABRE O MEGA MENU */}
+                <button 
+                    onClick={() => setIsMenuOpen(!isMenuOpen)}
+                    className={`text-xs font-bold uppercase tracking-wide flex items-center gap-1 transition-colors ${isMenuOpen ? 'text-black' : 'text-gray-600 hover:text-black'}`}
+                >
+                    {isMenuOpen ? <X size={16}/> : null} Veículos
+                </button>
+
+                <Link href="#estoque" className="text-xs font-bold text-gray-600 uppercase tracking-wide hover:text-black transition-colors">
+                    Comprar
+                </Link>
+                <Link href="#" className="text-xs font-bold text-gray-600 uppercase tracking-wide hover:text-black transition-colors">
+                    Vendas Diretas
+                </Link>
+            </div>
+            
+            <button className="md:hidden text-gray-600">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+            </button>
         </div>
 
-        {/* Área Restrita */}
-        <Link href="/admin" className="text-gray-300 hover:text-white flex items-center gap-2 text-xs uppercase font-bold tracking-widest">
-          <Lock size={14} />
-          <span className="hidden sm:inline">Portal do Vendedor</span>
-        </Link>
-      </div>
-      
-      {/* Linha fina embaixo */}
-      <div className="h-[1px] bg-white/10 w-full"></div>
-    </nav>
+        {/* CENTRO: Logo Chevrolet Dourada */}
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+            <Link href="/" onClick={() => setIsMenuOpen(false)}>
+                <img 
+                    src="https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/chevrolet-bowtie-120.svg" 
+                    alt="Chevrolet" 
+                    className="h-5 w-auto object-contain"
+                />
+            </Link>
+        </div>
+
+        {/* DIREITA: Ícones */}
+        <div className="flex items-center gap-6 text-gray-600">
+            <button className="hover:text-black transition-colors">
+                <Search size={20} />
+            </button>
+            
+            <Link href="/admin" className="hover:text-black transition-colors flex items-center gap-2">
+                <User size={20} />
+                <span className="hidden lg:inline text-xs font-bold uppercase">Login</span>
+            </Link>
+
+            <button className="hover:text-black transition-colors hidden sm:block">
+                <MapPin size={20} />
+            </button>
+        </div>
+        </nav>
+
+        {/* O MEGA MENU APARECE AQUI SE ESTIVER ABERTO */}
+        {isMenuOpen && <VehiclesMenu onClose={() => setIsMenuOpen(false)} />}
+    </>
   );
 }

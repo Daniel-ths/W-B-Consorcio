@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, Calendar, Gauge, Fuel, Zap, Clock } from "lucide-react";
+import { ArrowLeft, Calendar, Gauge, Fuel, Zap, Clock, CheckCircle } from "lucide-react";
 import Simulator from "@/components/Simulator"; 
 import { formatCurrency } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
@@ -11,21 +11,20 @@ export default async function CarDetailsPage({ params }: { params: { id: string 
 
   if (!car) return null;
 
-  // Lógica de Promoção: Verifica se existe e se ainda não venceu
+  // Lógica de Promoção
   const now = new Date();
   const expiresAt = car.promo_expires_at ? new Date(car.promo_expires_at) : null;
   const isPromoActive = car.promo_percent > 0 && expiresAt && expiresAt > now;
 
-  // Preço Final (Com ou sem desconto)
   const finalPrice = isPromoActive 
     ? car.price - (car.price * (car.promo_percent / 100)) 
     : car.price;
 
   return (
-    <div className="min-h-screen bg-black text-white pt-24 pb-20">
+    <div className="min-h-screen bg-white text-gray-900 pt-28 pb-20">
       
       <div className="max-w-[1400px] mx-auto px-6 mb-8">
-        <Link href="/" className="inline-flex items-center text-xs font-bold uppercase tracking-[0.2em] text-gray-500 hover:text-white transition-colors gap-2">
+        <Link href="/" className="inline-flex items-center text-xs font-bold uppercase tracking-[0.2em] text-gray-500 hover:text-blue-600 transition-colors gap-2">
           <ArrowLeft size={14} /> Voltar ao Showroom
         </Link>
       </div>
@@ -34,80 +33,86 @@ export default async function CarDetailsPage({ params }: { params: { id: string 
         
         {/* ESQUERDA: FOTO E DADOS */}
         <div className="lg:col-span-8 space-y-8">
-          <div className="border-b border-gray-800 pb-8">
-            <h2 className="text-sm font-bold tracking-[0.3em] text-gray-500 mb-2 uppercase">{car.brand}</h2>
-            <h1 className="text-5xl md:text-7xl font-bold uppercase tracking-tighter mb-6">{car.model}</h1>
+          
+          {/* Título */}
+          <div className="border-b border-gray-100 pb-8">
+            <h2 className="text-sm font-bold tracking-[0.3em] text-blue-600 mb-2 uppercase">{car.brand}</h2>
+            <h1 className="text-4xl md:text-6xl font-extrabold uppercase tracking-tight mb-6 text-gray-900">{car.model}</h1>
             
-            <div className="flex gap-8 text-sm uppercase tracking-widest text-gray-300">
-                <span className="flex items-center gap-2"><Calendar size={16}/> {car.year}</span>
-                <span className="flex items-center gap-2"><Gauge size={16}/> 0 km</span>
-                <span className="flex items-center gap-2"><Fuel size={16}/> Flex</span>
+            <div className="flex gap-8 text-sm uppercase tracking-widest text-gray-500 font-bold">
+                <span className="flex items-center gap-2"><Calendar size={18} className="text-blue-600"/> {car.year}</span>
+                <span className="flex items-center gap-2"><Gauge size={18} className="text-blue-600"/> 0 km</span>
+                <span className="flex items-center gap-2"><Fuel size={18} className="text-blue-600"/> Flex</span>
             </div>
           </div>
 
-          <div className="aspect-[16/9] w-full bg-gray-900 relative overflow-hidden">
+          {/* Foto Principal */}
+          <div className="aspect-[16/9] w-full bg-gray-100 rounded-3xl overflow-hidden shadow-xl relative">
             {car.image_url && <img src={car.image_url} alt={car.model} className="w-full h-full object-cover"/>}
             
-            {/* Tag de Promoção na Foto */}
             {isPromoActive && (
-                <div className="absolute top-4 right-4 bg-yellow-500 text-black px-4 py-2 font-bold uppercase tracking-widest text-sm shadow-xl flex items-center gap-2 animate-pulse">
-                    <Zap size={18} fill="black" /> Oferta Relâmpago
+                <div className="absolute top-6 right-6 bg-yellow-400 text-black px-4 py-2 font-bold uppercase tracking-widest text-sm shadow-lg rounded flex items-center gap-2 animate-pulse">
+                    <Zap size={18} /> Oferta Relâmpago
                 </div>
             )}
           </div>
 
-          <div className="grid md:grid-cols-2 gap-12">
+          {/* Descrição e Itens */}
+          <div className="grid md:grid-cols-2 gap-12 pt-4">
             <div>
-                <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-gray-500 mb-6 border-b border-gray-800 pb-2">Detalhes</h3>
-                <p className="text-gray-300 leading-loose font-light text-justify">
-                    {car.description || "Veículo premium selecionado."}
+                <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400 mb-6 border-b border-gray-100 pb-2">Sobre o Veículo</h3>
+                <p className="text-gray-600 leading-loose text-justify">
+                    {car.description || "Veículo selecionado com rigoroso padrão de qualidade WB Auto."}
                 </p>
             </div>
+            
             <div>
-                 {/* Opcionais... */}
+                <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-gray-400 mb-6 border-b border-gray-100 pb-2">Destaques</h3>
+                <div className="grid grid-cols-1 gap-3">
+                    {car.features?.map((item: string, index: number) => (
+                        <div key={index} className="flex items-center gap-3 text-sm font-bold text-gray-700 uppercase tracking-wide bg-gray-50 p-3 rounded-lg">
+                            <CheckCircle size={16} className="text-blue-600" />
+                            {item}
+                        </div>
+                    ))}
+                </div>
             </div>
           </div>
         </div>
 
         {/* DIREITA: PREÇO E SIMULADOR */}
         <div className="lg:col-span-4 space-y-8">
-           <div className="sticky top-24">
+           <div className="sticky top-28">
                
-               {/* BLOCO DE PREÇO DINÂMICO */}
-               <div className="mb-8 bg-neutral-900/30 p-6 border border-white/5 backdrop-blur">
-                  
+               {/* Preço Box */}
+               <div className="mb-8 p-8 bg-gray-50 rounded-3xl border border-gray-100">
                   {isPromoActive ? (
                       <div className="space-y-2">
-                          <div className="flex items-center gap-2 text-yellow-500 mb-2">
+                          <div className="flex items-center gap-2 text-yellow-600 mb-2">
                               <Clock size={16} />
                               <span className="text-xs font-bold uppercase tracking-widest">Tempo Limitado</span>
                           </div>
-                          
-                          {/* Preço Antigo Riscado */}
-                          <span className="text-lg text-gray-500 line-through block">
+                          <span className="text-lg text-gray-400 line-through block font-medium">
                               {formatCurrency(car.price)}
                           </span>
-                          
-                          {/* Preço Novo Gigante */}
-                          <div className="text-5xl font-bold text-white tracking-tight text-yellow-400">
+                          <div className="text-5xl font-bold text-gray-900 tracking-tight">
                             {formatCurrency(finalPrice)}
                           </div>
-                          <p className="text-xs text-gray-400 uppercase tracking-wider mt-2">
-                              Desconto de {car.promo_percent}% aplicado
+                          <p className="text-xs text-green-600 font-bold uppercase tracking-wider mt-2 bg-green-100 inline-block px-2 py-1 rounded">
+                              -{car.promo_percent}% OFF
                           </p>
                       </div>
                   ) : (
-                      // Preço Normal
                       <div>
                           <span className="text-xs font-bold uppercase tracking-widest text-gray-500 block mb-2">Valor à Vista</span>
-                          <div className="text-5xl font-light text-white">
+                          <div className="text-5xl font-bold text-gray-900 tracking-tight">
                             {formatCurrency(car.price)}
                           </div>
                       </div>
                   )}
                </div>
 
-               {/* Simulador (Passando o preço final, com desconto se houver) */}
+               {/* Simulador (Vai precisar de ajuste no próximo passo se estiver preto) */}
                <Simulator vehiclePrice={finalPrice} vehicleModel={car.model} />
 
            </div>

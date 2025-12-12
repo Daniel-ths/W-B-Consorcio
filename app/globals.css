@@ -3,26 +3,57 @@
 @tailwind utilities;
 
 :root {
-  /* Preto Absoluto e Branco Puro */
-  --background: 0 0% 0%; 
-  --foreground: 0 0% 100%;
+  /* Fundo Branco Puro */
+  --background: 0 0% 100%; 
+  --foreground: 0 0% 15%; 
   
-  /* Azul BMW (Acento) */
-  --primary: 215 100% 50%;
+  /* Amarelo Ouro Chevrolet */
+  --primary: 45 100% 50%; 
   
-  --card: 0 0% 3%;
-  --card-foreground: 0 0% 100%;
-  --border: 0 0% 20%;
+  --card: 0 0% 96%; 
+  --card-foreground: 0 0% 15%;
+  --border: 0 0% 90%;
 }
 
 body {
-  background-color: black;
-  color: white;
-  /* Fonte mais técnica/premium */
-  letter-spacing: -0.02em; 
+  background-color: white;
+  color: #1f1f1f;
+  font-family: 'Arial', sans-serif;
+  overflow-x: hidden; /* Evita rolagem lateral indesejada */
 }
 
-/* Remover arredondamentos excessivos globalmente se quiser */
-.rounded-xl {
-  border-radius: 4px; /* Mais quadrado, mais sério */
+/* Títulos fortes */
+h1, h2, h3 {
+  letter-spacing: -0.02em;
 }
+
+/* --- ANIMAÇÕES E EFEITOS GLOBAIS --- */
+
+/* 1. Rolagem Suave no site todo */
+html {
+  scroll-behavior: smooth;
+}
+
+/* 2. Animação de Entrada (Fade In Up) */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px); /* Começa 30px abaixo */
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0); /* Termina na posição original */
+  }
+}
+
+/* Classe utilitária para usar nos elementos */
+.animate-enter {
+  opacity: 0; /* Começa invisível para não piscar */
+  animation: fadeInUp 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+/* Delays para efeito cascata (um elemento depois do outro) */
+.delay-100 { animation-delay: 0.1s; }
+.delay-200 { animation-delay: 0.2s; }
+.delay-300 { animation-delay: 0.3s; }
+.delay-500 { animation-delay: 0.5s; }

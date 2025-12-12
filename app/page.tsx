@@ -1,71 +1,70 @@
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import CarCard from "@/components/CarCard";
-import { ChevronDown } from "lucide-react";
 
 export const dynamic = 'force-dynamic';
 
 export default async function Home() {
+  // Busca os carros, mas não repete a Silverado na lista de baixo
   const { data: vehicles } = await supabase
     .from('vehicles')
     .select('*')
     .eq('is_active', true)
-    .order('created_at', { ascending: false });
+    .not('model', 'ilike', '%Silverado%') 
+    .order('price', { ascending: true });
 
   return (
-    <div className="bg-black min-h-screen text-white selection:bg-white selection:text-black">
+    <div className="bg-white min-h-screen text-gray-900 font-sans">
       
-      {/* HERO SECTION */}
-      <section className="relative h-screen w-full overflow-hidden flex flex-col justify-center">
+      {/* HERO SECTION - CAPA COM SUA FOTO NOVA */}
+      <section className="relative h-[85vh] w-full overflow-hidden mt-16">
+        
+        {/* IMAGEM DE FUNDO (Link Oficial do seu Supabase) */}
         <div className="absolute inset-0 z-0">
              <img 
-                src="https://images.unsplash.com/photo-1552519507-da3b142c6e3d?q=80&w=2000&auto=format&fit=crop" 
-                className="w-full h-full object-cover opacity-60"
-                alt="Chevrolet Background"
+                src="https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/2024_Chevrolet_Silverado_HD_Z71_Side_View.avif" 
+                className="w-full h-full object-cover object-center"
+                alt="Chevrolet Silverado 2026"
              />
-             <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/40"></div>
-             <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-transparent to-transparent"></div>
+             {/* Degradê sutil para o texto branco aparecer bem */}
+             <div className="absolute top-0 left-0 w-full h-2/3 bg-gradient-to-b from-black/50 via-black/10 to-transparent"></div>
         </div>
         
-        <div className="relative z-10 w-full max-w-[1400px] mx-auto px-6 grid md:grid-cols-2 gap-6 mt-20">
-          <div>
-            <h2 className="text-xs font-bold tracking-[0.2em] text-gray-400 mb-4 uppercase">
-              Bem-vindo à WB Auto
-            </h2>
-            <h1 className="text-5xl md:text-8xl font-bold uppercase leading-[0.9] tracking-tighter mb-6">
-              O Prazer <br/> de Dirigir.
-            </h1>
-            <div className="h-1 w-20 bg-white mb-8"></div>
+        {/* TEXTOS (Posicionados no canto superior esquerdo) */}
+        <div className="relative z-10 w-full max-w-[1400px] mx-auto px-6 h-full pt-24 lg:pt-32">
+          <div className="max-w-3xl text-white">
             
-            <div className="flex gap-4">
-                <Link href="#estoque" className="bg-white text-black px-8 py-4 font-bold uppercase tracking-widest text-xs hover:bg-gray-200 transition-colors">
-                    Ver Veículos
-                </Link>
-                <Link href="/carros/1" className="backdrop-blur-md border border-white/30 text-white px-8 py-4 font-bold uppercase tracking-widest text-xs hover:bg-white hover:text-black transition-colors">
-                    Simular
-                </Link>
-            </div>
+            <h2 className="text-xl font-medium tracking-wide mb-2 opacity-90 text-shadow-sm">
+              Silverado 2026
+            </h2>
+            
+            <h1 className="text-5xl md:text-7xl font-bold leading-tight mb-8 drop-shadow-md">
+              A picape pra quem pensa <br/> (muito) grande!
+            </h1>
+            
+            <Link 
+                href="#estoque" 
+                className="bg-white text-gray-900 px-10 py-4 rounded-full font-bold text-sm hover:bg-gray-100 transition-all inline-block shadow-xl hover:-translate-y-1"
+            >
+                Saber mais
+            </Link>
           </div>
-        </div>
-
-        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 animate-bounce opacity-50">
-            <ChevronDown size={32} />
         </div>
       </section>
 
-      {/* SECTION ESTOQUE */}
-      <section id="estoque" className="py-20 bg-black">
+      {/* CATÁLOGO DE MODELOS */}
+      <section id="estoque" className="py-20 bg-white">
         <div className="max-w-[1400px] mx-auto px-6">
-            <div className="flex justify-between items-end mb-12 border-b border-gray-800 pb-4">
-                <h2 className="text-3xl md:text-5xl font-light uppercase tracking-tight">
-                    Veículos <span className="font-bold">Disponíveis</span>
+            <div className="text-center mb-16">
+                <h2 className="text-3xl font-bold uppercase tracking-tight text-gray-400 mb-2">
+                    Modelos
                 </h2>
-                <span className="hidden md:block text-gray-500 text-sm tracking-widest">
-                    {vehicles?.length || 0} MODELOS ENCONTRADOS
-                </span>
+                <p className="text-gray-900 text-4xl font-bold">
+                    Encontre o seu Chevrolet
+                </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-12">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {vehicles?.map((car) => (
                     <CarCard 
                         key={car.id}

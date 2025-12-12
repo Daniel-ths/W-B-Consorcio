@@ -1,8 +1,8 @@
 {
-  "/page": "app/page.js",
-  "/carros/[id]/page": "app/carros/[id]/page.js",
+  "/monte-o-seu/[id]/page": "app/monte-o-seu/[id]/page.js",
   "/admin/page": "app/admin/page.js",
-  "/admin/carros/novo/page": "app/admin/carros/novo/page.js",
   "/admin/dashboard/page": "app/admin/dashboard/page.js",
-  "/admin/score/page": "app/admin/score/page.js"
+  "/admin/score/page": "app/admin/score/page.js",
+  "/admin/carros/novo/page": "app/admin/carros/novo/page.js",
+  "/page": "app/page.js"
 }
