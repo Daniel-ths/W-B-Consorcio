@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Preto Absoluto e Branco Puro */
+  --background: 0 0% 0%; 
+  --foreground: 0 0% 100%;
+  
+  /* Azul BMW (Acento) */
+  --primary: 215 100% 50%;
+  
+  --card: 0 0% 3%;
+  --card-foreground: 0 0% 100%;
+  --border: 0 0% 20%;
+}
+
+body {
+  background-color: black;
+  color: white;
+  /* Fonte mais técnica/premium */
+  letter-spacing: -0.02em; 
+}
+
+/* Remover arredondamentos excessivos globalmente se quiser */
+.rounded-xl {
+  border-radius: 4px; /* Mais quadrado, mais sério */
+}
