@@ -1,4 +1,4 @@
-// File: C:\Users\Apollo\Documents\_projetos_developer\dealership_cars\app\page.tsx
+// File: /workspaces/dealership_cars/app/page.tsx
 import * as entry from '../../../app/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

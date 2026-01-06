@@ -3,13 +3,14 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+// 1. IMPORT DO BOTÃO ADMIN
+import AdminButton from "@/components/AdminButton";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Chevrolet | WB Auto",
   description: "Concessionária Chevrolet - Encontre seu 0km",
-  // AQUI ESTÁ O ÍCONE DA CHEVROLET NA ABA
   icons: {
     icon: 'https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/chevrolet-bowtie-120.svg',
   },
@@ -25,12 +26,16 @@ export default function RootLayout({
       <body className={`${inter.className} min-h-screen bg-white text-gray-900`}>
         <Navbar />
         
-        {/* O 'main' empurra o rodapé para baixo se a página for curta */}
         <main className="min-h-screen">
           {children}
         </main>
         
-        {/* Botão Flutuante do WhatsApp (Fica fixo no canto) */}
+        {/* --- SEUS BOTÕES FLUTUANTES --- */}
+
+        {/* 2. Botão Admin (Canto Esquerdo) */}
+        <AdminButton />
+
+        {/* Botão WhatsApp (Canto Direito - Mantido Original) */}
         <a 
           href="https://wa.me/5591999999999" 
           target="_blank"
