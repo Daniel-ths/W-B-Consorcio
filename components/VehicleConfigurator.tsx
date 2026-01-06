@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { ChevronLeft, ChevronRight, Check, Loader2, ArrowLeft, ArrowRight, Info, Gauge, Armchair, Edit2, RotateCw, Download, Link as LinkIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, Check, Loader2, ArrowLeft, ArrowRight, Info, Gauge, Armchair, Edit2, Download, Link as LinkIcon } from "lucide-react";
 import Link from "next/link";
 
 export default function VehicleConfigurator() {
@@ -19,7 +19,7 @@ export default function VehicleConfigurator() {
   // --- VISUAL ---
   const [activeTab, setActiveTab] = useState<'Modelo' | 'Exterior' | 'Interior'>('Modelo');
   const [showSummary, setShowSummary] = useState(false);
-  const [transmission, setTransmission] = useState('Automático'); // <--- A variável que estava faltando/com erro
+  const [transmission, setTransmission] = useState('Automático'); 
   const [interiorView, setInteriorView] = useState<'dash' | 'seats'>('dash');
   const [isRotated, setIsRotated] = useState(false);
   const [displayImage, setDisplayImage] = useState<string>('');
@@ -137,12 +137,15 @@ export default function VehicleConfigurator() {
     }
   };
 
+  // Função para girar o carro (Front/Back)
+  const toggleRotation = () => {
+      if (currentCar?.image_back_url) {
+          setIsRotated(!isRotated);
+      }
+  };
+
   const getMainDisplayImage = () => {
-      // Se tiver imagem no state displayImage (setada pelos clicks), usa ela.
-      // Porém, precisamos garantir a lógica de rotação e abas:
-      
       if (activeTab === 'Interior') {
-          // Lógica do Interior já é tratada pelo updateInteriorImage
           return displayImage; 
       }
       
@@ -151,7 +154,6 @@ export default function VehicleConfigurator() {
           return currentCar.image_back_url;
       }
       
-      // Se não estiver rotacionado, usa a cor selecionada ou a padrão
       return selectedColor?.image || currentCar?.image_url;
   }
 
@@ -168,7 +170,6 @@ export default function VehicleConfigurator() {
       const mosaicSecondary = currentCar.image_back_url || currentCar.image_url;
       const mosaicInterior = selectedSeatType?.image || currentCar.interior_images?.dash;
 
-      // Descrições de fallback (do Admin)
       const standardDashDesc = currentCar.interior_images?.dash_desc || 'Acabamento do Painel Padrão';
       const standardSeatsDesc = currentCar.interior_images?.seats_desc || 'Bancos Padrão';
 
@@ -283,25 +284,28 @@ export default function VehicleConfigurator() {
         <Link href="/" className="absolute top-8 left-6 z-30 text-white/50 hover:text-white flex items-center gap-2 text-sm font-bold uppercase tracking-widest transition-colors"><ArrowLeft size={16}/> Voltar</Link>
         <div className="absolute top-6 left-0 right-0 flex justify-center z-20"><img src="https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/chevrolet-logo.svg" alt="Chevy" className="h-8 object-contain drop-shadow-lg"/></div>
         
-        {/* ÁREA DA IMAGEM + ROTAÇÃO */}
+        {/* ÁREA DA IMAGEM */}
         <div className={`w-full h-full flex items-center justify-center relative overflow-hidden transition-all duration-700 ease-in-out z-10 ${activeTab === 'Interior' ? 'p-0' : 'p-12 lg:p-32'}`}>
             <div className={`w-full h-full bg-center bg-no-repeat transition-all duration-700 ease-in-out transform drop-shadow-2xl ${activeTab === 'Interior' ? 'bg-cover scale-105' : 'bg-contain scale-100'}`} style={{ backgroundImage: `url(${finalImage})` }}></div>
-            
-            {activeTab !== 'Interior' && currentCar.image_back_url && (
-                <button 
-                    onClick={() => setIsRotated(!isRotated)}
-                    className="absolute bottom-32 right-1/2 translate-x-1/2 bg-black/50 hover:bg-black/80 text-white p-3 rounded-full backdrop-blur-md transition-all z-50 flex items-center gap-2 group"
-                >
-                    <RotateCw size={20} className={`transition-transform duration-500 ${isRotated ? 'rotate-180' : ''}`} />
-                    <span className="text-xs font-bold uppercase opacity-0 group-hover:opacity-100 w-0 group-hover:w-auto overflow-hidden transition-all whitespace-nowrap">Girar</span>
-                </button>
-            )}
         </div>
 
+        {/* SETAS DE ROTAÇÃO (Substituindo botões fake) */}
         {activeTab !== 'Interior' && (
             <div className="absolute bottom-8 left-8 flex gap-2 z-30">
-                <button className="bg-white/10 hover:bg-white/20 text-white p-3 rounded-full backdrop-blur-md transition-all"><ChevronLeft size={20} /></button>
-                <button className="bg-white/10 hover:bg-white/20 text-white p-3 rounded-full backdrop-blur-md transition-all"><ChevronRight size={20} /></button>
+                <button 
+                    onClick={toggleRotation}
+                    disabled={!currentCar.image_back_url}
+                    className={`bg-white/10 hover:bg-white/20 text-white p-3 rounded-full backdrop-blur-md transition-all ${!currentCar.image_back_url ? 'opacity-30 cursor-not-allowed' : ''}`}
+                >
+                    <ChevronLeft size={20} />
+                </button>
+                <button 
+                    onClick={toggleRotation}
+                    disabled={!currentCar.image_back_url}
+                    className={`bg-white/10 hover:bg-white/20 text-white p-3 rounded-full backdrop-blur-md transition-all ${!currentCar.image_back_url ? 'opacity-30 cursor-not-allowed' : ''}`}
+                >
+                    <ChevronRight size={20} />
+                </button>
             </div>
         )}
         <div className="absolute bottom-8 right-8 z-30"><button className="bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded font-bold text-sm backdrop-blur-md">Contate uma Concessionária</button></div>
@@ -396,7 +400,7 @@ export default function VehicleConfigurator() {
                     <div className="border-t border-gray-100 pt-6">
                         <div className="flex justify-between items-center mb-4"><h3 className="text-base font-bold text-gray-900">Acabamento dos Bancos</h3><button className="text-gray-400 text-xl font-light">-</button></div>
                         <div className="space-y-4">
-                            {/* OPÇÃO PADRÃO (Sempre visível se não houver tipos extras selecionados ou como opção base) */}
+                            {/* OPÇÃO PADRÃO */}
                             <div 
                                 onClick={() => { setSelectedSeatType(null); updateInteriorImage('seats'); }} 
                                 className={`cursor-pointer border rounded-lg p-3 flex gap-4 items-center transition-all ${selectedSeatType === null ? 'border-black ring-1 ring-black' : 'border-gray-200 hover:border-gray-300'}`}
