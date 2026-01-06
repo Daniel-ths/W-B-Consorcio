@@ -1,132 +1,124 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import Link from "next/link"
+import { useState, useEffect } from "react"
 import { supabase } from "@/lib/supabase"
-import { formatCurrency } from "@/lib/utils"
+import { Loader2, ArrowRight } from "lucide-react"
+import Link from "next/link"
 
-const CATEGORIES = [
-  { id: 'eletrico', label: 'Elétricos', keywords: ['Bolt', 'EUV'] },
-  { id: 'suv', label: 'SUVs', keywords: ['Tracker', 'Equinox', 'Trailblazer'] },
-  { id: 'picape', label: 'Picapes', keywords: ['S10', 'Silverado', 'Montana'] },
-  { id: 'hatch', label: 'Hatchs e Sedans', keywords: ['Onix', 'Cruze'] },
-  { id: 'esportivo', label: 'Esportivos', keywords: ['Camaro', 'Corvette'] },
-]
+interface VehiclesMenuProps {
+  onClose: () => void
+}
 
-export default function VehiclesMenu({ onClose }: { onClose: () => void }) {
-  const [activeCategory, setActiveCategory] = useState('picape') 
+export default function VehiclesMenu({ onClose }: VehiclesMenuProps) {
+  const [categories, setCategories] = useState<any[]>([])
   const [vehicles, setVehicles] = useState<any[]>([])
-  const [isAnimating, setIsAnimating] = useState(false) 
+  const [selectedCatId, setSelectedCatId] = useState<number | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function fetchData() {
-      const { data } = await supabase.from('vehicles').select('*').eq('is_active', true)
-      if (data) setVehicles(data)
+      try {
+        const { data: cats } = await supabase.from('categories').select('*').order('id')
+        const { data: vecs } = await supabase.from('vehicles').select('*').order('price_start')
+
+        if (cats && cats.length > 0) {
+          setCategories(cats)
+          setSelectedCatId(cats[0].id)
+        }
+        if (vecs) {
+          setVehicles(vecs)
+        }
+      } catch (error) {
+        console.error("Erro ao buscar menu:", error)
+      } finally {
+        setLoading(false)
+      }
     }
     fetchData()
   }, [])
 
-  useEffect(() => {
-    setIsAnimating(true);
-    const timer = setTimeout(() => setIsAnimating(false), 50); 
-    return () => clearTimeout(timer);
-  }, [activeCategory]);
+  const filteredVehicles = vehicles.filter(v => v.category_id === selectedCatId)
 
-  const filteredVehicles = vehicles.filter(car => {
-    const category = CATEGORIES.find(c => c.id === activeCategory)
-    return category?.keywords.some(k => car.model.includes(k))
-  })
+  if (loading) return (
+    <div className="flex justify-center items-center h-64 pt-20">
+      <Loader2 className="animate-spin text-gray-400" />
+    </div>
+  )
 
   return (
-    <>
-        {/* 1. O FUNDO ESCURO (OVERLAY) */}
-        {/* Ele aparece suavemente (fade-in) atrás do menu e cobre o site todo */}
-        <div 
-            onClick={onClose}
-            className="fixed inset-0 top-16 bg-black/40 backdrop-blur-sm z-30 animate-in fade-in duration-500"
-        ></div>
-
-        {/* 2. O MENU BRANCO (PAINEL) */}
-        {/* Ele desliza de cima para baixo (slide-in-from-top) com elasticidade (ease-out) */}
-        <div className="absolute top-16 left-0 w-full bg-white border-b border-gray-200 shadow-2xl z-40 py-10 animate-in slide-in-from-top-10 fade-in duration-500 ease-out origin-top">
+    // Mantive o pt-24 para respeitar a altura do Navbar
+    <div className="container mx-auto px-6 pt-24 pb-12 h-[80vh] overflow-y-auto">
+      
+      <div className="flex flex-col md:flex-row gap-8 h-full">
         
-            <div className="max-w-[1400px] mx-auto px-6 flex min-h-[350px]">
-                
-                {/* LADO ESQUERDO: CATEGORIAS */}
-                <div className="w-64 border-r border-gray-100 pr-8 space-y-2">
-                {CATEGORIES.map((cat, index) => (
-                    <button
-                    key={cat.id}
-                    onMouseEnter={() => setActiveCategory(cat.id)}
-                    className={`block w-full text-left text-sm font-bold uppercase tracking-wide transition-all duration-300 p-4 rounded-lg flex items-center justify-between group ${
-                        activeCategory === cat.id 
-                        ? 'text-gray-900 bg-gray-50 translate-x-2 border-l-4 border-yellow-500 shadow-sm' 
-                        : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+        {/* --- COLUNA ESQUERDA: LISTA DE CATEGORIAS --- */}
+        <aside className="w-full md:w-1/4 border-r border-gray-100 pr-6">
+          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-6">Categorias</h3>
+          <ul className="space-y-2">
+            {categories.map((cat) => (
+              <li key={cat.id}>
+                <button
+                  onClick={() => setSelectedCatId(cat.id)}
+                  className={`text-lg font-bold uppercase tracking-tight w-full text-left transition-all duration-200 px-4 py-3 rounded-lg flex justify-between items-center
+                    ${selectedCatId === cat.id 
+                      ? 'bg-gray-100 text-black translate-x-2' 
+                      : 'text-gray-500 hover:text-black hover:bg-gray-50'
                     }`}
-                    // Cascata na entrada das categorias
-                    style={{ animationDelay: `${index * 0.05}s` }} 
-                    >
-                    {cat.label}
-                    {/* Seta pequena que aparece ao passar o mouse */}
-                    <span className={`opacity-0 transition-opacity ${activeCategory === cat.id ? 'opacity-100' : 'group-hover:opacity-50'}`}>›</span>
-                    </button>
-                ))}
-                </div>
+                >
+                  {cat.name}
+                  {selectedCatId === cat.id && <ArrowRight size={16} />}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </aside>
 
-                {/* LADO DIREITO: CARROS */}
-                <div className="flex-1 pl-12">
-                    {!isAnimating && (
-                        <div className="grid grid-cols-4 gap-8">
-                            {filteredVehicles.length > 0 ? (
-                                filteredVehicles.map((car, index) => (
-                                    <div 
-                                        key={car.id} 
-                                        className="text-center group animate-in fade-in slide-in-from-left-2 duration-500 fill-mode-forwards"
-                                        style={{ animationDelay: `${index * 0.05}s` }} 
-                                    >
-                                        {/* Imagem do Carro */}
-                                        <div className="h-32 flex items-center justify-center mb-4 relative cursor-pointer">
-                                            {/* Bolinha de fundo ao passar o mouse */}
-                                            <div className="absolute inset-0 bg-gray-100 rounded-full scale-0 group-hover:scale-100 transition-transform duration-300 ease-out -z-10"></div>
-                                            
-                                            <Link href={`/carros/${car.id}`} onClick={onClose}>
-                                                <img 
-                                                    src={car.image_url} 
-                                                    alt={car.model} 
-                                                    className="max-h-full max-w-full object-contain transition-transform duration-500 group-hover:scale-110 group-hover:-translate-y-2 drop-shadow-sm group-hover:drop-shadow-xl"
-                                                />
-                                            </Link>
-                                        </div>
-                                        
-                                        {/* Info */}
-                                        <h4 className="font-bold text-gray-900 text-sm mb-1 uppercase tracking-tight group-hover:text-yellow-600 transition-colors">
-                                            {car.model}
-                                        </h4>
-                                        <p className="text-[10px] text-gray-500 mb-3 font-medium">
-                                            A partir de {formatCurrency(car.price)}
-                                        </p>
-                                        
-                                        {/* Link */}
-                                        <Link 
-                                            href={`/carros/${car.id}`} 
-                                            onClick={onClose}
-                                            className="text-yellow-600 text-xs font-bold uppercase tracking-widest hover:text-yellow-500 transition-colors border-b border-transparent hover:border-yellow-500 pb-0.5"
-                                        >
-                                            Saiba mais
-                                        </Link>
-                                    </div>
-                                ))
-                            ) : (
-                                <div className="col-span-4 flex flex-col items-center justify-center text-gray-300 py-12 animate-in fade-in">
-                                    <p className="uppercase tracking-widest text-xs font-bold">Categoria indisponível</p>
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
+        {/* --- COLUNA DIREITA: GRID DE CARROS --- */}
+        <main className="flex-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-right-4 duration-500">
+            {filteredVehicles.length > 0 ? (
+              filteredVehicles.map((car) => (
+                <Link 
+                  key={car.id} 
+                  href={`/configurador?id=${car.id}`}
+                  onClick={onClose}
+                  className="group block bg-white rounded-xl p-4 hover:shadow-xl transition-all border border-transparent hover:border-gray-100"
+                >
+                  {/* Imagem */}
+                  <div className="aspect-[16/9] mb-4 overflow-hidden mix-blend-multiply">
+                    <img 
+                      src={car.image_url} 
+                      alt={car.model_name} 
+                      className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500"
+                    />
+                  </div>
 
-            </div>
-        </div>
-    </>
+                  {/* Textos */}
+                  <div>
+                    <h4 className="font-bold text-gray-900 text-lg leading-tight mb-1">{car.model_name}</h4>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide">A partir de</p>
+                    
+                    {/* PREÇO EM CINZA (ALTERADO) */}
+                    <p className="text-sm font-bold text-gray-600 mb-2">
+                       {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(car.price_start)}
+                    </p>
+
+                    {/* SAIBA MAIS EM AZUL (ADICIONADO) */}
+                    <p className="text-xs font-bold text-blue-600 uppercase tracking-widest group-hover:underline">
+                      Saiba mais
+                    </p>
+                  </div>
+                </Link>
+              ))
+            ) : (
+              <div className="col-span-full text-center py-20 text-gray-400">
+                <p>Nenhum veículo encontrado nesta categoria.</p>
+              </div>
+            )}
+          </div>
+        </main>
+
+      </div>
+    </div>
   )
 }

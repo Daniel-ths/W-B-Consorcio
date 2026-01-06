@@ -1,4 +1,3 @@
-// Arquivo: components/HeroCarousel.tsx
 "use client"
 
 import { useState, useEffect } from "react";
@@ -72,8 +71,8 @@ export default function HeroCarousel() {
                     {slide.subtitle}
                   </p>
                   
-                  {/* BOTÕES BRANCOS ATUALIZADOS */}
                   <div className="flex gap-4">
+                    {/* AQUI ESTÁ A CORREÇÃO: LEVA PARA /configurador */}
                     <Link 
                       href="/configurador" 
                       className="bg-white text-gray-900 hover:bg-gray-100 px-6 py-3 rounded font-bold uppercase tracking-widest transition-all flex items-center gap-2 text-sm shadow-lg hover:scale-105 transform duration-300"
@@ -85,7 +84,6 @@ export default function HeroCarousel() {
                       Saiba Mais
                     </button>
                   </div>
-
                 </div>
               );
             })}

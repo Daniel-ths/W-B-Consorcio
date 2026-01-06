@@ -1,7 +1,8 @@
+// Arquivo: components/CarCatalog.tsx
 "use client"
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 
 export default function CarCatalog() {
@@ -10,11 +11,10 @@ export default function CarCatalog() {
 
   useEffect(() => {
     async function fetchCars() {
-      // Busca veículos e suas categorias
       const { data } = await supabase
         .from('vehicles')
         .select('*, categories(name, slug)')
-        .order('price_start', { ascending: true }) // Ordena do mais barato para o mais caro
+        .order('price_start', { ascending: true })
       
       if (data) setVehicles(data)
       setLoading(false)
@@ -22,20 +22,21 @@ export default function CarCatalog() {
     fetchCars()
   }, [])
 
-  if (loading) return <div className="py-20 text-center">Carregando estoque...</div>
+  if (loading) return <div className="py-20 text-center text-gray-400 flex justify-center"><Loader2 className="animate-spin"/></div>
 
   return (
-    <section className="py-20 px-6 bg-white">
+    // ADICIONEI O id="catalogo" AQUI PARA O BOTÃO FUNCIONAR
+    <section id="catalogo" className="py-20 px-6 bg-white border-t border-gray-100 scroll-mt-20">
       <div className="max-w-7xl mx-auto">
-        <h2 className="text-3xl md:text-4xl font-light text-gray-900 mb-12 uppercase tracking-tight">
+        <h2 className="text-3xl font-light text-gray-900 mb-12 uppercase tracking-tight">
           Nossos Veículos
         </h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-12">
           {vehicles.map((car) => (
-            <div key={car.id} className="group cursor-pointer">
-              {/* Card de Imagem */}
-              <div className="relative aspect-[4/3] bg-gray-50 rounded-2xl overflow-hidden mb-6 border border-gray-100 group-hover:border-gray-300 transition-all">
+            <div key={car.id} className="group flex flex-col">
+              
+              <div className="relative aspect-[16/9] bg-gray-50 rounded-2xl overflow-hidden mb-6 border border-gray-100 group-hover:border-gray-300 transition-all">
                 <img 
                   src={car.image_url} 
                   alt={car.model_name} 
@@ -43,9 +44,8 @@ export default function CarCatalog() {
                 />
               </div>
 
-              {/* Informações */}
-              <div>
-                <p className="text-xs font-bold text-gray-500 uppercase mb-1 tracking-wider">
+              <div className="flex-1">
+                <p className="text-xs font-bold text-gray-400 uppercase mb-1 tracking-wider">
                   {car.categories?.name}
                 </p>
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">
@@ -56,15 +56,17 @@ export default function CarCatalog() {
                     {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(car.price_start)}
                   </span>
                 </p>
+              </div>
 
-                {/* Botão */}
+              <div className="mt-auto">
                 <Link 
-                   href={`/configurador?id=${car.id}`} // Envia para o configurador
-                   className="inline-flex items-center gap-2 text-sm font-bold uppercase tracking-widest border-b-2 border-transparent group-hover:border-black pb-1 transition-all"
+                   href={`/configurador?id=${car.id}`} 
+                   className="inline-flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-gray-900 border-b-2 border-gray-200 pb-1 hover:border-black transition-all group-hover:gap-4"
                 >
-                  Configure o seu <ArrowRight size={16} />
+                  MONTE O SEU <ArrowRight size={16} />
                 </Link>
               </div>
+
             </div>
           ))}
         </div>

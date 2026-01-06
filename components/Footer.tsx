@@ -4,17 +4,17 @@ import { Instagram, Facebook, MapPin, Phone, Mail } from "lucide-react";
 export default function Footer() {
   return (
     // MUDANÇA: Fundo Cinza Claro (#f2f2f2) e Texto Escuro
-    <footer className="bg-[#f2f2f2] border-t border-gray-200 text-gray-600 text-sm">
+    <footer className="bg-[#f2f2f2] border-t border-gray-200 text-gray-600 text-sm font-sans">
       <div className="max-w-[1400px] mx-auto px-6 py-16 grid grid-cols-1 md:grid-cols-4 gap-12">
         
         {/* Coluna 1: Marca */}
         <div className="space-y-6">
-            <Link href="/" className="flex items-center gap-2 group">
-                {/* Logo Chevrolet Pequena */}
+            <Link href="/" className="flex items-center gap-4 group">
+                {/* LOGO AUMENTADA (h-4 -> h-32) */}
                 <img 
-                    src="https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/chevrolet-bowtie-120.svg" 
-                    alt="Chevrolet" 
-                    className="h-4 w-auto object-contain"
+                    src="https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/Parceirologo.jpg" 
+                    alt="WB Auto" 
+                    className="h-32 w-auto object-contain mix-blend-multiply" 
                 />
                 <span className="text-lg font-bold tracking-widest uppercase text-gray-900">
                     WB<span className="text-gray-500 font-normal">Auto</span>
