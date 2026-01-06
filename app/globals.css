@@ -57,3 +57,39 @@ html {
 .delay-200 { animation-delay: 0.2s; }
 .delay-300 { animation-delay: 0.3s; }
 .delay-500 { animation-delay: 0.5s; }
+
+
+/* --- CÓDIGO NOVO PARA ADICIONAR ABAIXO --- */
+
+/* 1. Menu Dropdown (Slide Down + Fade) */
+.menu-dropdown {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-10px); /* Começa um pouco acima */
+  transition: all 0.3s cubic-bezier(0.165, 0.84, 0.44, 1);
+  pointer-events: none; /* Evita cliques quando invisível */
+}
+
+.menu-dropdown-ativo {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+/* 2. Animação dos Cards de Carros (Fade Up) */
+@keyframes aparecerSuave {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.anime-card {
+  /* O 'forwards' mantém o carro na tela após a animação */
+  animation: aparecerSuave 0.5s ease-out forwards;
+}

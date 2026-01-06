@@ -22,7 +22,7 @@ export default async function Home() {
         {/* IMAGEM DE FUNDO (Silverado - Seu link do Supabase) */}
         <div className="absolute inset-0 z-0">
              <img 
-                src="https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/2024_Chevrolet_Silverado_HD_Z71_Side_View.avif" 
+                src="https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/Chevrolet%20Silverado%202024%20PNG%20(1).avif" 
                 className="w-full h-full object-cover object-center animate-enter duration-1000"
                 alt="Chevrolet Silverado 2026"
              />
