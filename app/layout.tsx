@@ -32,22 +32,7 @@ export default function RootLayout({
         
         {/* --- SEUS BOTÕES FLUTUANTES --- */}
 
-        {/* 2. Botão Admin (Canto Esquerdo) */}
-        <AdminButton />
 
-        {/* Botão WhatsApp (Canto Direito - Mantido Original) */}
-        <a 
-          href="https://wa.me/5591999999999" 
-          target="_blank"
-          className="fixed bottom-6 right-6 z-50 bg-[#25D366] hover:bg-[#128C7E] text-white p-4 rounded-full shadow-2xl shadow-green-900/20 hover:-translate-y-1 transition-all"
-          title="Falar com Vendedor"
-        >
-          <img 
-            src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" 
-            className="w-8 h-8 filter invert brightness-0" 
-            alt="WhatsApp" 
-          />
-        </a>
 
         <Footer /> 
       </body>

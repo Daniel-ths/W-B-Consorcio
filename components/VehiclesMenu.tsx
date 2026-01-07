@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { supabase } from "@/lib/supabase"
-import { Loader2, ArrowRight } from "lucide-react"
+import { ArrowRight } from "lucide-react"
 import Link from "next/link"
 
 interface VehiclesMenuProps {
@@ -12,7 +12,7 @@ interface VehiclesMenuProps {
 export default function VehiclesMenu({ onClose }: VehiclesMenuProps) {
   const [categories, setCategories] = useState<any[]>([])
   const [vehicles, setVehicles] = useState<any[]>([])
-  const [selectedCatId, setSelectedCatId] = useState<number | null>(null)
+  const [selectedCatId, setSelectedCatId] = useState<number | string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -22,7 +22,11 @@ export default function VehiclesMenu({ onClose }: VehiclesMenuProps) {
         const { data: vecs } = await supabase.from('vehicles').select('*').order('price_start')
 
         if (cats && cats.length > 0) {
-          setCategories(cats)
+          const categoriasComSeminovos = [
+            ...cats, 
+            { id: 'SEMINOVOS', name: 'Seminovos' }
+          ];
+          setCategories(categoriasComSeminovos)
           setSelectedCatId(cats[0].id)
         }
         if (vecs) {
@@ -31,93 +35,130 @@ export default function VehiclesMenu({ onClose }: VehiclesMenuProps) {
       } catch (error) {
         console.error("Erro ao buscar menu:", error)
       } finally {
-        setLoading(false)
+        // Um pequeno delay artificial opcional para a animação não piscar muito rápido (pode remover se quiser mais rápido)
+        setTimeout(() => setLoading(false), 500)
       }
     }
     fetchData()
   }, [])
 
-  const filteredVehicles = vehicles.filter(v => v.category_id === selectedCatId)
+  const filteredVehicles = selectedCatId === 'SEMINOVOS' 
+    ? [] 
+    : vehicles.filter(v => v.category_id === selectedCatId)
 
+  // --- AQUI ESTÁ A ALTERAÇÃO: SKELETON LOADING ---
+  // Em vez de um spinner, mostramos o esqueleto da página pulsando
   if (loading) return (
-    <div className="flex justify-center items-center h-64 pt-20">
-      <Loader2 className="animate-spin text-gray-400" />
+    <div className="w-full bg-white border-t border-gray-200 shadow-xl pt-16">
+      <div className="max-w-[1400px] mx-auto p-10 min-h-[450px] flex">
+        
+        {/* Skeleton da Esquerda (Menu) */}
+        <div className="w-1/4 border-r border-gray-100 pr-8 space-y-2 animate-pulse">
+            {[1,2,3,4,5,6].map(i => (
+                <div key={i} className="h-12 bg-gray-100 rounded-lg w-full"></div>
+            ))}
+        </div>
+
+        {/* Skeleton da Direita (Cards) */}
+        <div className="w-3/4 pl-12">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 animate-pulse">
+                {[1,2,3].map(i => (
+                     <div key={i} className="flex flex-col items-center space-y-3">
+                        {/* Imagem do carro */}
+                        <div className="h-32 bg-gray-100 rounded-lg w-full"></div>
+                        {/* Nome */}
+                        <div className="h-4 bg-gray-100 rounded w-2/3"></div>
+                        {/* Preço */}
+                        <div className="h-3 bg-gray-100 rounded w-1/2"></div>
+                     </div>
+                ))}
+            </div>
+        </div>
+      </div>
     </div>
   )
 
   return (
-    // Mantive o pt-24 para respeitar a altura do Navbar
-    <div className="container mx-auto px-6 pt-24 pb-12 h-[80vh] overflow-y-auto">
-      
-      <div className="flex flex-col md:flex-row gap-8 h-full">
+    <div className="w-full bg-white border-t border-gray-200 shadow-xl pt-16 animate-in fade-in slide-in-from-top-2 duration-500">
+      <div className="max-w-[1400px] mx-auto p-10 min-h-[450px] flex">
         
         {/* --- COLUNA ESQUERDA: LISTA DE CATEGORIAS --- */}
-        <aside className="w-full md:w-1/4 border-r border-gray-100 pr-6">
-          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-6">Categorias</h3>
-          <ul className="space-y-2">
-            {categories.map((cat) => (
-              <li key={cat.id}>
-                <button
-                  onClick={() => setSelectedCatId(cat.id)}
-                  className={`text-lg font-bold uppercase tracking-tight w-full text-left transition-all duration-200 px-4 py-3 rounded-lg flex justify-between items-center
-                    ${selectedCatId === cat.id 
-                      ? 'bg-gray-100 text-black translate-x-2' 
-                      : 'text-gray-500 hover:text-black hover:bg-gray-50'
-                    }`}
-                >
-                  {cat.name}
-                  {selectedCatId === cat.id && <ArrowRight size={16} />}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </aside>
+        <div className="w-1/4 border-r border-gray-100 pr-8 space-y-1">
+          {categories.map((cat) => (
+            <div 
+                key={cat.id}
+                onMouseEnter={() => setSelectedCatId(cat.id)}
+                className={`cursor-pointer px-4 py-3 rounded-lg text-sm font-bold uppercase tracking-wide flex items-center justify-between transition-all 
+                ${selectedCatId === cat.id ? 'text-blue-600 bg-blue-50' : 'text-gray-500 hover:bg-gray-50'}`}
+            >
+                <span className={cat.id === 'SEMINOVOS' ? "border-l-4 border-transparent pl-0" : ""}>
+                    {cat.name}
+                </span>
+                {selectedCatId === cat.id && <ArrowRight size={16} />}
+            </div>
+          ))}
+        </div>
 
-        {/* --- COLUNA DIREITA: GRID DE CARROS --- */}
-        <main className="flex-1">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-right-4 duration-500">
-            {filteredVehicles.length > 0 ? (
-              filteredVehicles.map((car) => (
-                <Link 
-                  key={car.id} 
-                  href={`/configurador?id=${car.id}`}
-                  onClick={onClose}
-                  className="group block bg-white rounded-xl p-4 hover:shadow-xl transition-all border border-transparent hover:border-gray-100"
-                >
-                  {/* Imagem */}
-                  <div className="aspect-[16/9] mb-4 overflow-hidden mix-blend-multiply">
-                    <img 
-                      src={car.image_url} 
-                      alt={car.model_name} 
-                      className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500"
-                    />
-                  </div>
-
-                  {/* Textos */}
-                  <div>
-                    <h4 className="font-bold text-gray-900 text-lg leading-tight mb-1">{car.model_name}</h4>
-                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide">A partir de</p>
-                    
-                    {/* PREÇO EM CINZA (ALTERADO) */}
-                    <p className="text-sm font-bold text-gray-600 mb-2">
-                       {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(car.price_start)}
-                    </p>
-
-                    {/* SAIBA MAIS EM AZUL (ADICIONADO) */}
-                    <p className="text-xs font-bold text-blue-600 uppercase tracking-widest group-hover:underline">
-                      Saiba mais
-                    </p>
-                  </div>
-                </Link>
-              ))
+        {/* --- COLUNA DIREITA: CONTEÚDO --- */}
+        <div className="w-3/4 pl-12 flex items-center justify-center">
+            
+            {selectedCatId === 'SEMINOVOS' ? (
+                // BANNER SEMINOVOS
+                <div className="animate-in fade-in slide-in-from-left-4 duration-300 w-full flex justify-center">
+                    <div className="w-full max-w-2xl bg-gray-50 p-12 text-center rounded-sm">
+                        <img src="https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/chevrolet-logo.svg" className="h-8 mx-auto mb-6 opacity-80" alt="Logo"/>
+                        <h3 className="text-4xl font-extrabold text-gray-800 uppercase tracking-tighter mb-2">Seminovos</h3>
+                        <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-8">Qualidade Certificada Chevrolet</p>
+                        <div className="flex justify-center gap-4">
+                            <Link href="/seminovos" onClick={onClose} className="px-6 py-3 bg-blue-600 text-white text-xs font-bold uppercase tracking-wide hover:bg-blue-700 transition-colors">
+                                Ver Estoque
+                            </Link>
+                            <Link href="/seminovos/premium" onClick={onClose} className="px-6 py-3 border border-gray-300 text-gray-700 text-xs font-bold uppercase tracking-wide hover:bg-gray-200 transition-colors">
+                                Linha Premium
+                            </Link>
+                        </div>
+                    </div>
+                </div>
             ) : (
-              <div className="col-span-full text-center py-20 text-gray-400">
-                <p>Nenhum veículo encontrado nesta categoria.</p>
-              </div>
-            )}
-          </div>
-        </main>
+                // GRID DE VEÍCULOS
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 w-full animate-in fade-in slide-in-from-left-4 duration-300">
+                    {filteredVehicles.length > 0 ? (
+                        filteredVehicles.map((car) => (
+                            <Link 
+                                key={car.id} 
+                                href={`/configurador?id=${car.id}`}
+                                onClick={onClose}
+                                className="group block text-center relative"
+                            >
+                                <div className="h-32 bg-gray-50 rounded-lg mb-4 flex items-center justify-center overflow-hidden mix-blend-multiply group-hover:bg-gray-100 transition-colors">
+                                    <img 
+                                        src={car.image_url} 
+                                        alt={car.model_name} 
+                                        className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-500"
+                                    />
+                                </div>
 
+                                <h4 className="text-sm font-bold text-gray-900 uppercase group-hover:text-blue-600 transition-colors">
+                                    {car.model_name}
+                                </h4>
+                                
+                                <p className="text-xs text-gray-500 mt-1 font-semibold">
+                                    A partir de {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(car.price_start)}
+                                </p>
+
+                                <span className="text-[10px] text-blue-600 font-bold uppercase mt-2 inline-block border-b border-transparent group-hover:border-blue-600">
+                                    Saiba mais
+                                </span>
+                            </Link>
+                        ))
+                    ) : (
+                        <div className="col-span-full text-center py-20 text-gray-400">
+                            <p>Nenhum veículo encontrado nesta categoria.</p>
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
       </div>
     </div>
   )

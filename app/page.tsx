@@ -2,15 +2,20 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { ArrowRight, Loader2 } from "lucide-react"; // Loader2 importado novamente
 import Link from "next/link";
-
-// 1. Importamos o Catálogo para aparecer embaixo
 import CarCatalog from "@/components/CarCatalog";
 
+// 1. Slide Padrão
+const DEFAULT_SLIDE = [{
+  id: 0,
+  title: "Bem-vindo à Chevrolet",
+  subtitle: "Cadastre seus banners no Painel Admin",
+  image_url: "https://chevrolet.com.br/content/dam/chevrolet/mercosur/brazil/portuguese/index/pickups-and-trucks/2024-silverado/jellys/silverado-high-country-01.jpg?imwidth=1200"
+}];
+
 export default function Home() {
-  // --- LÓGICA DO CARROSSEL (MANTIDA INTACTA) ---
-  const [slides, setSlides] = useState<any[]>([]);
+  const [slides, setSlides] = useState<any[]>(DEFAULT_SLIDE);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [loading, setLoading] = useState(true);
 
@@ -19,15 +24,12 @@ export default function Home() {
       const { data } = await supabase.from('hero_slides').select('*').order('created_at', { ascending: false });
       if (data && data.length > 0) {
         setSlides(data);
-      } else {
-        setSlides([{
-          id: 0,
-          title: "Bem-vindo à Chevrolet",
-          subtitle: "Cadastre seus banners no Painel Admin",
-          image_url: "https://chevrolet.com.br/content/dam/chevrolet/mercosur/brazil/portuguese/index/pickups-and-trucks/2024-silverado/jellys/silverado-high-country-01.jpg?imwidth=1200"
-        }]);
       }
-      setLoading(false);
+      
+      // Pequeno delay para garantir que o branco não pisque rápido demais
+      setTimeout(() => {
+          setLoading(false);
+      }, 500);
     }
     fetchSlides();
   }, []);
@@ -40,20 +42,26 @@ export default function Home() {
     return () => clearInterval(timer);
   }, [slides.length]);
 
-  // Loading apenas do banner (opcional, ou pode remover se quiser que o site carregue o resto)
-  if (loading) return <div className="h-[95vh] bg-gray-900 flex items-center justify-center text-white"><Loader2 className="animate-spin mr-2"/> Carregando...</div>;
 
   return (
-    // Envolvemos tudo numa div main para ter múltiplos componentes
     <main className="bg-white min-h-screen">
 
-      {/* --- SEÇÃO 1: SEU CARROSSEL ORIGINAL --- */}
-      <section className="relative h-[95vh] w-full overflow-hidden">
+      <section className="relative h-[95vh] w-full overflow-hidden bg-gray-900">
+        
+        {/* --- CORTINA DE CARREGAMENTO BRANCA COM LOADER --- */}
+        {/* 1. bg-white: Fundo Branco */}
+        {/* 2. flex items-center justify-center: Para centralizar a rodinha */}
+        <div 
+            className={`absolute inset-0 z-50 bg-white flex items-center justify-center transition-opacity duration-[1500ms] ease-in-out pointer-events-none ${loading ? 'opacity-100' : 'opacity-0'}`}
+        >
+            {/* Rodinha (Loader) preta para aparecer no fundo branco */}
+            <Loader2 className={`w-10 h-10 text-black animate-spin ${loading ? 'block' : 'hidden'}`} />
+        </div>
         
         {slides.map((slide, index) => (
           <div
             key={slide.id}
-            className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
+            className={`absolute inset-0 transition-opacity duration-[1500ms] ease-in-out ${
               index === currentSlide ? "opacity-100" : "opacity-0"
             }`}
           >
@@ -72,7 +80,7 @@ export default function Home() {
               {slides.map((slide, index) => {
                 if (index !== currentSlide) return null;
                 return (
-                  <div key={slide.id} className="animate-in slide-in-from-left-10 fade-in duration-700">
+                  <div key={slide.id} className="animate-in slide-in-from-left-10 fade-in duration-1000">
                     <h1 className="text-5xl md:text-7xl font-bold text-white uppercase tracking-tight mb-2">
                       {slide.title}
                     </h1>
@@ -80,7 +88,6 @@ export default function Home() {
                       {slide.subtitle}
                     </p>
                     
-                    {/* Botões Brancos (Mantidos) */}
                     <div className="flex gap-4">
                       <Link 
                         href="/configurador" 
@@ -114,8 +121,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* --- SEÇÃO 2: CATÁLOGO DE VEÍCULOS (NOVO) --- */}
-      {/* Aqui entram os carros que inserimos via SQL */}
+      {/* --- SEÇÃO 2: CATÁLOGO --- */}
       <CarCatalog />
 
     </main>

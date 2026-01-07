@@ -19,7 +19,7 @@ body {
   background-color: white;
   color: #1f1f1f;
   font-family: 'Arial', sans-serif;
-  overflow-x: hidden; /* Evita rolagem lateral indesejada */
+  overflow-x: hidden;
 }
 
 /* Títulos fortes */
@@ -29,45 +29,43 @@ h1, h2, h3 {
 
 /* --- ANIMAÇÕES E EFEITOS GLOBAIS --- */
 
-/* 1. Rolagem Suave no site todo */
 html {
   scroll-behavior: smooth;
 }
 
-/* 2. Animação de Entrada (Fade In Up) */
 @keyframes fadeInUp {
   from {
     opacity: 0;
-    transform: translateY(30px); /* Começa 30px abaixo */
+    transform: translateY(30px);
   }
   to {
     opacity: 1;
-    transform: translateY(0); /* Termina na posição original */
+    transform: translateY(0);
   }
 }
 
-/* Classe utilitária para usar nos elementos */
+/* O elemento começa invisível (opacity: 0) e executa a animação */
 .animate-enter {
-  opacity: 0; /* Começa invisível para não piscar */
+  opacity: 0; 
   animation: fadeInUp 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
 }
 
-/* Delays para efeito cascata (um elemento depois do outro) */
+/* Delays para efeito cascata */
 .delay-100 { animation-delay: 0.1s; }
 .delay-200 { animation-delay: 0.2s; }
 .delay-300 { animation-delay: 0.3s; }
 .delay-500 { animation-delay: 0.5s; }
 
 
-/* --- CÓDIGO NOVO PARA ADICIONAR ABAIXO --- */
+/* --- CÓDIGO NOVO --- */
 
-/* 1. Menu Dropdown (Slide Down + Fade) */
+/* Menu Dropdown */
 .menu-dropdown {
   opacity: 0;
   visibility: hidden;
-  transform: translateY(-10px); /* Começa um pouco acima */
+  transform: translateY(-10px);
   transition: all 0.3s cubic-bezier(0.165, 0.84, 0.44, 1);
-  pointer-events: none; /* Evita cliques quando invisível */
+  pointer-events: none;
 }
 
 .menu-dropdown-ativo {
@@ -77,7 +75,7 @@ html {
   pointer-events: auto;
 }
 
-/* 2. Animação dos Cards de Carros (Fade Up) */
+/* Cards de Carros */
 @keyframes aparecerSuave {
   from {
     opacity: 0;
@@ -90,6 +88,5 @@ html {
 }
 
 .anime-card {
-  /* O 'forwards' mantém o carro na tela após a animação */
   animation: aparecerSuave 0.5s ease-out forwards;
 }
