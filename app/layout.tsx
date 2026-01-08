@@ -3,8 +3,8 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-// 1. IMPORT DO BOTÃO ADMIN
-import AdminButton from "@/components/AdminButton";
+// 1. IMPORTA O CONTEXTO DE AUTENTICAÇÃO
+import { AuthProvider } from "@/contexts/AuthContext";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -24,17 +24,23 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body className={`${inter.className} min-h-screen bg-white text-gray-900`}>
-        <Navbar />
         
-        <main className="min-h-screen">
-          {children}
-        </main>
-        
-        {/* --- SEUS BOTÕES FLUTUANTES --- */}
+        {/* 2. O AUTHPROVIDER ENVOLVE TUDO (NAVBAR, MAIN, FOOTER) */}
+        <AuthProvider>
+          
+          <Navbar />
+          
+          <main className="min-h-screen">
+            {children}
+          </main>
+          
+          {/* --- SEUS BOTÕES FLUTUANTES --- */}
+          {/* <AdminButton /> */} 
 
+          <Footer />
+          
+        </AuthProvider>
 
-
-        <Footer /> 
       </body>
     </html>
   );
