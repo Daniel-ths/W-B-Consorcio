@@ -1,115 +1,183 @@
-import { DollarSign, Car, Users, TrendingUp, Calendar } from 'lucide-react'
+"use client";
 
-export default function DashboardPage() {
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase"; 
+import { 
+  FileText, 
+  Car, 
+  Users, 
+  SearchCheck, 
+  UserCheck, 
+  Loader2 
+} from 'lucide-react';
+
+export default function AdminDashboard() {
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
+
+  // --- LÓGICA DE PROTEÇÃO (Mantida para segurança) ---
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!user) {
+        router.push("/login");
+        return;
+      }
+
+      // Opcional: Verificar se é admin no banco
+      // Por enquanto, apenas garante que está logado
+      setLoading(false);
+    };
+
+    checkUser();
+  }, [router]);
+
+  if (loading) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center">
+        <Loader2 className="animate-spin text-blue-600" size={40} />
+      </div>
+    );
+  }
+
+  // --- SEU LAYOUT VISUAL (EXATO) ---
   return (
-    <div className="space-y-8">
+    // Adicionei pt-24 e px-8 para dar espaço da Navbar fixa e margens laterais
+    <div className="min-h-screen bg-gray-50 pt-24 px-8 pb-8">
+      <div className="space-y-8 max-w-7xl mx-auto">
       
-      {/* Cabeçalho da Página */}
-      <div className="flex justify-between items-end">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-500 mt-1">Bem-vindo de volta ao painel de controle.</p>
-        </div>
-        <div className="bg-white border border-gray-200 text-gray-600 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 shadow-sm">
-          <Calendar size={16} />
-          Hoje, 07 Jan 2026
-        </div>
-      </div>
-
-      {/* Grid de KPIs (Indicadores) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <KpiCard 
-          title="Vendas Totais" 
-          value="R$ 145.000" 
-          sub="+12% esse mês"
-          icon={<DollarSign size={24} className="text-emerald-600" />}
-          color="emerald"
-        />
-        <KpiCard 
-          title="Carros Ativos" 
-          value="34" 
-          sub="4 novos hoje"
-          icon={<Car size={24} className="text-blue-600" />}
-          color="blue"
-        />
-        <KpiCard 
-          title="Vendedores" 
-          value="8" 
-          sub="2 online agora"
-          icon={<Users size={24} className="text-purple-600" />}
-          color="purple"
-        />
-        <KpiCard 
-          title="Conversão" 
-          value="4.2%" 
-          sub="Média da loja"
-          icon={<TrendingUp size={24} className="text-orange-600" />}
-          color="orange"
-        />
-      </div>
-
-      {/* Seção de Resumo de Vendedores (Prévia da nova funcionalidade) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* Tabela Principal */}
-        <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-            <h3 className="font-bold text-gray-800">Desempenho da Equipe (Top 3)</h3>
-            <span className="text-xs font-medium bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full">Tempo Real</span>
+        {/* Cabeçalho */}
+        <div className="flex justify-between items-end">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Painel de Controle</h1>
+            <p className="text-gray-500 mt-1">Resumo das atividades, simulações e clientes.</p>
           </div>
-          <table className="w-full text-sm text-left">
-            <thead className="bg-gray-50 text-gray-500 font-medium">
-              <tr>
-                <th className="px-6 py-4">Vendedor</th>
-                <th className="px-6 py-4">Vendas (Mês)</th>
-                <th className="px-6 py-4 text-right">Total Gerado</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              <tr className="hover:bg-gray-50 transition">
-                <td className="px-6 py-4 font-medium text-gray-900">Carlos Silva</td>
-                <td className="px-6 py-4">12 Carros</td>
-                <td className="px-6 py-4 text-right font-bold text-emerald-600">R$ 450k</td>
-              </tr>
-              <tr className="hover:bg-gray-50 transition">
-                <td className="px-6 py-4 font-medium text-gray-900">Ana Souza</td>
-                <td className="px-6 py-4">9 Carros</td>
-                <td className="px-6 py-4 text-right font-bold text-emerald-600">R$ 320k</td>
-              </tr>
-              <tr className="hover:bg-gray-50 transition">
-                <td className="px-6 py-4 font-medium text-gray-900">Roberto Jr.</td>
-                <td className="px-6 py-4">5 Carros</td>
-                <td className="px-6 py-4 text-right font-bold text-emerald-600">R$ 180k</td>
-              </tr>
-            </tbody>
-          </table>
         </div>
 
-        {/* Card Lateral Menor */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-          <h3 className="font-bold text-gray-800 mb-4">Ações Rápidas</h3>
-          <div className="space-y-3">
-             <button className="w-full text-left p-3 rounded-lg border border-gray-200 hover:border-emerald-500 hover:bg-emerald-50 transition-all flex items-center gap-3 text-sm font-medium text-gray-700">
-               <Car size={18} /> Cadastrar Novo Veículo
-             </button>
-             <button className="w-full text-left p-3 rounded-lg border border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-all flex items-center gap-3 text-sm font-medium text-gray-700">
-               <Users size={18} /> Adicionar Vendedor
-             </button>
+        {/* Grid de KPIs - Focado no Contrato (Cláusula 1.1.d) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <KpiCard 
+            title="Simulações Hoje" 
+            value="12" 
+            sub="3 aguardando contato"
+            icon={<FileText size={24} className="text-blue-600" />}
+            color="blue"
+          />
+          <KpiCard 
+            title="Financiamentos Fechados" 
+            value="4" 
+            sub="Este mês"
+            icon={<UserCheck size={24} className="text-emerald-600" />}
+            color="emerald"
+          />
+          <KpiCard 
+            title="Total Clientes Cadastrados" 
+            value="156" 
+            sub="+12 novos essa semana"
+            icon={<Users size={24} className="text-gray-600" />}
+            color="gray"
+          />
+          <KpiCard 
+            title="Consultas de Score" 
+            value="8" 
+            sub="Realizadas hoje"
+            icon={<SearchCheck size={24} className="text-purple-600" />}
+            color="purple"
+          />
+        </div>
+
+        {/* Tabelas de Dados Relevantes */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          
+          {/* Tabela 1: Últimas Simulações (Item 1.1.b e 1.1.d) */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+              <h3 className="font-bold text-gray-800">Últimas Simulações</h3>
+              <button className="text-sm text-emerald-600 font-medium hover:underline">Ver todas</button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-gray-50 text-gray-500 font-medium">
+                  <tr>
+                    <th className="px-6 py-4">Cliente</th>
+                    <th className="px-6 py-4">Veículo</th>
+                    <th className="px-6 py-4">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {/* Exemplo estático - Depois virá do Banco de Dados */}
+                  <tr className="hover:bg-gray-50">
+                    <td className="px-6 py-4 font-medium">João Silva</td>
+                    <td className="px-6 py-4 text-gray-500">Honda Civic 2021</td>
+                    <td className="px-6 py-4"><span className="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded-full">Análise</span></td>
+                  </tr>
+                  <tr className="hover:bg-gray-50">
+                    <td className="px-6 py-4 font-medium">Maria Costa</td>
+                    <td className="px-6 py-4 text-gray-500">Toyota Corolla</td>
+                    <td className="px-6 py-4"><span className="bg-emerald-100 text-emerald-800 text-xs px-2 py-1 rounded-full">Aprovado</span></td>
+                  </tr>
+                  <tr className="hover:bg-gray-50">
+                    <td className="px-6 py-4 font-medium">Pedro Alves</td>
+                    <td className="px-6 py-4 text-gray-500">Fiat Toro</td>
+                    <td className="px-6 py-4"><span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">Novo</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
+
+          {/* Tabela 2: Desempenho por Vendedor */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-gray-100">
+              <h3 className="font-bold text-gray-800">Vendas por Vendedor (Mês)</h3>
+            </div>
+            <div className="p-6 space-y-4">
+                {/* Lista simples de vendedores */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center font-bold text-gray-600">CS</div>
+                      <div>
+                        <p className="font-medium text-gray-900">Carlos Silva</p>
+                        <p className="text-xs text-gray-500">Vendedor Sênior</p>
+                      </div>
+                  </div>
+                  <div className="text-right">
+                      <p className="font-bold text-gray-900">8 Carros</p>
+                      <p className="text-xs text-emerald-600">Meta batida</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center font-bold text-gray-600">AS</div>
+                      <div>
+                        <p className="font-medium text-gray-900">Ana Souza</p>
+                        <p className="text-xs text-gray-500">Vendedora</p>
+                      </div>
+                  </div>
+                  <div className="text-right">
+                      <p className="font-bold text-gray-900">5 Carros</p>
+                      <p className="text-xs text-gray-500">Em andamento</p>
+                  </div>
+                </div>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
-  )
+  );
 }
 
-// Componente simples para os Cards
+// Componente dos Cards (Mantido idêntico)
 function KpiCard({ title, value, sub, icon, color }: any) {
-  // Mapas de cores para o fundo do ícone
   const bgColors: any = {
     emerald: 'bg-emerald-50',
     blue: 'bg-blue-50',
     purple: 'bg-purple-50',
-    orange: 'bg-orange-50'
+    gray: 'bg-gray-100'
   }
 
   return (

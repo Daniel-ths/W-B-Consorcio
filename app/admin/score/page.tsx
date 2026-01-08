@@ -1,121 +1,185 @@
-"use client"
+'use client'
 
-import { useState } from "react"
-import Link from "next/link"
-import { Search, CheckCircle, Lock, Loader2, ArrowLeft, ShieldCheck } from "lucide-react"
+import { useState } from 'react'
+import { Search, CheckCircle, XCircle, AlertTriangle, CreditCard, User, History } from 'lucide-react'
 
-export default function AdminScorePage() {
-  const [cpf, setCpf] = useState("")
+export default function ScorePage() {
+  const [cpf, setCpf] = useState('')
   const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState<null | number>(null)
+  const [resultado, setResultado] = useState<any>(null)
 
-  const handleConsult = (e: React.FormEvent) => {
+  // --- SIMULAÇÃO DA API DE SCORE (MOCK) ---
+  // Quando contratarmos a API real, trocaremos essa função.
+  const consultarScore = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (cpf.length < 14) return alert("Digite um CPF válido")
+    if (!cpf) return
 
     setLoading(true)
-    setResult(null)
+    setResultado(null)
 
-    // Simulação do tempo de API
+    // Simula um delay de 2 segundos (como se fosse no servidor)
     setTimeout(() => {
-        setLoading(false)
-        setResult(Math.floor(Math.random() * (980 - 780 + 1)) + 780)
+      // Gera um score aleatório entre 300 e 1000 para teste
+      const scoreAleatorio = Math.floor(Math.random() * (1000 - 300) + 300)
+      
+      let status = 'baixo'
+      if (scoreAleatorio > 700) status = 'alto'
+      else if (scoreAleatorio > 500) status = 'medio'
+
+      setResultado({
+        nome: 'Cliente Exemplo da Silva', // Viria da API
+        cpf: cpf,
+        score: scoreAleatorio,
+        status: status,
+        limiteSugerido: scoreAleatorio > 600 ? 'R$ 85.000,00' : 'R$ 25.000,00',
+        mensagem: scoreAleatorio > 600 ? 'Crédito Pré-Aprovado' : 'Necessário Avalista'
+      })
+      
+      setLoading(false)
     }, 2000)
   }
 
-  const maskCPF = (value: string) => {
-    return value
-      .replace(/\D/g, '')
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d{1,2})/, '$1-$2')
-      .replace(/(-\d{2})\d+?$/, '$1')
+  // Função para formatar CPF enquanto digita
+  const handleCpfChange = (e: any) => {
+    let value = e.target.value.replace(/\D/g, '')
+    if (value.length > 11) value = value.slice(0, 11)
+    setCpf(value.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4"))
   }
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-white p-6">
-      <div className="max-w-4xl mx-auto">
-        
-        <Link href="/admin/dashboard" className="inline-flex items-center text-gray-500 hover:text-white mb-8 text-xs font-bold uppercase tracking-widest gap-2">
-            <ArrowLeft size={14} /> Voltar ao Painel
-        </Link>
+    <div className="space-y-6">
+      
+      {/* Cabeçalho */}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Consulta de Crédito (Score)</h1>
+        <p className="text-gray-500 mt-1">Verifique a viabilidade de financiamento para o cliente antes de fechar o pedido.</p>
+      </div>
 
-        {/* Header da Ferramenta */}
-        <div className="flex items-center gap-4 mb-8 border-b border-white/10 pb-8">
-            <div className="p-4 bg-blue-900/20 rounded-full border border-blue-500/20">
-                <ShieldCheck size={32} className="text-blue-500"/>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        {/* COLUNA DA ESQUERDA: FORMULÁRIO DE CONSULTA */}
+        <div className="lg:col-span-1 space-y-6">
+          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+            <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <Search size={20} className="text-emerald-600" />
+              Nova Consulta
+            </h3>
+            
+            <form onSubmit={consultarScore} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">CPF do Cliente</label>
+                <input
+                  type="text"
+                  value={cpf}
+                  onChange={handleCpfChange}
+                  placeholder="000.000.000-00"
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition"
+                />
+              </div>
+              
+              <button
+                type="submit"
+                disabled={loading || cpf.length < 14}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+              >
+                {loading ? (
+                  <span className="animate-pulse">Consultando API...</span>
+                ) : (
+                  <>Consultar Score</>
+                )}
+              </button>
+            </form>
+            
+            <div className="mt-4 p-3 bg-blue-50 text-blue-700 text-xs rounded-lg border border-blue-100">
+              <p className="font-bold mb-1">Nota:</p>
+              <p>Esta consulta gera um log no histórico do cliente e pode ser visualizada pelo gerente.</p>
             </div>
-            <div>
-                <h1 className="text-3xl font-bold uppercase tracking-tighter text-white">
-                    Consulta de Score
-                </h1>
-                <p className="text-gray-400 text-sm">
-                    Ferramenta interna para análise de crédito do cliente.
-                </p>
-            </div>
+          </div>
         </div>
 
-        {/* Área Principal */}
-        <div className="grid md:grid-cols-2 gap-12 items-center">
-            
-            <div>
-                <h2 className="text-xl font-bold mb-4">Consulte o Potencial de Compra</h2>
-                <p className="text-gray-400 mb-8 leading-relaxed">
-                    Utilize nossa tecnologia para verificar a pré-aprovação de crédito do cliente em segundos. 
-                    <br/><br/>
-                    <span className="flex items-center gap-2 text-green-500 text-xs font-bold uppercase tracking-widest">
-                        <Lock size={12}/> Ambiente 100% seguro e criptografado
-                    </span>
-                </p>
-
-                <form onSubmit={handleConsult} className="relative max-w-sm">
-                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">CPF do Cliente</label>
-                    <div className="relative group">
-                        <input 
-                            value={cpf}
-                            maxLength={14}
-                            onChange={(e) => setCpf(maskCPF(e.target.value))}
-                            placeholder="000.000.000-00"
-                            className="w-full bg-black border border-gray-700 text-white pl-4 pr-12 py-4 rounded-lg focus:outline-none focus:border-blue-500 transition-all text-lg tracking-widest placeholder:text-gray-600 font-mono"
-                        />
-                        <button 
-                            disabled={loading}
-                            type="submit"
-                            className="absolute right-2 top-2 bottom-2 bg-white text-black px-4 rounded font-bold uppercase text-xs tracking-widest hover:bg-gray-200 transition-all flex items-center gap-2"
-                        >
-                            {loading ? <Loader2 className="animate-spin" size={16}/> : <Search size={16}/>}
-                        </button>
-                    </div>
-                </form>
+        {/* COLUNA DA DIREITA: RESULTADO DA CONSULTA */}
+        <div className="lg:col-span-2">
+          
+          {/* ESTADO INICIAL (VAZIO) */}
+          {!resultado && !loading && (
+            <div className="h-full min-h-[300px] flex flex-col items-center justify-center bg-gray-50 rounded-xl border-2 border-dashed border-gray-200 text-gray-400">
+              <Search size={48} className="mb-4 opacity-20" />
+              <p>Aguardando consulta...</p>
             </div>
+          )}
 
-            {/* Resultado */}
-            <div className="bg-neutral-900 border border-white/5 p-8 rounded-2xl h-full flex flex-col justify-center items-center text-center relative overflow-hidden">
-                {!result ? (
-                    <div className="opacity-30">
-                        <Search size={64} className="mx-auto mb-4"/>
-                        <p className="uppercase tracking-widest text-sm">Aguardando Consulta...</p>
-                    </div>
-                ) : (
-                    <div className="animate-in zoom-in duration-500 w-full">
-                        <div className="inline-flex justify-center items-center p-4 bg-green-500/10 rounded-full mb-6">
-                            <CheckCircle className="text-green-500 h-12 w-12" />
-                        </div>
-                        <h3 className="text-2xl font-bold text-white mb-2 uppercase tracking-tight">Crédito Pré-Aprovado</h3>
-                        <p className="text-gray-400 mb-6 text-sm">Perfil com alta probabilidade de aprovação.</p>
-                        
-                        <div className="py-6 border-y border-white/10 mb-6">
-                            <span className="block text-xs text-gray-500 mb-2 uppercase tracking-widest font-bold">Score Estimado</span>
-                            <span className="text-7xl font-bold text-white tracking-tighter">{result}</span>
-                        </div>
+          {/* ESTADO DE CARREGAMENTO */}
+          {loading && (
+             <div className="h-full min-h-[300px] flex flex-col items-center justify-center bg-white rounded-xl border border-gray-200 shadow-sm">
+                <div className="w-12 h-12 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin mb-4"></div>
+                <p className="text-gray-600 font-medium">Conectando com Bureau de Crédito...</p>
+                <p className="text-xs text-gray-400 mt-2">Validando CPF {cpf}</p>
+             </div>
+          )}
 
-                        <div className="bg-blue-600 text-white py-3 rounded uppercase font-bold text-xs tracking-widest">
-                            Liberado para Financiar
-                        </div>
+          {/* RESULTADO (QUANDO A API RESPONDE) */}
+          {resultado && !loading && (
+            <div className="space-y-6">
+              
+              {/* CARTÃO PRINCIPAL DO RESULTADO */}
+              <div className="bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden">
+                <div className={`p-6 border-b ${
+                  resultado.status === 'alto' ? 'bg-emerald-50 border-emerald-100' : 
+                  resultado.status === 'medio' ? 'bg-yellow-50 border-yellow-100' : 'bg-red-50 border-red-100'
+                }`}>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h2 className="text-2xl font-bold text-gray-800">{resultado.nome}</h2>
+                      <p className="text-gray-500 text-sm flex items-center gap-2 mt-1">
+                        <User size={14} /> CPF: {resultado.cpf}
+                      </p>
                     </div>
-                )}
+                    <div className={`px-4 py-2 rounded-lg font-bold text-xl ${
+                      resultado.status === 'alto' ? 'bg-emerald-100 text-emerald-700' : 
+                      resultado.status === 'medio' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
+                    }`}>
+                      Score: {resultado.score}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 mb-1">Situação Cadastral</p>
+                    <div className="flex items-center gap-2 text-lg font-medium text-gray-900">
+                      {resultado.status === 'alto' ? <CheckCircle className="text-emerald-500" /> : <AlertTriangle className="text-yellow-500" />}
+                      {resultado.mensagem}
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 mb-1">Limite Sugerido (Financiamento)</p>
+                    <div className="flex items-center gap-2 text-lg font-bold text-gray-900">
+                      <CreditCard className="text-gray-400" />
+                      {resultado.limiteSugerido}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 p-4 text-right">
+                  <button className="text-sm text-emerald-700 font-bold hover:underline">
+                    Ver relatório detalhado PDF →
+                  </button>
+                </div>
+              </div>
+
+              {/* Histórico Recente (Visual) */}
+              <div className="bg-white rounded-xl border border-gray-200 p-6">
+                 <h4 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                    <History size={18} /> Histórico Recente deste Cliente
+                 </h4>
+                 <div className="text-sm text-gray-500 italic">
+                    Nenhuma consulta anterior encontrada para este CPF nos últimos 30 dias.
+                 </div>
+              </div>
+
             </div>
-
+          )}
         </div>
       </div>
     </div>
