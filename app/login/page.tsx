@@ -1,150 +1,108 @@
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import { User, Lock, ArrowRight, ShieldCheck, AlertCircle } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase'; // Importando o Supabase real
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
+import { Loader2, KeyRound, Mail } from "lucide-react";
 
-const LoginPage = () => {
+export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    setErrorMessage(null);
+    setLoading(true);
+    setErrorMsg("");
 
     try {
-      // 1. Tenta fazer login REAL no Supabase
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: email,
-        password: password,
+        email,
+        password,
       });
 
-      if (error) {
-        throw error;
+      if (error) throw error;
+
+      // --- CORREÇÃO DE SEGURANÇA E REDIRECIONAMENTO ---
+      
+      // 1. Define quem é o admin (tudo minúsculo para comparar)
+      const ADMIN_EMAIL = "admin@gmail.com"; 
+      
+      // 2. Normaliza o email digitado (remove espaços e poe minúsculo)
+      const emailDigitado = email.trim().toLowerCase();
+
+      if (emailDigitado === ADMIN_EMAIL) {
+        console.log("Logado como ADMIN. Redirecionando...");
+        router.push("/admin"); 
+      } else {
+        console.log("Logado como VENDEDOR. Redirecionando...");
+        router.push("/vendedor"); 
       }
 
-      // 2. Se deu certo, define o cargo (lógica simples baseada no email)
-      // Você pode melhorar isso depois puxando do banco de dados
-      const role = email.includes('admin') ? 'Administrador' : 'Vendedor';
-      localStorage.setItem('userRole', role);
-
-      // 3. Força o router a atualizar para o Navbar perceber a mudança
-      router.refresh();
-      router.push('/'); 
-      
     } catch (error: any) {
-      console.error("Erro no login:", error);
-      setErrorMessage("Email ou senha incorretos. Tente novamente.");
-      setIsLoading(false);
+      console.error(error);
+      setErrorMsg("Email ou senha incorretos.");
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center items-center p-4 font-sans">
-      
-      {/* Header Centralizado com Logo */}
-      <div className="mb-8 text-center animate-fade-in-down">
-        <img 
-          src="https://upload.wikimedia.org/wikipedia/commons/thumb/1/1e/Chevrolet_Logo.png/800px-Chevrolet_Logo.png" 
-          alt="Chevrolet" 
-          className="h-16 w-auto mx-auto mb-4 object-contain"
-        />
-        <h2 className="text-2xl font-bold text-gray-800 tracking-tight">Portal do Concessionário</h2>
-        <p className="text-gray-500 text-sm mt-1">Acesso exclusivo para Vendedores e Gerência</p>
-      </div>
-
-      {/* Card de Login */}
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-gray-100">
+    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+      <div className="bg-white p-8 rounded-xl shadow-xl w-full max-w-sm border border-gray-200">
         
-        {/* Barra Superior Decorativa */}
-        <div className="h-2 bg-yellow-400 w-full"></div>
+        <div className="text-center mb-6">
+          <div className="inline-flex items-center justify-center w-12 h-12 bg-black text-white rounded-lg mb-4">
+            <KeyRound size={24} />
+          </div>
+          <h1 className="text-xl font-bold text-gray-900">Acesso Restrito</h1>
+          <p className="text-xs text-gray-500 mt-1">Área exclusiva para colaboradores</p>
+        </div>
 
-        <div className="p-8">
-          <form onSubmit={handleLogin} className="space-y-6">
-            
-            {/* Mensagem de Erro */}
-            {errorMessage && (
-              <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
-                <AlertCircle size={16} />
-                {errorMessage}
-              </div>
-            )}
-
-            {/* Input Usuário */}
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                <User size={16} className="text-yellow-500" />
-                Email Corporativo
-              </label>
-              <div className="relative">
-                <input 
-                  type="email" 
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="seu@email.com"
-                  className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:border-yellow-400 focus:ring-2 focus:ring-yellow-200 outline-none transition-all text-gray-700 placeholder-gray-400"
-                />
-              </div>
-            </div>
-
-            {/* Input Senha */}
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                <Lock size={16} className="text-yellow-500" />
-                Senha de Acesso
-              </label>
-              <div className="relative">
-                <input 
-                  type="password" 
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:border-yellow-400 focus:ring-2 focus:ring-yellow-200 outline-none transition-all text-gray-700 placeholder-gray-400"
-                />
-              </div>
-            </div>
-
-            {/* Botão Entrar */}
-            <button 
-              type="submit" 
-              disabled={isLoading}
-              className={`w-full bg-gray-900 hover:bg-gray-800 text-white font-bold py-4 rounded-xl shadow-lg transition-all transform flex items-center justify-center gap-2 ${
-                isLoading ? 'opacity-70 cursor-not-allowed' : 'hover:scale-[1.02] active:scale-[0.98]'
-              }`}
-            >
-              {isLoading ? (
-                <span className="animate-pulse">Autenticando...</span>
-              ) : (
-                <>
-                  ACESSAR SISTEMA <ArrowRight size={18} />
-                </>
-              )}
-            </button>
-
-          </form>
-
-          <div className="mt-8 pt-6 border-t border-gray-100 text-center">
-            <div className="flex justify-center items-center gap-2 text-xs text-gray-400 mb-2">
-              <ShieldCheck size={14} />
-              <span>Ambiente Seguro via Supabase</span>
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Email</label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-3 text-gray-400" size={16} />
+              <input 
+                type="email" 
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded text-sm focus:border-black focus:ring-1 focus:ring-black outline-none"
+                placeholder="seu@email.com"
+              />
             </div>
           </div>
-        </div>
-      </div>
-      
-      {/* Footer simples */}
-      <div className="mt-8 text-center text-xs text-gray-400">
-        &copy; 2024 Chevrolet Dealer System.
+
+          <div>
+            <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Senha</label>
+            <input 
+              type="password" 
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded text-sm focus:border-black focus:ring-1 focus:ring-black outline-none"
+              placeholder="••••••••"
+            />
+          </div>
+
+          {errorMsg && (
+            <div className="p-3 bg-red-50 text-red-600 text-xs font-bold rounded border border-red-100 text-center">
+              {errorMsg}
+            </div>
+          )}
+
+          <button 
+            type="submit" 
+            disabled={loading}
+            className="w-full bg-black hover:bg-gray-800 text-white font-bold py-3 rounded transition-all text-sm flex items-center justify-center gap-2"
+          >
+            {loading ? <Loader2 className="animate-spin" size={16} /> : "Entrar"}
+          </button>
+        </form>
       </div>
     </div>
   );
-};
-
-export default LoginPage;
+}

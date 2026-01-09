@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Loader2, ChevronLeft } from "lucide-react";
 
-// Importa os dois "filhos" que criamos
+// Importa os dois "filhos"
 import ConfiguratorUI from "./ConfiguratorUI";
 import OrderSummary from "./OrderSummary";
 
@@ -18,7 +18,8 @@ const safePrice = (value: any): number => {
   return 0;
 };
 
-export default function VehicleConfigurator() {
+// --- COMPONENTE INTERNO COM A LÓGICA ---
+function ConfiguratorContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const idDoUrl = searchParams.get("id");
@@ -38,7 +39,6 @@ export default function VehicleConfigurator() {
   const [selectedSeatType, setSelectedSeatType] = useState<any>(null);
   const [selectedAccs, setSelectedAccs] = useState<string[]>([]);
 
-  // --- GARANTE CLIENT-ONLY RENDER PARA EVITAR HYDRATION ---
   useEffect(() => {
     setIsMounted(true);
   }, []);
@@ -48,7 +48,7 @@ export default function VehicleConfigurator() {
     supabase.auth.getUser().then(({ data }) => setUser(data.user));
   }, []);
 
-  // 2. Carrega Carro
+  // 2. Carrega Carro e Relacionados
   useEffect(() => {
     async function fetchCarData() {
       if (currentCar) setIsSwitchingCar(true);
@@ -89,8 +89,11 @@ export default function VehicleConfigurator() {
         setIsSwitchingCar(false);
       }
     }
-    fetchCarData();
-  }, [idDoUrl]);
+    
+    if (isMounted) {
+      fetchCarData();
+    }
+  }, [idDoUrl, isMounted]);
 
   // 3. Calcula Preço Total
   const totalPrice = useMemo(() => {
@@ -106,18 +109,21 @@ export default function VehicleConfigurator() {
     return total;
   }, [currentCar, selectedColor, selectedWheel, selectedSeatType, selectedAccs]);
 
-  // Funções de manipulação
+  // 4. Prepara Lista de Acessórios (Envia o objeto completo para o resumo)
+  const selectedAccessoriesList = useMemo(() => {
+    if (!currentCar?.accessories) return [];
+    return currentCar.accessories.filter((acc: any) => selectedAccs.includes(acc.id));
+  }, [currentCar, selectedAccs]);
+
   const toggleAccessory = (id: string) => {
     setSelectedAccs((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
 
-  // --- Botão Voltar ---
+  // --- BOTÃO VOLTAR (ROTA DIRETA) ---
   const handleBack = () => {
-    if (window.history.length > 1) {
-      router.back();
-    } else {
-      router.push("/");
-    }
+    // Redireciona direto para a Home ("/") onde tem o Banner e Catálogo
+    // Se quiser ir para o painel de vendedor, mude para router.push("/vendedor")
+    router.push("/");
   };
 
   if (!isMounted) return null;
@@ -127,7 +133,6 @@ export default function VehicleConfigurator() {
 
   return (
     <>
-      {/* Loading Global */}
       <div
         className={`fixed inset-0 z-[9999] bg-white flex items-center justify-center transition-opacity pointer-events-none ${
           isInitialLoad ? "opacity-100" : "opacity-0"
@@ -136,32 +141,30 @@ export default function VehicleConfigurator() {
         <Loader2 className="w-8 h-8 text-gray-300 animate-spin" />
       </div>
 
-      {/* Botão Voltar */}
       <div className="p-4">
         <button
           onClick={handleBack}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
+          className="flex items-center gap-2 px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 transition-colors"
         >
           <ChevronLeft size={18} />
-          Voltar
+          Voltar ao Catálogo
         </button>
       </div>
 
       {currentCar &&
         (showSummary ? (
-          // --- RENDERIZA O FILHO "PEDIDO/SUMMARY" ---
           <OrderSummary
             currentCar={currentCar}
             selectedColor={selectedColor}
             selectedWheel={selectedWheel}
             selectedSeatType={selectedSeatType}
             selectedAccs={selectedAccs}
+            selectedAccessoriesList={selectedAccessoriesList} // Passando a lista pronta
             totalPrice={totalPrice}
             user={user}
             onEdit={() => setShowSummary(false)}
           />
         ) : (
-          // --- RENDERIZA O FILHO "CONFIGURADOR UI" ---
           <ConfiguratorUI
             currentCar={currentCar}
             relatedCars={relatedCars}
@@ -180,5 +183,20 @@ export default function VehicleConfigurator() {
           />
         ))}
     </>
+  );
+}
+
+// --- WRAPPER DE SUSPENSE ---
+export default function VehicleConfigurator() {
+  return (
+    <Suspense 
+      fallback={
+        <div className="h-screen w-full flex items-center justify-center">
+          <Loader2 className="animate-spin text-blue-600" size={40} />
+        </div>
+      }
+    >
+      <ConfiguratorContent />
+    </Suspense>
   );
 }

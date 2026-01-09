@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { 
-  ShieldCheck, Users, DollarSign, BarChart3, LogOut 
+  ShieldCheck, Users, DollarSign, BarChart3, LogOut, ArrowRight 
 } from "lucide-react";
 
 export default function AdminDashboardPage() {
@@ -22,13 +22,12 @@ export default function AdminDashboardPage() {
 
       // SEGUNDA CAMADA DE SEGURANÇA (Frontend)
       // Se o email não for o do admin, chuta ele para a área de vendedor
-      // Dica: uso toLowerCase() para evitar erros se digitar Admin@...
-      if (user.email?.toLowerCase() !== 'admin@gmail.com') {
+      if (user.email?.toLowerCase().trim() !== 'admin@gmail.com') {
          router.push("/vendedor");
          return;
       }
 
-      // 2. Busca TODAS as vendas (sem filtro de ID)
+      // 2. Busca TODAS as vendas (sem filtro de ID, pois é o admin)
       const { data, error } = await supabase
         .from("sales")
         .select("*") 
@@ -37,7 +36,7 @@ export default function AdminDashboardPage() {
       if (!error) {
         setSales(data || []);
       } else {
-        console.error("Erro ao buscar vendas:", error);
+        console.error("Erro ao buscar dados admin:", error);
       }
       
       setLoading(false);
@@ -58,7 +57,7 @@ export default function AdminDashboardPage() {
   return (
     <div className="min-h-screen bg-gray-900 text-white font-sans">
       
-      {/* Header Admin */}
+      {/* --- HEADER DO ADMIN --- */}
       <header className="border-b border-gray-800 bg-gray-900 px-8 py-5 flex justify-between items-center sticky top-0 z-20">
         <div className="flex items-center gap-3">
           <ShieldCheck className="text-yellow-500" size={28} />
@@ -66,11 +65,19 @@ export default function AdminDashboardPage() {
             <h1 className="font-bold text-xl tracking-tight">WB Auto <span className="text-gray-500 font-normal">| Admin</span></h1>
           </div>
         </div>
+        
         <div className="flex gap-4 items-center">
-            <button onClick={() => router.push("/vendedor")} className="text-sm text-gray-400 hover:text-white transition-colors">
-                Ver como Vendedor
+            
+            {/* --- BOTÃO PARA IR AO PAINEL DE VENDEDOR --- */}
+            <button 
+                onClick={() => router.push("/vendedor")} 
+                className="text-sm bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition-colors border border-gray-700 flex items-center gap-2"
+            >
+                Ir para Área Vendedor <ArrowRight size={14} />
             </button>
+
             <div className="h-6 w-px bg-gray-700"></div>
+            
             <button onClick={handleLogout} className="text-red-400 hover:text-red-300 text-sm font-bold flex items-center gap-2">
               <LogOut size={16} /> Sair
             </button>
@@ -161,7 +168,7 @@ export default function AdminDashboardPage() {
             {sales.length === 0 && (
                 <div className="p-8 text-center text-gray-500">
                   Nenhum dado encontrado.<br/>
-                  <span className="text-xs">Se você fez vendas mas elas não aparecem aqui, verifique a Política RLS no Supabase.</span>
+                  <span className="text-xs">Verifique se existem vendas no banco de dados.</span>
                 </div>
             )}
           </div>

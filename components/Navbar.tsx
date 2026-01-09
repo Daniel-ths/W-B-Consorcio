@@ -131,7 +131,7 @@ export default function Navbar() {
                   <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Logado como</p>
                   <p className="text-sm font-bold text-gray-900 truncate">{user.email}</p>
                   <span className="inline-block mt-2 px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded-full uppercase tracking-wide">
-                    {role ? role : 'Cliente'}
+                    {role ? role : 'ADM'}
                   </span>
                 </div>
 

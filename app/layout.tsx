@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
-// 1. IMPORTA O CONTEXTO DE AUTENTICAÇÃO
+// MUDANÇA 1: Importamos o Wrapper em vez do Footer direto
+import FooterWrapper from "@/components/FooterWrapper"; 
 import { AuthProvider } from "@/contexts/AuthContext";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -18,29 +18,22 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="pt-BR">
-      <body className={`${inter.className} min-h-screen bg-white text-gray-900`}>
-        
-        {/* 2. O AUTHPROVIDER ENVOLVE TUDO (NAVBAR, MAIN, FOOTER) */}
+      <body className={`${inter.className} flex flex-col min-h-screen bg-white text-gray-900`}>
         <AuthProvider>
-          
           <Navbar />
-          
-          <main className="min-h-screen">
+
+          {/* MAIN precisa ser flex-grow e padding-bottom suficiente para o footer */}
+          <main className="flex-grow">
             {children}
           </main>
-          
-          {/* --- SEUS BOTÕES FLUTUANTES --- */}
-          {/* <AdminButton /> */} 
 
-          <Footer />
+          {/* MUDANÇA 2: Usamos o Wrapper que decide se mostra ou não o Footer */}
+          <FooterWrapper />
           
         </AuthProvider>
-
       </body>
     </html>
   );
