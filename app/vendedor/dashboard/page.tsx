@@ -11,9 +11,11 @@ import {
   TrendingUp, 
   Plus, 
   ShieldCheck, 
-  Calendar, 
   Clock,
-  BadgeCheck 
+  BadgeCheck,
+  Wallet,      // Ícone para Consórcio
+  Banknote,    // Ícone para Financiamento
+  AlertCircle  // Ícone para Score baixo
 } from "lucide-react";
 
 export default function SellerDashboard() {
@@ -24,6 +26,7 @@ export default function SellerDashboard() {
 
   useEffect(() => {
     const init = async () => {
+      // 1. Tenta pegar o usuário da sessão atual
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
@@ -33,9 +36,7 @@ export default function SellerDashboard() {
       
       setUser(user);
       
-      // DEBUG NO CONSOLE (Aperte F12 se der erro)
-      console.log("Email Logado:", user.email);
-      
+      // 2. Busca as vendas
       const { data } = await supabase
         .from("sales")
         .select("*")
@@ -50,15 +51,13 @@ export default function SellerDashboard() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
+    router.refresh(); 
     router.push("/login");
   };
 
   const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   const formatDate = (date: string) => new Date(date).toLocaleDateString('pt-BR');
 
-  // --- O CONTORNO (SOLUÇÃO DEFINITIVA) ---
-  // Verifica se o email existe E se contém a palavra "admin" em qualquer parte dele.
-  // Isso evita erros de digitação exata.
   const userEmail = user?.email || "";
   const isAdmin = userEmail.toLowerCase().includes("admin");
 
@@ -87,14 +86,13 @@ export default function SellerDashboard() {
                     </h1>
                     {isAdmin && <BadgeCheck size={18} className="text-blue-600 fill-blue-50" />}
                 </div>
-                <p className="text-xs text-gray-500">{userEmail}</p>
+                <p className="text-xs text-gray-500 font-mono mt-1">{userEmail}</p>
              </div>
           </div>
           
           {/* LADO DIREITO: BOTÕES DE AÇÃO */}
           <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-center md:justify-end">
             
-            {/* BOTÃO PAINEL ADMIN (Agora com verificação flexível) */}
             {isAdmin && (
               <button
                 onClick={() => router.push('/admin')}
@@ -117,7 +115,7 @@ export default function SellerDashboard() {
 
             <button 
               onClick={handleLogout} 
-              className="text-red-600 hover:bg-red-50 px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors"
+              className="text-red-600 hover:bg-red-50 px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors border border-transparent hover:border-red-100"
             >
               <LogOut size={18} />
               <span className="hidden sm:inline">Sair</span>
@@ -171,28 +169,97 @@ export default function SellerDashboard() {
                         <tr>
                             <th className="px-6 py-4">Data</th>
                             <th className="px-6 py-4">Cliente</th>
-                            <th className="px-6 py-4">Carro</th>
+                            <th className="px-6 py-4">Contato</th>
+                            <th className="px-6 py-4">Veículo</th>
+                            <th className="px-6 py-4">Pagamento</th>
+                            <th className="px-6 py-4 text-center">Score</th> {/* Coluna nova */}
                             <th className="px-6 py-4 text-center">Status</th>
                             <th className="px-6 py-4 text-right">Valor</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                        {sales.map(sale => (
-                            <tr key={sale.id} className="hover:bg-blue-50/20 transition-colors">
-                                <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{formatDate(sale.created_at)}</td>
-                                <td className="px-6 py-4">
-                                    <p className="font-bold text-gray-900">{sale.client_name}</p>
-                                    <p className="text-xs text-gray-400 font-mono">{sale.client_cpf}</p>
-                                </td>
-                                <td className="px-6 py-4 text-gray-700">{sale.car_name}</td>
-                                <td className="px-6 py-4 text-center">
-                                    {sale.status === 'Aprovado' 
-                                        ? <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold border border-green-200"><CheckCircle size={10}/> Aprovado</span> 
-                                        : <span className="inline-flex items-center gap-1 bg-yellow-100 text-yellow-700 px-2 py-1 rounded text-xs font-bold border border-yellow-200"><Clock size={10}/> Análise</span>}
-                                </td>
-                                <td className="px-6 py-4 text-right font-medium">{formatCurrency(sale.total_price)}</td>
-                            </tr>
-                        ))}
+                        {sales.map(sale => {
+                            // Correção da lógica de exibição
+                            const interestType = sale.interest_type || sale.payment_method || ""; 
+                            const isConsorcio = interestType.toLowerCase().includes('consorcio');
+                            const isFinanciamento = interestType.toLowerCase().includes('financiamento');
+                            
+                            // Lógica do Score
+                            const score = sale.score_result || 0;
+                            const isGoodScore = score > 600;
+
+                            return (
+                              <tr key={sale.id} className="hover:bg-blue-50/20 transition-colors">
+                                  <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{formatDate(sale.created_at)}</td>
+                                  
+                                  {/* Coluna Nome */}
+                                  <td className="px-6 py-4">
+                                      <p className="font-bold text-gray-900">{sale.client_name}</p>
+                                      <p className="text-xs text-gray-400 font-mono">{sale.client_cpf}</p>
+                                  </td>
+
+                                  {/* Contato */}
+                                  <td className="px-6 py-4">
+                                      {sale.client_phone ? (
+                                          <a 
+                                            href={`https://wa.me/55${sale.client_phone.replace(/\D/g, '')}`} 
+                                            target="_blank" 
+                                            rel="noreferrer"
+                                            className="flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                                          >
+                                              📱 {sale.client_phone}
+                                          </a>
+                                      ) : (
+                                          <span className="text-gray-400 text-xs italic">Não informado</span>
+                                      )}
+                                  </td>
+
+                                  {/* Veículo */}
+                                  <td className="px-6 py-4 text-gray-700 font-medium">
+                                      {sale.car_name || sale.veiculo_interesse}
+                                  </td>
+
+                                  {/* Pagamento (CORRIGIDO) */}
+                                  <td className="px-6 py-4">
+                                      {interestType ? (
+                                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold border ${
+                                              isConsorcio 
+                                              ? 'bg-purple-50 text-purple-700 border-purple-200' 
+                                              : 'bg-blue-50 text-blue-700 border-blue-200'
+                                          }`}>
+                                              {isConsorcio ? <Wallet size={12}/> : <Banknote size={12}/>}
+                                              {isConsorcio ? "Consórcio" : "Financiamento"}
+                                          </span>
+                                      ) : (
+                                          <span className="px-2 py-1 rounded-md text-xs font-bold bg-gray-100 text-gray-500 border border-gray-200">
+                                              Não salvo
+                                          </span>
+                                      )}
+                                  </td>
+
+                                  {/* Score (NOVO) */}
+                                  <td className="px-6 py-4 text-center">
+                                    <div className={`inline-flex items-center justify-center w-12 py-1 rounded font-bold text-xs ${
+                                      score > 0 
+                                        ? (isGoodScore ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800')
+                                        : 'bg-gray-100 text-gray-400'
+                                    }`}>
+                                      {score > 0 ? score : "-"}
+                                    </div>
+                                  </td>
+
+                                  {/* Status */}
+                                  <td className="px-6 py-4 text-center">
+                                      {sale.status === 'Aprovado' 
+                                          ? <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold border border-green-200"><CheckCircle size={10}/> Aprovado</span> 
+                                          : <span className="inline-flex items-center gap-1 bg-yellow-100 text-yellow-700 px-2 py-1 rounded text-xs font-bold border border-yellow-200"><Clock size={10}/> Análise</span>}
+                                  </td>
+
+                                  {/* Valor */}
+                                  <td className="px-6 py-4 text-right font-medium">{formatCurrency(sale.total_price)}</td>
+                              </tr>
+                            );
+                        })}
                     </tbody>
                 </table>
                 {sales.length === 0 && <div className="p-12 text-center text-gray-400">Nenhuma venda encontrada.</div>}

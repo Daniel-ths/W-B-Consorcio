@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link"; // Importação necessária para o botão de login
+import Link from "next/link"; 
 import { supabase } from "@/lib/supabase";
 import { 
   Loader2, 
@@ -10,7 +10,10 @@ import {
   Link as LinkIcon,
   Check,
   Package,
-  Lock // Ícone de cadeado para área restrita
+  Lock,
+  Wallet,
+  Banknote,
+  CheckCircle2
 } from "lucide-react";
 
 const formatCurrency = (val: number) => {
@@ -29,10 +32,13 @@ export default function OrderSummary({
   selectedSeatType,
   selectedAccessoriesList = [], 
   totalPrice,
-  user, // Esse objeto user vem do componente pai (VehicleConfigurator) que checou a sessão
+  user, 
   onEdit, 
 }: any) {
   
+  // Estado para controlar a modalidade (Financiamento ou Consórcio)
+  const [paymentMethod, setPaymentMethod] = useState<"Financiamento" | "Consorcio">("Financiamento");
+
   const [clientName, setClientName] = useState("");
   const [clientCpf, setClientCpf] = useState("");
   const [clientEmail, setClientEmail] = useState("");
@@ -42,7 +48,7 @@ export default function OrderSummary({
   const [score, setScore] = useState<number | null>(null);
 
   const handleFinishOrder = async () => {
-    // Dupla verificação de segurança
+    // 1. Validações Básicas
     if (!user) {
       alert("Você precisa estar logado para realizar esta ação.");
       return;
@@ -52,7 +58,18 @@ export default function OrderSummary({
       alert("Por favor, preencha os dados obrigatórios.");
       return;
     }
+    
     setLoading(true);
+
+    // 2. DEBUG: Mostra no console o objeto carro para verificação
+    console.log("--- DEBUG START ---");
+    console.log("Objeto currentCar recebido:", currentCar);
+    
+    // 3. Tratamento do Nome do Carro (CORREÇÃO FINAL: model_name)
+    // Agora procura especificamente por 'model_name' que vimos no seu log
+    const carNameResolved = currentCar.model_name || currentCar.name || currentCar.model || `Veículo ID ${currentCar.id}`;
+    
+    console.log("Nome que será salvo:", carNameResolved);
 
     const simulatedScore = Math.floor(Math.random() * (999 - 300 + 1)) + 300;
     setScore(simulatedScore);
@@ -60,8 +77,8 @@ export default function OrderSummary({
     try {
       const saleData = {
         car_id: currentCar.id,
-        car_name: currentCar.name,
-        seller_id: user.id, // AQUI: Salva o ID do vendedor logado
+        car_name: carNameResolved, // <--- Aqui vai o nome correto ('Onix Plus MT')
+        seller_id: user.id,
         client_name: clientName,
         client_cpf: clientCpf,
         client_email: clientEmail,
@@ -69,10 +86,11 @@ export default function OrderSummary({
         total_price: totalPrice,
         score_result: simulatedScore,
         status: simulatedScore > 600 ? "Aprovado" : "Em Análise",
+        interest_type: paymentMethod,
         details: {
-          color: selectedColor?.name,
-          wheels: selectedWheel?.name,
-          seats: selectedSeatType?.name,
+          color: selectedColor?.name || "Padrão",
+          wheels: selectedWheel?.name || "Padrão",
+          seats: selectedSeatType?.name || "Padrão",
           accessories: selectedAccessoriesList.map((a: any) => a.name)
         },
         created_at: new Date().toISOString(),
@@ -82,6 +100,7 @@ export default function OrderSummary({
       if (error) throw error;
       setSuccess(true);
     } catch (error: any) {
+      console.error("Erro ao salvar no Supabase:", error);
       alert("Erro ao salvar: " + error.message);
     } finally {
       setLoading(false);
@@ -96,7 +115,7 @@ export default function OrderSummary({
         </div>
         <div>
            <h2 className="text-4xl font-light text-gray-900 mb-2">Pedido Registrado</h2>
-           <p className="text-gray-500">A proposta foi enviada para análise.</p>
+           <p className="text-gray-500">A proposta de <strong>{paymentMethod}</strong> foi enviada para análise.</p>
         </div>
         <div className="bg-gray-50 p-10 rounded border border-gray-200 shadow-xl w-full max-w-md">
           <p className="text-gray-400 uppercase text-xs font-bold tracking-widest mb-4">SCORE DE CRÉDITO</p>
@@ -112,19 +131,19 @@ export default function OrderSummary({
     );
   }
 
+  // O resto do render (HTML) continua igual, apenas adaptamos o título para usar model_name também
   return (
     <div className="w-full bg-white font-sans text-[#1a1a1a]">
       
       {/* 1. HEADER (Fixo) */}
       <div className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm flex-none">
         <div className="max-w-[1400px] mx-auto px-6 h-20 flex items-center justify-between">
-          <h1 className="text-3xl font-light tracking-tight">Sua 2026 {currentCar.name}</h1>
+          <h1 className="text-3xl font-light tracking-tight">Sua 2026 {currentCar.model_name || currentCar.name}</h1>
           <div className="flex items-center gap-6">
             <div className="flex gap-4 text-gray-600">
                <button className="hover:text-black"><Download size={20} /></button>
                <button className="hover:text-black"><LinkIcon size={20} /></button>
             </div>
-            {/* Botões do Topo só aparecem se estiver logado, opcionalmente */}
             {user && (
               <>
                 <button className="hidden md:block px-6 py-2 bg-gray-100 text-gray-900 font-medium rounded hover:bg-gray-200 transition-colors text-sm">
@@ -147,7 +166,7 @@ export default function OrderSummary({
            <div className="max-w-[1200px] w-full aspect-[21/9] relative">
               <img 
                 src={currentCar.image_url || "/placeholder-car.png"} 
-                alt={currentCar.name} 
+                alt={currentCar.model_name || currentCar.name} 
                 className="w-full h-full object-contain drop-shadow-xl"
               />
            </div>
@@ -173,7 +192,7 @@ export default function OrderSummary({
                       <div className="w-24 h-16 bg-white border border-gray-200 rounded flex items-center justify-center p-1 overflow-hidden">
                         <img src={currentCar.image_url} className="w-full h-full object-cover" />
                       </div>
-                      <p className="text-lg font-normal">2026 {currentCar.name}</p>
+                      <p className="text-lg font-normal">2026 {currentCar.model_name || currentCar.name}</p>
                    </div>
                  </div>
               </div>
@@ -276,8 +295,8 @@ export default function OrderSummary({
                   </div>
                   
                   <div className="border-t border-gray-200 pt-6 flex justify-between items-baseline">
-                     <span className="text-lg font-bold text-gray-900">Total estimado</span>
-                     <span className="text-3xl font-normal text-gray-900">{formatCurrency(totalPrice)}</span>
+                      <span className="text-lg font-bold text-gray-900">Total estimado</span>
+                      <span className="text-3xl font-normal text-gray-900">{formatCurrency(totalPrice)}</span>
                   </div>
                   
                   <div className="mt-8 text-xs text-gray-400 space-y-2">
@@ -290,78 +309,108 @@ export default function OrderSummary({
           {/* DADOS PARA PROPOSTA E SCORE (SEGMENTO PROTEGIDO) */}
           <section className="pt-10 border-t border-gray-200">
              <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-                {/* Texto Intro */}
-                <div className="lg:col-span-1">
-                   <h3 className="text-2xl font-normal text-gray-900 mb-4">Dados para Proposta</h3>
-                   <p className="text-sm text-gray-500">
-                     Preencha seus dados para finalizar a configuração e calcular seu score de financiamento.
-                   </p>
-                </div>
+               {/* Texto Intro */}
+               <div className="lg:col-span-1">
+                  <h3 className="text-2xl font-normal text-gray-900 mb-4">Dados para Proposta</h3>
+                  <p className="text-sm text-gray-500">
+                    Preencha seus dados para finalizar a configuração e calcular seu score de financiamento.
+                  </p>
+               </div>
 
-                <div className="lg:col-span-3">
-                   
-                   {/* VERIFICAÇÃO DE USUÁRIO: Se não tiver user, mostra bloqueio */}
-                   {!user ? (
-                     <div className="bg-gray-50 border border-gray-200 rounded-lg p-10 flex flex-col items-center justify-center text-center">
-                        <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mb-4">
-                            <Lock className="text-gray-500" size={32} />
-                        </div>
-                        <h3 className="text-xl font-bold text-gray-900 mb-2">Funcionalidade Restrita</h3>
-                        <p className="text-gray-500 mb-6 max-w-md">
-                          A consulta de Score e finalização de propostas são exclusivas para vendedores logados.
-                        </p>
-                        <Link 
-                          href="/login" 
-                          className="bg-blue-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-blue-700 transition-colors"
+               <div className="lg:col-span-3">
+                  
+                  {/* VERIFICAÇÃO DE USUÁRIO: Se não tiver user, mostra bloqueio */}
+                  {!user ? (
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-10 flex flex-col items-center justify-center text-center">
+                       <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mb-4">
+                           <Lock className="text-gray-500" size={32} />
+                       </div>
+                       <h3 className="text-xl font-bold text-gray-900 mb-2">Funcionalidade Restrita</h3>
+                       <p className="text-gray-500 mb-6 max-w-md">
+                         A consulta de Score e finalização de propostas são exclusivas para vendedores logados.
+                       </p>
+                       <Link 
+                         href="/login" 
+                         className="bg-blue-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-blue-700 transition-colors"
+                       >
+                         Fazer Login de Vendedor
+                       </Link>
+                    </div>
+                  ) : (
+                    // SE TIVER USER, MOSTRA O FORMULÁRIO NORMAL
+                    <div className="grid grid-cols-1 gap-6">
+                      
+                      {/* --- SELEÇÃO DE MODALIDADE --- */}
+                      <div className="grid grid-cols-2 gap-4 mb-2">
+                        <button
+                          onClick={() => setPaymentMethod("Financiamento")}
+                          className={`py-4 rounded border-2 font-bold flex items-center justify-center gap-2 transition-all
+                            ${paymentMethod === "Financiamento" 
+                              ? "border-blue-600 bg-blue-50 text-blue-700" 
+                              : "border-gray-200 hover:border-blue-200 text-gray-500"}`}
                         >
-                          Fazer Login de Vendedor
-                        </Link>
-                     </div>
-                   ) : (
-                     // SE TIVER USER, MOSTRA O FORMULÁRIO NORMAL
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                          <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Nome Completo</label>
-                          <input 
-                            value={clientName} onChange={e => setClientName(e.target.value)}
-                            className="w-full h-12 px-4 border border-gray-300 rounded focus:border-black outline-none bg-white transition-all text-sm"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-gray-500 uppercase mb-2">CPF</label>
-                          <input 
-                            value={clientCpf} onChange={e => setClientCpf(e.target.value)}
-                            className="w-full h-12 px-4 border border-gray-300 rounded focus:border-black outline-none bg-white transition-all text-sm"
-                            placeholder="000.000.000-00"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Email</label>
-                          <input 
-                            value={clientEmail} onChange={e => setClientEmail(e.target.value)}
-                            className="w-full h-12 px-4 border border-gray-300 rounded focus:border-black outline-none bg-white transition-all text-sm"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Telefone</label>
-                          <input 
-                            value={clientPhone} onChange={e => setClientPhone(e.target.value)}
-                            className="w-full h-12 px-4 border border-gray-300 rounded focus:border-black outline-none bg-white transition-all text-sm"
-                          />
-                        </div>
+                          <Banknote size={20} /> Financiamento
+                          {paymentMethod === "Financiamento" && <CheckCircle2 size={16} />}
+                        </button>
 
-                        <div className="md:col-span-2 mt-4 flex justify-end">
-                            <button 
-                              onClick={handleFinishOrder}
-                              disabled={loading}
-                              className="bg-[#1c1c1c] text-white font-bold py-4 px-12 rounded hover:bg-black transition-colors flex items-center gap-3 shadow-lg disabled:opacity-70 text-sm uppercase tracking-wider"
-                            >
-                              {loading ? <Loader2 className="animate-spin" size={18} /> : 'Finalizar e Calcular Score'}
-                            </button>
-                        </div>
-                     </div>
-                   )}
-                </div>
+                        <button
+                          onClick={() => setPaymentMethod("Consorcio")}
+                          className={`py-4 rounded border-2 font-bold flex items-center justify-center gap-2 transition-all
+                            ${paymentMethod === "Consorcio" 
+                              ? "border-purple-600 bg-purple-50 text-purple-700" 
+                              : "border-gray-200 hover:border-purple-200 text-gray-500"}`}
+                        >
+                          <Wallet size={20} /> Consórcio
+                          {paymentMethod === "Consorcio" && <CheckCircle2 size={16} />}
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                         <div>
+                           <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Nome Completo</label>
+                           <input 
+                             value={clientName} onChange={e => setClientName(e.target.value)}
+                             className="w-full h-12 px-4 border border-gray-300 rounded focus:border-black outline-none bg-white transition-all text-sm"
+                           />
+                         </div>
+                         <div>
+                           <label className="block text-xs font-bold text-gray-500 uppercase mb-2">CPF</label>
+                           <input 
+                             value={clientCpf} onChange={e => setClientCpf(e.target.value)}
+                             className="w-full h-12 px-4 border border-gray-300 rounded focus:border-black outline-none bg-white transition-all text-sm"
+                             placeholder="000.000.000-00"
+                           />
+                         </div>
+                         <div>
+                           <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Email</label>
+                           <input 
+                             value={clientEmail} onChange={e => setClientEmail(e.target.value)}
+                             className="w-full h-12 px-4 border border-gray-300 rounded focus:border-black outline-none bg-white transition-all text-sm"
+                           />
+                         </div>
+                         <div>
+                           <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Telefone</label>
+                           <input 
+                             value={clientPhone} onChange={e => setClientPhone(e.target.value)}
+                             className="w-full h-12 px-4 border border-gray-300 rounded focus:border-black outline-none bg-white transition-all text-sm"
+                           />
+                         </div>
+                      </div>
+
+                      <div className="mt-4 flex justify-end">
+                          <button 
+                            onClick={handleFinishOrder}
+                            disabled={loading}
+                            className={`text-white font-bold py-4 px-12 rounded hover:opacity-90 transition-colors flex items-center gap-3 shadow-lg disabled:opacity-70 text-sm uppercase tracking-wider
+                              ${paymentMethod === 'Consorcio' ? 'bg-purple-700' : 'bg-[#1c1c1c]'}
+                            `}
+                          >
+                            {loading ? <Loader2 className="animate-spin" size={18} /> : `Finalizar (${paymentMethod})`}
+                          </button>
+                      </div>
+                    </div>
+                  )}
+               </div>
              </div>
           </section>
 

@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
-  // LOG PARA DEPURAR: Ver se o middleware está rodando
+  // LOG PARA DEPURAR
   console.log(`🔒 Verificando acesso em: ${request.nextUrl.pathname}`)
 
   let response = NextResponse.next({
@@ -36,18 +36,19 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // Se tem usuário, mostra no terminal
   if (user) {
     console.log("✅ Usuário logado: ", user.email)
   } else {
     console.log("❌ Usuário NÃO logado")
   }
 
-  // REGRA DE PROTEÇÃO
-  if (request.nextUrl.pathname.startsWith('/admin') && request.nextUrl.pathname !== '/admin/login') {
+  // REGRA DE PROTEÇÃO CORRIGIDA
+  // Se tentar acessar /admin e não tiver usuário...
+  if (request.nextUrl.pathname.startsWith('/admin')) {
     if (!user) {
       console.log("🚫 Acesso NEGADO. Redirecionando para Login.")
-      return NextResponse.redirect(new URL('/admin/login', request.url))
+      // AQUI ESTAVA O ERRO: Mudamos de '/admin/login' para '/login'
+      return NextResponse.redirect(new URL('/login', request.url))
     }
   }
 

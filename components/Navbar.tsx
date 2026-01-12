@@ -14,8 +14,9 @@ import {
   ShoppingBag, 
   Briefcase, 
   ChevronDown,
-  LayoutDashboard, // Importei o ícone do painel
-  LogOut // Importei o ícone de sair
+  LayoutDashboard, 
+  LogOut,
+  ShieldCheck // Importei o ícone do Admin
 } from "lucide-react";
 import VehiclesMenu from "./VehiclesMenu";
 
@@ -26,7 +27,6 @@ export default function Navbar() {
 
   // Login e Estado do Usuário
   const [user, setUser] = useState<any>(null);
-  const [role, setRole] = useState<string | null>(null); // Estado para o cargo (vendedor/admin)
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
@@ -34,13 +34,6 @@ export default function Navbar() {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
-      
-      // Tenta recuperar o cargo salvo no localStorage durante o Login
-      if (typeof window !== 'undefined') {
-        const savedRole = localStorage.getItem('userRole');
-        setRole(savedRole);
-      }
-      
       setLoading(false);
     };
 
@@ -56,14 +49,23 @@ export default function Navbar() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    localStorage.removeItem('userRole'); // Limpa o cargo ao sair
+    localStorage.removeItem('userRole'); 
     router.refresh();
-    router.push('/login'); // Manda de volta pro login
+    window.location.href = "/login"; // Força recarregamento
   };
 
   const toggleMenu = (menu: string) => {
     setMenuAberto(menuAberto === menu ? null : menu);
   };
+
+  // --- LÓGICA DE ROTAS INTELIGENTE ---
+  // Verifica se o email contém "admin" para definir o destino
+  const userEmail = user?.email || "";
+  const isAdmin = userEmail.toLowerCase().includes("admin");
+
+  // Define para onde vai o botão principal
+  const dashboardLink = isAdmin ? "/admin" : "/vendedor";
+  const dashboardLabel = isAdmin ? "Painel Gerencial" : "Painel do Vendedor";
 
   return (
     <>
@@ -84,7 +86,7 @@ export default function Navbar() {
             >
               {menuAberto === 'veiculos' ? <X size={16}/> : null} Veículos
             </button>
-            <Link href="#estoque" className="text-xs font-bold text-gray-600 uppercase tracking-wide hover:text-black transition-colors">
+            <Link href="/#estoque" className="text-xs font-bold text-gray-600 uppercase tracking-wide hover:text-black transition-colors">
               Comprar
             </Link>
           </div>
@@ -109,8 +111,8 @@ export default function Navbar() {
             // --- USUÁRIO LOGADO ---
             <div className="relative group py-2">
               <button className="flex items-center gap-2 px-3 py-2 rounded-full hover:bg-white hover:shadow-sm transition-all border border-transparent hover:border-gray-200">
-                {/* Ícone de Pessoa ou Inicial */}
-                <div className="w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center font-bold text-sm shadow-sm">
+                {/* Ícone de Pessoa (Muda cor se for Admin) */}
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ${isAdmin ? 'bg-black text-yellow-400' : 'bg-gray-900 text-white'}`}>
                   <User size={16} />
                 </div>
                 
@@ -130,21 +132,27 @@ export default function Navbar() {
                 <div className="p-4 border-b border-gray-100">
                   <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Logado como</p>
                   <p className="text-sm font-bold text-gray-900 truncate">{user.email}</p>
-                  <span className="inline-block mt-2 px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded-full uppercase tracking-wide">
-                    {role ? role : 'ADM'}
+                  
+                  {/* Badge de Cargo */}
+                  <span className={`inline-block mt-2 px-2 py-0.5 text-[10px] font-bold rounded-full uppercase tracking-wide ${isAdmin ? 'bg-black text-yellow-400' : 'bg-green-100 text-green-700'}`}>
+                    {isAdmin ? 'Administrador' : 'Vendedor'}
                   </span>
                 </div>
 
                 {/* Itens do Menu */}
                 <div className="p-2 space-y-1">
                   
-                  {/* LINK DO PAINEL DO VENDEDOR (Só aparece se tiver logado) */}
+                  {/* LINK INTELIGENTE DO PAINEL */}
                   <Link 
-                    href="/dashboard" 
-                    className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-700 rounded-lg hover:bg-yellow-50 hover:text-yellow-700 transition-colors"
+                    href={dashboardLink} 
+                    className={`flex items-center gap-3 px-4 py-3 text-sm font-bold rounded-lg transition-colors ${
+                        isAdmin 
+                        ? 'text-gray-800 hover:bg-black hover:text-yellow-400' // Estilo Admin
+                        : 'text-gray-700 hover:bg-yellow-50 hover:text-yellow-700' // Estilo Vendedor
+                    }`}
                   >
-                    <LayoutDashboard size={18} />
-                    Painel do Vendedor
+                    {isAdmin ? <ShieldCheck size={18} /> : <LayoutDashboard size={18} />}
+                    {dashboardLabel}
                   </Link>
 
                   <Link 
@@ -212,7 +220,7 @@ export default function Navbar() {
             <Link href="#" className="flex items-center gap-4 text-gray-800 font-bold text-sm uppercase tracking-wide hover:text-[#CD9834] group transition-colors">
               <Briefcase size={18} className="text-gray-400 group-hover:text-[#CD9834]"/> Vendas Diretas
             </Link>
-            <Link href="#estoque" onClick={() => setSidebarOpen(false)} className="flex items-center gap-4 text-gray-800 font-bold text-sm uppercase tracking-wide hover:text-[#CD9834] group transition-colors">
+            <Link href="/#estoque" onClick={() => setSidebarOpen(false)} className="flex items-center gap-4 text-gray-800 font-bold text-sm uppercase tracking-wide hover:text-[#CD9834] group transition-colors">
               <ShoppingBag size={18} className="text-gray-400 group-hover:text-[#CD9834]"/> Comprar
             </Link>
             <Link href="#" className="flex items-center gap-4 text-gray-800 font-bold text-sm uppercase tracking-wide hover:text-[#CD9834] group transition-colors">

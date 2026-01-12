@@ -1,108 +1,106 @@
-"use client";
+'use client'
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
-import { Loader2, KeyRound, Mail } from "lucide-react";
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
 
 export default function LoginPage() {
-  const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState("");
+  const router = useRouter()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setErrorMsg("");
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
 
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+    // 1. Login no Supabase
+    const { data: { user }, error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
 
-      if (error) throw error;
-
-      // --- CORREÇÃO DE SEGURANÇA E REDIRECIONAMENTO ---
-      
-      // 1. Define quem é o admin (tudo minúsculo para comparar)
-      const ADMIN_EMAIL = "admin@gmail.com"; 
-      
-      // 2. Normaliza o email digitado (remove espaços e poe minúsculo)
-      const emailDigitado = email.trim().toLowerCase();
-
-      if (emailDigitado === ADMIN_EMAIL) {
-        console.log("Logado como ADMIN. Redirecionando...");
-        router.push("/admin"); 
-      } else {
-        console.log("Logado como VENDEDOR. Redirecionando...");
-        router.push("/vendedor"); 
-      }
-
-    } catch (error: any) {
-      console.error(error);
-      setErrorMsg("Email ou senha incorretos.");
-      setLoading(false);
+    if (authError || !user) {
+      setError('Erro ao entrar: Verifique e-mail e senha.')
+      setLoading(false)
+      return
     }
-  };
+
+    // 2. Busca o cargo do usuário
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    if (profileError || !profile) {
+      setError('Usuário sem perfil cadastrado.')
+      setLoading(false)
+      return
+    }
+
+    // 3. Redirecionamento (CORRIGIDO TAMBÉM)
+    if (profile.role === 'admin') {
+      router.push('/admin') // Manda para a página principal do Admin
+    } else if (profile.role === 'vendedor') {
+      router.push('/vendedor/dashboard') // Manda para o dashboard do Vendedor
+    } else {
+      router.push('/') // Se não for nenhum dos dois, vai para a Home
+    }
+    
+    setLoading(false)
+  }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="bg-white p-8 rounded-xl shadow-xl w-full max-w-sm border border-gray-200">
+    <div className="flex min-h-screen items-center justify-center bg-gray-100 p-4">
+      <div className="w-full max-w-md space-y-8 rounded-lg bg-white p-8 shadow-md">
+        <h2 className="text-center text-3xl font-bold tracking-tight text-gray-900">
+          Acesse sua conta
+        </h2>
         
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-12 h-12 bg-black text-white rounded-lg mb-4">
-            <KeyRound size={24} />
-          </div>
-          <h1 className="text-xl font-bold text-gray-900">Acesso Restrito</h1>
-          <p className="text-xs text-gray-500 mt-1">Área exclusiva para colaboradores</p>
-        </div>
-
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Email</label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-3 text-gray-400" size={16} />
-              <input 
-                type="email" 
+        <form className="mt-8 space-y-6" onSubmit={handleLogin}>
+          <div className="space-y-4 rounded-md shadow-sm">
+            <div>
+              <input
+                type="email"
                 required
+                className="relative block w-full rounded-md border-0 py-1.5 p-2 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
+                placeholder="Endereço de e-mail"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded text-sm focus:border-black focus:ring-1 focus:ring-black outline-none"
-                placeholder="seu@email.com"
+              />
+            </div>
+            <div>
+              <input
+                type="password"
+                required
+                className="relative block w-full rounded-md border-0 py-1.5 p-2 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
+                placeholder="Senha"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
               />
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Senha</label>
-            <input 
-              type="password" 
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded text-sm focus:border-black focus:ring-1 focus:ring-black outline-none"
-              placeholder="••••••••"
-            />
-          </div>
-
-          {errorMsg && (
-            <div className="p-3 bg-red-50 text-red-600 text-xs font-bold rounded border border-red-100 text-center">
-              {errorMsg}
+          {error && (
+            <div className="text-red-500 text-sm text-center font-semibold">
+              {error}
             </div>
           )}
 
-          <button 
-            type="submit" 
-            disabled={loading}
-            className="w-full bg-black hover:bg-gray-800 text-white font-bold py-3 rounded transition-all text-sm flex items-center justify-center gap-2"
-          >
-            {loading ? <Loader2 className="animate-spin" size={16} /> : "Entrar"}
-          </button>
+          <div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="group relative flex w-full justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-70"
+            >
+              {loading ? 'Entrando...' : 'Entrar'}
+            </button>
+          </div>
         </form>
       </div>
     </div>
-  );
+  )
 }
