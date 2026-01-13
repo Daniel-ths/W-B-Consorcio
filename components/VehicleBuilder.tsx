@@ -49,20 +49,21 @@ const mockExteriorAccessories = [
     { name: "Ponteira de escapamento", price: 1156, icon: Package },
 ];
 
+// CORREÇÃO: Adicionado 'icon' para evitar erros de TypeScript/Runtime
 const mockInteriorAccessories = [
-    { name: "Tapete de bandeja para porta-malas", price: 589 },
-    { name: "Tapete de pvc", price: 646 },
-    { name: "Bancos com revestimento premium", price: 2750 },
-    { name: "Pedaleira esportiva", price: 482 },
-    { name: "OnStar Protect & Connect", price: 1299 },
+    { name: "Tapete de bandeja para porta-malas", price: 589, icon: Package },
+    { name: "Tapete de pvc", price: 646, icon: Package },
+    { name: "Bancos com revestimento premium", price: 2750, icon: Shield },
+    { name: "Pedaleira esportiva", price: 482, icon: Package },
+    { name: "OnStar Protect & Connect", price: 1299, icon: Info },
 ];
 
 export default function VehicleBuilder({ vehicle }: { vehicle: VehicleProps }) {
+  // Tratamento seguro do preço
   const basePrice = typeof vehicle.price === 'string' 
-    ? parseFloat(vehicle.price.replace('R$', '').replace('.', '').replace(',', '.')) 
-    : vehicle.price;
+    ? parseFloat(vehicle.price.replace('R$', '').replace(/\./g, '').replace(',', '.')) 
+    : (typeof vehicle.price === 'number' ? vehicle.price : 0);
 
-  // Tabs atualizadas
   const TABS = ['Modelo', 'Exterior', 'Rodas', 'Interior'];
 
   const [activeTab, setActiveTab] = useState('Modelo');
@@ -153,10 +154,10 @@ export default function VehicleBuilder({ vehicle }: { vehicle: VehicleProps }) {
             {/* Header Resumo */}
             <div className="bg-white border-b border-gray-200 sticky top-0 z-50 px-8 py-4 flex justify-between items-center shadow-[0_2px_8px_rgba(0,0,0,0.05)] shrink-0">
                 <div className="flex items-center gap-6">
-                     <button onClick={() => setActiveTab('Interior')} className="hover:opacity-70 transition-opacity">
-                        <ChevronLeft size={28} className="text-gray-900 stroke-[2]"/>
-                     </button>
-                     <h1 className="text-2xl font-bold text-gray-900 uppercase tracking-tight">Seu {versionName}</h1>
+                      <button onClick={() => setActiveTab('Interior')} className="hover:opacity-70 transition-opacity">
+                         <ChevronLeft size={28} className="text-gray-900 stroke-[2]"/>
+                      </button>
+                      <h1 className="text-2xl font-bold text-gray-900 uppercase tracking-tight">Seu {versionName}</h1>
                 </div>
                 {/* Ações */}
                 <div className="flex items-center gap-6 text-gray-700">
@@ -250,10 +251,13 @@ export default function VehicleBuilder({ vehicle }: { vehicle: VehicleProps }) {
                                     <p className="text-base font-bold text-gray-900 uppercase tracking-wider mb-6">Acessórios</p>
                                     {selectedAccessories.map(accName => {
                                         const item = [...mockExteriorAccessories, ...mockInteriorAccessories].find(i => i.name === accName);
+                                        // Proteção para evitar crash se o item não tiver ícone
+                                        const IconComponent = item?.icon || Package;
+
                                         return (
                                             <div key={accName} className="flex gap-6 items-center pb-6 border-b border-gray-100 last:border-0">
                                                 <div className="w-24 h-24 rounded-lg bg-gray-50 flex items-center justify-center border border-gray-200 text-gray-400">
-                                                    {item && <item.icon size={32} strokeWidth={1.5} />}
+                                                    <IconComponent size={32} strokeWidth={1.5} />
                                                 </div>
                                                 <div className="flex-1">
                                                     <p className="text-xl font-light text-gray-700">{accName}</p>
@@ -510,6 +514,9 @@ export default function VehicleBuilder({ vehicle }: { vehicle: VehicleProps }) {
                         <div className="space-y-4">
                              {mockInteriorAccessories.map((acc, index) => {
                                  const isSelected = selectedAccessories.includes(acc.name);
+                                 // Proteção segura para o ícone
+                                 const IconComponent = acc.icon || Package; 
+                                 
                                  return (
                                  <div 
                                     key={index} 
@@ -521,7 +528,9 @@ export default function VehicleBuilder({ vehicle }: { vehicle: VehicleProps }) {
                                         opacity: 0
                                     }}
                                  >
-                                     <div className="w-16 h-16 bg-gray-100 rounded-md shrink-0 flex items-center justify-center text-gray-500"><Info size={28} /></div>
+                                     <div className="w-16 h-16 bg-gray-100 rounded-md shrink-0 flex items-center justify-center text-gray-500">
+                                         <IconComponent size={28} />
+                                     </div>
                                      <div className="flex-1"><p className="text-base font-bold text-gray-900 uppercase mb-1">{acc.name}</p><p className="text-base text-gray-600 font-medium">{formatMoney(acc.price)}</p></div>
                                      <div className={`transition-all ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}><div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${isSelected ? 'bg-black text-white border-black' : 'border-gray-300 text-gray-400'}`}>{isSelected ? <Check size={14} strokeWidth={4} /> : '+'}</div></div>
                                  </div>
