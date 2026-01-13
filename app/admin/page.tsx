@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { 
   LayoutDashboard, 
@@ -13,9 +14,10 @@ import {
   Users,
   TrendingUp,
   Search,
-  Filter,
-  MoreHorizontal,
-  FileText
+  FileText,
+  ExternalLink,
+  Trash2, // <--- 1. NOVO ÍCONE
+  AlertCircle
 } from "lucide-react";
 
 export default function AdminDashboard() {
@@ -24,6 +26,9 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+
+  // Estado para loading de exclusão (opcional, para evitar cliques duplos)
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchAdminData = async () => {
@@ -52,7 +57,6 @@ export default function AdminDashboard() {
 
         setIsAdmin(true);
 
-        // Busca Vendas com dados do Vendedor (Profiles)
         const { data: salesData, error: salesError } = await supabase
           .from("sales")
           .select(`
@@ -74,23 +78,53 @@ export default function AdminDashboard() {
     fetchAdminData();
   }, [router]);
 
+  // --- 2. FUNÇÃO DE EXCLUIR ---
+  const handleDeleteSale = async (saleId: string) => {
+    // Confirmação do navegador
+    const confirmDelete = window.confirm("Tem certeza que deseja excluir esta transação? Essa ação não pode ser desfeita.");
+    
+    if (!confirmDelete) return;
+
+    setIsDeleting(saleId);
+
+    try {
+      // Deleta do Supabase
+      const { error } = await supabase
+        .from('sales')
+        .delete()
+        .eq('id', saleId);
+
+      if (error) throw error;
+
+      // Atualiza a lista localmente (remove o item da tela sem precisar recarregar tudo)
+      setSales((prevSales) => prevSales.filter((sale) => sale.id !== saleId));
+      
+      alert("Transação removida com sucesso.");
+
+    } catch (error: any) {
+      console.error("Erro ao excluir:", error);
+      alert("Erro ao excluir: " + error.message);
+    } finally {
+      setIsDeleting(null);
+    }
+  };
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.refresh();
     router.replace("/login");
   };
 
-  // --- LÓGICA DE DADOS (KPIs) ---
+  // --- KPI LOGIC ---
   const filteredSales = sales.filter(s => 
     s.client_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     s.car_name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const totalRevenue = filteredSales.reduce((acc, curr) => acc + (Number(curr.total_price) || 0), 0);
-  const totalClients = new Set(filteredSales.map(s => s.client_cpf || s.client_name)).size; // Conta clientes únicos
+  const totalClients = new Set(filteredSales.map(s => s.client_cpf || s.client_name)).size;
   const averageTicket = sales.length > 0 ? totalRevenue / sales.length : 0;
   
-  // Agrupamento por Vendedor (Quem vendeu mais?)
   const salesBySeller = sales.reduce((acc: any, curr) => {
     const sellerEmail = curr.profiles?.email || 'Desconhecido';
     if (!acc[sellerEmail]) acc[sellerEmail] = { count: 0, total: 0, name: sellerEmail };
@@ -116,7 +150,7 @@ export default function AdminDashboard() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-blue-100">
       
-      {/* --- NAVBAR SUPERIOR BRANCA --- */}
+      {/* NAVBAR */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30 px-6 py-3 shadow-sm">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-3">
@@ -146,38 +180,36 @@ export default function AdminDashboard() {
 
       <main className="max-w-7xl mx-auto px-6 py-8">
         
-        {/* --- TOPO: AÇÕES E FILTROS --- */}
+        {/* AÇÕES E FILTROS */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <div>
             <h2 className="text-2xl font-bold text-slate-900">Olá, Administrador</h2>
             <p className="text-slate-500 text-sm">Aqui está o desempenho da sua loja hoje.</p>
           </div>
           <div className="flex gap-3 w-full md:w-auto">
-            <button 
-              onClick={() => router.push('/admin/cars/new')}
+            <Link 
+              href="/admin/cars/new"
               className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold flex items-center gap-2 shadow-sm shadow-blue-200 transition-all w-full md:w-auto justify-center"
             >
               <Plus size={18}/> Novo Veículo
-            </button>
+            </Link>
             <button className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-4 py-2.5 rounded-lg text-sm font-semibold flex items-center gap-2 shadow-sm transition-all">
               <FileText size={18}/> Relatórios
             </button>
           </div>
         </div>
 
-        {/* --- CARDS DE KPIs (ESTILO CLEAN) --- */}
+        {/* KPIs */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          {/* Faturamento */}
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex justify-between items-start mb-4">
               <div className="p-2 bg-green-50 rounded-lg text-green-600"><Wallet size={24}/></div>
-              <span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full">+12%</span>
+              <span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full"></span>
             </div>
             <p className="text-slate-500 text-xs font-bold uppercase">Faturamento Total</p>
             <h3 className="text-2xl font-bold text-slate-900 mt-1">{formatCurrency(totalRevenue)}</h3>
           </div>
 
-          {/* Clientes Ativos */}
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex justify-between items-start mb-4">
               <div className="p-2 bg-blue-50 rounded-lg text-blue-600"><Users size={24}/></div>
@@ -186,7 +218,6 @@ export default function AdminDashboard() {
             <h3 className="text-2xl font-bold text-slate-900 mt-1">{totalClients}</h3>
           </div>
 
-          {/* Tíquete Médio */}
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex justify-between items-start mb-4">
               <div className="p-2 bg-purple-50 rounded-lg text-purple-600"><TrendingUp size={24}/></div>
@@ -195,7 +226,6 @@ export default function AdminDashboard() {
             <h3 className="text-2xl font-bold text-slate-900 mt-1">{formatCurrency(averageTicket)}</h3>
           </div>
 
-          {/* Total Vendas */}
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex justify-between items-start mb-4">
               <div className="p-2 bg-orange-50 rounded-lg text-orange-600"><Car size={24}/></div>
@@ -207,10 +237,9 @@ export default function AdminDashboard() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
-          {/* --- TABELA PRINCIPAL DE CLIENTES/VENDAS --- */}
+          {/* TABELA PRINCIPAL */}
           <div className="lg:col-span-2 flex flex-col gap-4">
             
-            {/* Barra de Busca da Tabela */}
             <div className="flex justify-between items-center">
               <h3 className="font-bold text-lg text-slate-800">Últimas Transações</h3>
               <div className="relative">
@@ -234,7 +263,7 @@ export default function AdminDashboard() {
                     <th className="px-6 py-4">Vendedor</th>
                     <th className="px-6 py-4">Status</th>
                     <th className="px-6 py-4 text-right">Valor</th>
-                    <th className="px-6 py-4"></th>
+                    <th className="px-6 py-4 text-right">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -267,10 +296,33 @@ export default function AdminDashboard() {
                       <td className="px-6 py-4 text-right font-bold text-slate-800">
                         {formatCurrency(sale.total_price)}
                       </td>
-                      <td className="px-6 py-4 text-right">
-                         <button className="text-slate-400 hover:text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <MoreHorizontal size={18} />
-                         </button>
+                      
+                      {/* --- COLUNA DE AÇÕES ATUALIZADA --- */}
+                      <td className="px-6 py-4 text-right flex items-center justify-end gap-2">
+                          
+                          {/* Botão Ver Carro */}
+                          <Link 
+                            href={`/monte-o-seu/${sale.car_id || sale.id}`} 
+                            target="_blank"
+                            className="flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs font-bold border border-blue-200 hover:bg-blue-50 px-3 py-1.5 rounded transition-all"
+                            title="Ver configuração do veículo"
+                          >
+                            Ver <ExternalLink size={12}/>
+                          </Link>
+                          
+                          {/* 3. BOTÃO DE EXCLUIR */}
+                          <button 
+                            onClick={() => handleDeleteSale(sale.id)}
+                            disabled={isDeleting === sale.id}
+                            className="text-red-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded transition-all border border-transparent hover:border-red-200"
+                            title="Excluir Transação"
+                          >
+                             {isDeleting === sale.id ? (
+                               <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+                             ) : (
+                               <Trash2 size={16} />
+                             )}
+                          </button>
                       </td>
                     </tr>
                   ))}
@@ -286,10 +338,8 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* --- SIDEBAR LATERAL: TOP VENDEDORES --- */}
+          {/* SIDEBAR VENDEDORES */}
           <div className="flex flex-col gap-6">
-            
-            {/* Card Melhores Vendedores */}
             <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-6">
               <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
                 <TrendingUp size={18} className="text-blue-600"/> 
@@ -322,17 +372,23 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {/* Card Informativo Rápido */}
+{/* Card Informativo Rápido */}
             <div className="bg-blue-600 rounded-xl p-6 text-white shadow-lg shadow-blue-200">
               <h3 className="font-bold text-lg mb-2">Precisa de ajuda?</h3>
               <p className="text-blue-100 text-sm mb-4">
                 Entre em contato com o suporte técnico para adicionar novos usuários ou configurar metas.
               </p>
-              <button className="bg-white text-blue-600 px-4 py-2 rounded-lg text-sm font-bold w-full hover:bg-blue-50 transition-colors">
+              
+              {/* Link para o WhatsApp */}
+              <a 
+                href="https://wa.me/5591999246801?text=Olá,%20preciso%20de%20ajuda%20com%20o%20Painel%20Admin."
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-white text-blue-600 px-4 py-3 rounded-lg text-sm font-bold w-full hover:bg-blue-50 transition-colors flex items-center justify-center gap-2"
+              >
                 Contatar Suporte
-              </button>
+              </a>
             </div>
-
           </div>
 
         </div>
