@@ -64,7 +64,7 @@ export default function Navbar() {
   const isAdmin = userEmail.toLowerCase().includes("admin");
 
   // Define para onde vai o botão principal
-  const dashboardLink = isAdmin ? "/admin" : "/vendedor";
+  const dashboardLink = isAdmin ? "/admin" : "/vendedor/dashboard";
   const dashboardLabel = isAdmin ? "Painel Gerencial" : "Painel do Vendedor";
 
   return (
@@ -209,7 +209,7 @@ export default function Navbar() {
 
       <div className={`fixed top-0 left-0 h-full w-[300px] bg-white z-[2001] shadow-2xl transform transition-transform duration-500 ease-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex justify-between items-center p-6 border-b border-gray-100 h-16">
-          <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/1/1e/Chevrolet_Logo.png/800px-Chevrolet_Logo.png" alt="Chevy" className="h-6 w-auto" />
+          <img src="https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/Parceirologo.jpg" alt="Chevy" className="h-14 w-auto" />
           <button onClick={() => setSidebarOpen(false)} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors">
             <X size={20} className="text-gray-600"/>
           </button>

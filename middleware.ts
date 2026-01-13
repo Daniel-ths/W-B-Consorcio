@@ -2,9 +2,6 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
-  // LOG PARA DEPURAR
-  console.log(`🔒 Verificando acesso em: ${request.nextUrl.pathname}`)
-
   let response = NextResponse.next({
     request: {
       headers: request.headers,
@@ -22,7 +19,9 @@ export async function middleware(request: NextRequest) {
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
           response = NextResponse.next({
-            request,
+            request: {
+              headers: request.headers,
+            },
           })
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options)
@@ -32,30 +31,40 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // Tenta pegar o usuário
+  const { data: { user } } = await supabase.auth.getUser()
 
-  if (user) {
-    console.log("✅ Usuário logado: ", user.email)
-  } else {
-    console.log("❌ Usuário NÃO logado")
+  // --- LOGS DE DEBUG (Olhe no seu terminal onde roda o npm run dev) ---
+  if (request.nextUrl.pathname.startsWith('/admin') || request.nextUrl.pathname.startsWith('/vendedor')) {
+    console.log(`[Middleware] Acessando rota: ${request.nextUrl.pathname}`)
+    console.log(`[Middleware] Usuário logado? ${user ? 'SIM' : 'NÃO'} (${user?.email})`)
+  }
+  // -------------------------------------------------------------------
+
+  // PROTEÇÃO DAS ROTAS
+
+  // 1. Se tentar acessar /admin ou /vendedor SEM estar logado -> Login
+  if (!user && (request.nextUrl.pathname.startsWith('/admin') || request.nextUrl.pathname.startsWith('/vendedor'))) {
+    const loginUrl = new URL('/login', request.url)
+    // Redireciona pro login
+    return NextResponse.redirect(loginUrl)
   }
 
-  // REGRA DE PROTEÇÃO CORRIGIDA
-  // Se tentar acessar /admin e não tiver usuário...
-  if (request.nextUrl.pathname.startsWith('/admin')) {
-    if (!user) {
-      console.log("🚫 Acesso NEGADO. Redirecionando para Login.")
-      // AQUI ESTAVA O ERRO: Mudamos de '/admin/login' para '/login'
-      return NextResponse.redirect(new URL('/login', request.url))
-    }
+  // 2. Se já estiver logado e tentar acessar /login -> Manda pro Painel (Baseado no cookie, mas idealmente a gente deixa a pagina tratar)
+  if (user && request.nextUrl.pathname === '/login') {
+     // Aqui deixamos passar, pois o redirecionamento ideal deve ser feito na página de login, 
+     // mas se quiser forçar, descomente abaixo:
+     // return NextResponse.redirect(new URL('/admin', request.url))
   }
 
   return response
 }
 
 export const config = {
-  // Garante que roda em todas as rotas de admin
-  matcher: ['/admin/:path*'],
+  matcher: [
+    /*
+     * Aplica em todas as rotas exceto estáticas e imagens
+     */
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+  ],
 }

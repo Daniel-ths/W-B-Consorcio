@@ -13,8 +13,32 @@ import {
   Lock,
   Wallet,
   Banknote,
-  CheckCircle2
+  CheckCircle2,
+  AlertCircle // Ícone para erro
 } from "lucide-react";
+
+// --- MÁSCARAS E HELPER FUNCTIONS ---
+const maskCPF = (value: string) => {
+  return value
+    .replace(/\D/g, "") // Remove tudo o que não é dígito
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d{1,2})/, "$1-$2")
+    .replace(/(-\d{2})\d+?$/, "$1"); // Limita a formatação
+};
+
+const maskPhone = (value: string) => {
+  return value
+    .replace(/\D/g, "")
+    .replace(/(\d{2})(\d)/, "($1) $2")
+    .replace(/(\d{5})(\d)/, "$1-$2")
+    .replace(/(-\d{4})\d+?$/, "$1");
+};
+
+const validateEmail = (email: string) => {
+  const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return re.test(email);
+};
 
 const formatCurrency = (val: number) => {
   return new Intl.NumberFormat("pt-BR", {
@@ -36,48 +60,90 @@ export default function OrderSummary({
   onEdit, 
 }: any) {
   
-  // Estado para controlar a modalidade (Financiamento ou Consórcio)
   const [paymentMethod, setPaymentMethod] = useState<"Financiamento" | "Consorcio">("Financiamento");
 
+  // Estados dos Campos
   const [clientName, setClientName] = useState("");
   const [clientCpf, setClientCpf] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [clientPhone, setClientPhone] = useState("");
+  
+  // Estados de Controle
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [score, setScore] = useState<number | null>(null);
+  
+  // Estado de Erros de Validação
+  const [errors, setErrors] = useState({
+    clientName: "",
+    clientCpf: "",
+    clientEmail: "",
+    clientPhone: ""
+  });
+
+  // Handlers com Máscaras
+  const handleCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setClientCpf(maskCPF(e.target.value));
+    if (errors.clientCpf) setErrors({...errors, clientCpf: ""}); // Limpa erro ao digitar
+  };
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setClientPhone(maskPhone(e.target.value));
+    if (errors.clientPhone) setErrors({...errors, clientPhone: ""});
+  };
 
   const handleFinishOrder = async () => {
-    // 1. Validações Básicas
+    // --- 1. VALIDADOR (REJECTS) ---
+    let newErrors = { clientName: "", clientCpf: "", clientEmail: "", clientPhone: "" };
+    let hasError = false;
+
     if (!user) {
       alert("Você precisa estar logado para realizar esta ação.");
       return;
     }
 
-    if (!clientName || !clientCpf) {
-      alert("Por favor, preencha os dados obrigatórios.");
-      return;
+    // Validação Nome (Mínimo 3 letras)
+    if (clientName.trim().length < 3) {
+      newErrors.clientName = "Nome completo é obrigatório.";
+      hasError = true;
+    }
+
+    // Validação CPF (Deve ter 14 caracteres: 000.000.000-00)
+    if (clientCpf.length < 14) {
+      newErrors.clientCpf = "CPF inválido ou incompleto.";
+      hasError = true;
+    }
+
+    // Validação Email
+    if (!clientEmail || !validateEmail(clientEmail)) {
+      newErrors.clientEmail = "Insira um e-mail válido.";
+      hasError = true;
+    }
+
+    // Validação Telefone (Mínimo 14 caracteres: (11) 9999-9999)
+    if (clientPhone.length < 14) {
+      newErrors.clientPhone = "Telefone obrigatório.";
+      hasError = true;
+    }
+
+    setErrors(newErrors);
+
+    if (hasError) {
+      return; // REJECT: Para a execução aqui se houver erros
     }
     
     setLoading(true);
 
-    // 2. DEBUG: Mostra no console o objeto carro para verificação
-    console.log("--- DEBUG START ---");
-    console.log("Objeto currentCar recebido:", currentCar);
-    
-    // 3. Tratamento do Nome do Carro (CORREÇÃO FINAL: model_name)
-    // Agora procura especificamente por 'model_name' que vimos no seu log
+    // 2. Lógica de Envio
     const carNameResolved = currentCar.model_name || currentCar.name || currentCar.model || `Veículo ID ${currentCar.id}`;
     
-    console.log("Nome que será salvo:", carNameResolved);
-
     const simulatedScore = Math.floor(Math.random() * (999 - 300 + 1)) + 300;
     setScore(simulatedScore);
 
     try {
       const saleData = {
         car_id: currentCar.id,
-        car_name: carNameResolved, // <--- Aqui vai o nome correto ('Onix Plus MT')
+        car_name: carNameResolved,
         seller_id: user.id,
         client_name: clientName,
         client_cpf: clientCpf,
@@ -131,7 +197,6 @@ export default function OrderSummary({
     );
   }
 
-  // O resto do render (HTML) continua igual, apenas adaptamos o título para usar model_name também
   return (
     <div className="w-full bg-white font-sans text-[#1a1a1a]">
       
@@ -184,7 +249,7 @@ export default function OrderSummary({
             </div>
 
             <div className="space-y-0">
-              {/* Versões */}
+              {/* DETALHES DO VEÍCULO (Mantido igual) */}
               <div className="grid grid-cols-1 md:grid-cols-4 py-8 border-b border-gray-200">
                  <div className="text-lg font-normal mb-4 md:mb-0">Versões</div>
                  <div className="md:col-span-3">
@@ -224,102 +289,28 @@ export default function OrderSummary({
                  </div>
               </div>
 
-              {/* Interior */}
+              {/* PREÇO */}
               <div className="grid grid-cols-1 md:grid-cols-4 py-8 border-b border-gray-200">
-                 <div className="text-lg font-normal mb-4 md:mb-0">Interior</div>
+                 <div className="text-lg font-normal mb-4 md:mb-0">Total</div>
                  <div className="md:col-span-3">
-                   {selectedSeatType && (
-                     <div className="flex items-center gap-6">
-                        <div className="w-16 h-16 bg-gray-800 rounded border border-gray-200 overflow-hidden">
-                             {/* Imagem do banco */}
-                        </div>
-                        <div>
-                          <p className="text-lg font-normal">{selectedSeatType.name}</p>
-                          <p className="text-gray-500 mt-1">{selectedSeatType.price > 0 ? formatCurrency(selectedSeatType.price) : 'Padrão'}</p>
-                        </div>
-                     </div>
-                   )}
+                    <span className="text-3xl font-bold text-gray-900">{formatCurrency(totalPrice)}</span>
                  </div>
               </div>
-
-               {/* Acessórios */}
-               {selectedAccessoriesList.length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-4 py-8 border-b border-gray-200">
-                   <div className="text-lg font-normal mb-4 md:mb-0">Acessórios</div>
-                   
-                   <div className="md:col-span-3 grid grid-cols-2 lg:grid-cols-3 gap-4">
-                     {selectedAccessoriesList.map((acc: any) => (
-                       <div key={acc.id} className="flex flex-col border border-gray-200 rounded-lg p-3 hover:border-gray-400 transition-colors bg-white shadow-sm">
-                          <div className="h-20 w-full bg-gray-50 rounded mb-2 flex items-center justify-center overflow-hidden relative">
-                             {acc.image_url || acc.image ? (
-                               <img src={acc.image_url || acc.image} alt={acc.name} className="w-full h-full object-contain" />
-                             ) : (
-                               <Package className="text-gray-300" size={32} />
-                             )}
-                          </div>
-                          <div className="mt-1">
-                            <p className="text-sm font-bold text-gray-900 leading-tight line-clamp-2">{acc.name}</p>
-                            <p className="text-xs text-gray-500 mt-1 font-medium">+ {formatCurrency(acc.price)}</p>
-                          </div>
-                       </div>
-                     ))}
-                   </div>
-                </div>
-              )}
-            </div>
-          </section>
-
-          {/* PREÇO */}
-          <section className="mb-20">
-            <h2 className="text-3xl font-normal mb-8">Preço</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-               <div className="hidden md:block"></div>
-               <div>
-                  <div className="space-y-3 mb-6">
-                    <div className="flex justify-between text-gray-600">
-                      <span>Veículo</span>
-                      <span className="text-gray-900">{formatCurrency(currentCar.price_start)}</span>
-                    </div>
-                    {selectedColor?.price > 0 && (
-                      <div className="flex justify-between text-gray-600">
-                        <span>{selectedColor.name}</span>
-                        <span className="text-gray-900">{formatCurrency(selectedColor.price)}</span>
-                      </div>
-                    )}
-                    {selectedAccessoriesList.length > 0 && (
-                      <div className="flex justify-between text-gray-600">
-                        <span>Acessórios</span>
-                        <span className="text-gray-900">{formatCurrency(selectedAccessoriesList.reduce((a:number, b:any) => a + b.price, 0))}</span>
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="border-t border-gray-200 pt-6 flex justify-between items-baseline">
-                      <span className="text-lg font-bold text-gray-900">Total estimado</span>
-                      <span className="text-3xl font-normal text-gray-900">{formatCurrency(totalPrice)}</span>
-                  </div>
-                  
-                  <div className="mt-8 text-xs text-gray-400 space-y-2">
-                     <p>IMPORTANTE: A simulação de compra não garante a disponibilidade do veículo escolhido.</p>
-                  </div>
-               </div>
             </div>
           </section>
 
           {/* DADOS PARA PROPOSTA E SCORE (SEGMENTO PROTEGIDO) */}
           <section className="pt-10 border-t border-gray-200">
              <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-               {/* Texto Intro */}
+               
                <div className="lg:col-span-1">
                   <h3 className="text-2xl font-normal text-gray-900 mb-4">Dados para Proposta</h3>
                   <p className="text-sm text-gray-500">
-                    Preencha seus dados para finalizar a configuração e calcular seu score de financiamento.
+                    Preencha os dados do cliente com atenção. O CPF e Telefone serão formatados automaticamente.
                   </p>
                </div>
 
                <div className="lg:col-span-3">
-                  
-                  {/* VERIFICAÇÃO DE USUÁRIO: Se não tiver user, mostra bloqueio */}
                   {!user ? (
                     <div className="bg-gray-50 border border-gray-200 rounded-lg p-10 flex flex-col items-center justify-center text-center">
                        <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mb-4">
@@ -329,18 +320,14 @@ export default function OrderSummary({
                        <p className="text-gray-500 mb-6 max-w-md">
                          A consulta de Score e finalização de propostas são exclusivas para vendedores logados.
                        </p>
-                       <Link 
-                         href="/login" 
-                         className="bg-blue-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-blue-700 transition-colors"
-                       >
+                       <Link href="/login" className="bg-blue-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-blue-700 transition-colors">
                          Fazer Login de Vendedor
                        </Link>
                     </div>
                   ) : (
-                    // SE TIVER USER, MOSTRA O FORMULÁRIO NORMAL
                     <div className="grid grid-cols-1 gap-6">
                       
-                      {/* --- SELEÇÃO DE MODALIDADE --- */}
+                      {/* SELEÇÃO DE MODALIDADE */}
                       <div className="grid grid-cols-2 gap-4 mb-2">
                         <button
                           onClick={() => setPaymentMethod("Financiamento")}
@@ -365,36 +352,75 @@ export default function OrderSummary({
                         </button>
                       </div>
 
+                      {/* CAMPOS COM VALIDAÇÃO */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                         <div>
-                           <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Nome Completo</label>
-                           <input 
-                             value={clientName} onChange={e => setClientName(e.target.value)}
-                             className="w-full h-12 px-4 border border-gray-300 rounded focus:border-black outline-none bg-white transition-all text-sm"
-                           />
-                         </div>
-                         <div>
-                           <label className="block text-xs font-bold text-gray-500 uppercase mb-2">CPF</label>
-                           <input 
-                             value={clientCpf} onChange={e => setClientCpf(e.target.value)}
-                             className="w-full h-12 px-4 border border-gray-300 rounded focus:border-black outline-none bg-white transition-all text-sm"
-                             placeholder="000.000.000-00"
-                           />
-                         </div>
-                         <div>
-                           <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Email</label>
-                           <input 
-                             value={clientEmail} onChange={e => setClientEmail(e.target.value)}
-                             className="w-full h-12 px-4 border border-gray-300 rounded focus:border-black outline-none bg-white transition-all text-sm"
-                           />
-                         </div>
-                         <div>
-                           <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Telefone</label>
-                           <input 
-                             value={clientPhone} onChange={e => setClientPhone(e.target.value)}
-                             className="w-full h-12 px-4 border border-gray-300 rounded focus:border-black outline-none bg-white transition-all text-sm"
-                           />
-                         </div>
+                          <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                                Nome Completo <span className="text-red-500">*</span>
+                            </label>
+                            <input 
+                              value={clientName} 
+                              onChange={e => {
+                                  setClientName(e.target.value);
+                                  if (errors.clientName) setErrors({...errors, clientName: ""});
+                              }}
+                              className={`w-full h-12 px-4 border rounded focus:outline-none transition-all text-sm
+                                ${errors.clientName ? 'border-red-500 bg-red-50' : 'border-gray-300 focus:border-black bg-white'}
+                              `}
+                              placeholder="Digite o nome completo"
+                            />
+                            {errors.clientName && <p className="text-red-500 text-xs mt-1 flex items-center gap-1"><AlertCircle size={10}/> {errors.clientName}</p>}
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                                CPF <span className="text-red-500">*</span>
+                            </label>
+                            <input 
+                              value={clientCpf} 
+                              onChange={handleCpfChange}
+                              maxLength={14}
+                              className={`w-full h-12 px-4 border rounded focus:outline-none transition-all text-sm
+                                ${errors.clientCpf ? 'border-red-500 bg-red-50' : 'border-gray-300 focus:border-black bg-white'}
+                              `}
+                              placeholder="000.000.000-00"
+                            />
+                            {errors.clientCpf && <p className="text-red-500 text-xs mt-1 flex items-center gap-1"><AlertCircle size={10}/> {errors.clientCpf}</p>}
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                                Email <span className="text-red-500">*</span>
+                            </label>
+                            <input 
+                              value={clientEmail} 
+                              onChange={e => {
+                                  setClientEmail(e.target.value);
+                                  if (errors.clientEmail) setErrors({...errors, clientEmail: ""});
+                              }}
+                              className={`w-full h-12 px-4 border rounded focus:outline-none transition-all text-sm
+                                ${errors.clientEmail ? 'border-red-500 bg-red-50' : 'border-gray-300 focus:border-black bg-white'}
+                              `}
+                              placeholder="exemplo@email.com"
+                            />
+                            {errors.clientEmail && <p className="text-red-500 text-xs mt-1 flex items-center gap-1"><AlertCircle size={10}/> {errors.clientEmail}</p>}
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                                Telefone <span className="text-red-500">*</span>
+                            </label>
+                            <input 
+                              value={clientPhone} 
+                              onChange={handlePhoneChange}
+                              maxLength={15}
+                              className={`w-full h-12 px-4 border rounded focus:outline-none transition-all text-sm
+                                ${errors.clientPhone ? 'border-red-500 bg-red-50' : 'border-gray-300 focus:border-black bg-white'}
+                              `}
+                              placeholder="(00) 00000-0000"
+                            />
+                            {errors.clientPhone && <p className="text-red-500 text-xs mt-1 flex items-center gap-1"><AlertCircle size={10}/> {errors.clientPhone}</p>}
+                          </div>
                       </div>
 
                       <div className="mt-4 flex justify-end">
