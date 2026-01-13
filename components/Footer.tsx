@@ -47,11 +47,11 @@ export default function Footer() {
             <ul className="space-y-4 text-xs font-medium tracking-wide">
                 <li className="flex items-start gap-3">
                     <Phone size={16} className="mt-0.5 text-yellow-500"/>
-                    <span>(91) 99999-9999 <br/> <span className="text-gray-400 font-normal">Seg à Sex - 08h às 18h</span></span>
+                    <span>(91) xxxx-xxxx <br/> <span className="text-gray-400 font-normal">Seg à Sex - 08h às 18h</span></span>
                 </li>
                 <li className="flex items-center gap-3">
                     <Mail size={16} className="text-yellow-500"/>
-                    <span>contato@wbauto.com.br</span>
+                    <span>WBCConsórcio@gmail.com.br</span>
                 </li>
             </ul>
         </div>
@@ -75,11 +75,11 @@ export default function Footer() {
       {/* Faixa Final */}
       <div className="border-t border-gray-200 bg-[#e5e5e5] py-6">
         <div className="max-w-[1400px] mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4 text-[10px] tracking-wider uppercase text-gray-500 font-bold">
-            <p>© {new Date().getFullYear()} WB Auto. Todos os direitos reservados.</p>
+            <p>© {new Date().getFullYear()} W B C Consórcio LTDA: Todos os direitos reservados.</p>
             <div className="flex gap-6">
                 <a href="#" className="hover:text-black">Política de Privacidade</a>
                 <a href="#" className="hover:text-black">Termos de Uso</a>
-                <span>CNPJ: 01.020.253/0001-07</span>
+                <span>CNPJ: 59.041.030/0001-99</span>
             </div>
         </div>
       </div>

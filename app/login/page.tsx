@@ -160,7 +160,7 @@ export default function LoginPage() {
             </form>
 
             <p className="text-center text-xs text-gray-400 mt-8">
-                &copy; 2024 WB Auto Group. Todos os direitos reservados.
+                &copy; 2026 W B C Consórcio LTDA. Todos os direitos reservados.
             </p>
         </div>
       </div>
