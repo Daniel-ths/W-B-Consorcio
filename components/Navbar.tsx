@@ -16,7 +16,7 @@ import {
   ChevronDown,
   LayoutDashboard, 
   LogOut,
-  ShieldCheck // Importei o ícone do Admin
+  ShieldCheck
 } from "lucide-react";
 import VehiclesMenu from "./VehiclesMenu";
 
@@ -28,19 +28,60 @@ export default function Navbar() {
   // Login e Estado do Usuário
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  
+  // NOVOS ESTADOS PARA PERFIL
+  const [fullName, setFullName] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState("");
+
   const router = useRouter();
 
   useEffect(() => {
-    const getUser = async () => {
+    const getUserData = async () => {
+      // 1. Pega o usuário logado (Auth)
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
+
+      if (user) {
+        // 2. Se tiver usuário, busca os detalhes na tabela 'profiles'
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('full_name, avatar_url')
+          .eq('id', user.id)
+          .single();
+        
+        if (profile) {
+          setFullName(profile.full_name || "");
+          setAvatarUrl(profile.avatar_url || "");
+        }
+      }
+
       setLoading(false);
     };
 
-    getUser();
+    getUserData();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    // Ouve mudanças de login/logout
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       setUser(session?.user ?? null);
+      
+      if (session?.user) {
+         // Atualiza perfil se logar
+         const { data: profile } = await supabase
+          .from('profiles')
+          .select('full_name, avatar_url')
+          .eq('id', session.user.id)
+          .single();
+         
+         if (profile) {
+            setFullName(profile.full_name || "");
+            setAvatarUrl(profile.avatar_url || "");
+         }
+      } else {
+         // Limpa se deslogar
+         setFullName("");
+         setAvatarUrl("");
+      }
+      
       setLoading(false);
     });
 
@@ -59,13 +100,14 @@ export default function Navbar() {
   };
 
   // --- LÓGICA DE ROTAS INTELIGENTE ---
-  // Verifica se o email contém "admin" para definir o destino
   const userEmail = user?.email || "";
   const isAdmin = userEmail.toLowerCase().includes("admin");
 
-  // Define para onde vai o botão principal
   const dashboardLink = isAdmin ? "/admin" : "/vendedor/dashboard";
   const dashboardLabel = isAdmin ? "Painel Gerencial" : "Painel do Vendedor";
+
+  // Define o nome de exibição (Nome completo ou parte do email se não tiver nome)
+  const displayName = fullName || userEmail.split('@')[0];
 
   return (
     <>
@@ -111,15 +153,20 @@ export default function Navbar() {
             // --- USUÁRIO LOGADO ---
             <div className="relative group py-2">
               <button className="flex items-center gap-2 px-3 py-2 rounded-full hover:bg-white hover:shadow-sm transition-all border border-transparent hover:border-gray-200">
-                {/* Ícone de Pessoa (Muda cor se for Admin) */}
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shadow-sm ${isAdmin ? 'bg-black text-yellow-400' : 'bg-gray-900 text-white'}`}>
-                  <User size={16} />
+                
+                {/* FOTO OU ÍCONE PADRÃO */}
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shadow-sm overflow-hidden ${isAdmin ? 'bg-black text-yellow-400' : 'bg-gray-900 text-white'}`}>
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                  ) : (
+                    <User size={16} />
+                  )}
                 </div>
                 
                 <div className="hidden md:block text-left">
                   <p className="text-xs font-bold text-gray-900 leading-none">Minha Conta</p>
-                  <p className="text-[10px] text-gray-500 font-medium truncate max-w-[80px]">
-                    {user.email?.split('@')[0]}
+                  <p className="text-[10px] text-gray-500 font-medium truncate max-w-[100px]">
+                    {displayName}
                   </p>
                 </div>
                 <ChevronDown size={14} className="text-gray-400 group-hover:rotate-180 transition-transform" />
@@ -131,7 +178,10 @@ export default function Navbar() {
                 {/* Cabeçalho do Dropdown */}
                 <div className="p-4 border-b border-gray-100">
                   <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Logado como</p>
-                  <p className="text-sm font-bold text-gray-900 truncate">{user.email}</p>
+                  {/* Nome em destaque */}
+                  <p className="text-sm font-bold text-gray-900 truncate">{displayName}</p>
+                  {/* Email menor */}
+                  <p className="text-xs text-gray-500 truncate">{user.email}</p>
                   
                   {/* Badge de Cargo */}
                   <span className={`inline-block mt-2 px-2 py-0.5 text-[10px] font-bold rounded-full uppercase tracking-wide ${isAdmin ? 'bg-black text-yellow-400' : 'bg-green-100 text-green-700'}`}>
@@ -156,7 +206,7 @@ export default function Navbar() {
                   </Link>
 
                   <Link 
-                    href="/perfil" 
+                    href="/profile" 
                     className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-50 hover:text-black transition-colors"
                   >
                     <User size={18} />
