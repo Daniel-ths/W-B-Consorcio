@@ -2,12 +2,14 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
+  // 1. Prepara a resposta inicial
   let response = NextResponse.next({
     request: {
       headers: request.headers,
     },
   })
 
+  // 2. Configura o cliente Supabase (Versão SSR Moderna)
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -31,30 +33,27 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Tenta pegar o usuário
+  // 3. Verifica o usuário logado
+  // getUser é mais seguro que getSession para middleware
   const { data: { user } } = await supabase.auth.getUser()
 
-  // --- LOGS DE DEBUG (Olhe no seu terminal onde roda o npm run dev) ---
+  // --- LOGS DE DEBUG (Ajudam a ver se está funcionando no terminal) ---
   if (request.nextUrl.pathname.startsWith('/admin') || request.nextUrl.pathname.startsWith('/vendedor')) {
-    console.log(`[Middleware] Acessando rota: ${request.nextUrl.pathname}`)
-    console.log(`[Middleware] Usuário logado? ${user ? 'SIM' : 'NÃO'} (${user?.email})`)
+    console.log(`[Middleware] Rota Protegida: ${request.nextUrl.pathname}`)
+    console.log(`[Middleware] Status: ${user ? 'Logado ✅' : 'Não Logado ❌'}`)
   }
-  // -------------------------------------------------------------------
-
-  // PROTEÇÃO DAS ROTAS
-
-  // 1. Se tentar acessar /admin ou /vendedor SEM estar logado -> Login
+  
+  // 4. BLOQUEIO DE SEGURANÇA
+  // Se tentar acessar /admin ou /vendedor e NÃO estiver logado -> Chuta pro Login
   if (!user && (request.nextUrl.pathname.startsWith('/admin') || request.nextUrl.pathname.startsWith('/vendedor'))) {
     const loginUrl = new URL('/login', request.url)
-    // Redireciona pro login
     return NextResponse.redirect(loginUrl)
   }
 
-  // 2. Se já estiver logado e tentar acessar /login -> Manda pro Painel (Baseado no cookie, mas idealmente a gente deixa a pagina tratar)
+  // 5. (Opcional) Redirecionar usuário logado que tenta acessar /login
   if (user && request.nextUrl.pathname === '/login') {
-     // Aqui deixamos passar, pois o redirecionamento ideal deve ser feito na página de login, 
-     // mas se quiser forçar, descomente abaixo:
-     // return NextResponse.redirect(new URL('/admin', request.url))
+      // Você pode descomentar abaixo se quiser que o vendedor vá direto pro dashboard
+      // return NextResponse.redirect(new URL('/vendedor/seminovos', request.url))
   }
 
   return response
@@ -63,7 +62,7 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Aplica em todas as rotas exceto estáticas e imagens
+     * Aplica o middleware em todas as rotas, exceto arquivos estáticos
      */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
