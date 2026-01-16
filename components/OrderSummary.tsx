@@ -1,30 +1,28 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link"; 
+import { useRouter } from "next/navigation"; 
 import { supabase } from "@/lib/supabase";
 import { 
   Loader2, 
   ChevronRight,
   Download,
   Link as LinkIcon,
-  Check,
-  Package,
   Lock,
   Wallet,
   Banknote,
   CheckCircle2,
-  AlertCircle // Ícone para erro
+  AlertCircle 
 } from "lucide-react";
 
 // --- MÁSCARAS E HELPER FUNCTIONS ---
 const maskCPF = (value: string) => {
   return value
-    .replace(/\D/g, "") // Remove tudo o que não é dígito
+    .replace(/\D/g, "") 
     .replace(/(\d{3})(\d)/, "$1.$2")
     .replace(/(\d{3})(\d)/, "$1.$2")
     .replace(/(\d{3})(\d{1,2})/, "$1-$2")
-    .replace(/(-\d{2})\d+?$/, "$1"); // Limita a formatação
+    .replace(/(-\d{2})\d+?$/, "$1"); 
 };
 
 const maskPhone = (value: string) => {
@@ -60,6 +58,7 @@ export default function OrderSummary({
   onEdit, 
 }: any) {
   
+  const router = useRouter(); 
   const [paymentMethod, setPaymentMethod] = useState<"Financiamento" | "Consorcio">("Financiamento");
 
   // Estados dos Campos
@@ -70,8 +69,6 @@ export default function OrderSummary({
   
   // Estados de Controle
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [score, setScore] = useState<number | null>(null);
   
   // Estado de Erros de Validação
   const [errors, setErrors] = useState({
@@ -81,10 +78,9 @@ export default function OrderSummary({
     clientPhone: ""
   });
 
-  // Handlers com Máscaras
   const handleCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setClientCpf(maskCPF(e.target.value));
-    if (errors.clientCpf) setErrors({...errors, clientCpf: ""}); // Limpa erro ao digitar
+    if (errors.clientCpf) setErrors({...errors, clientCpf: ""}); 
   };
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -93,7 +89,7 @@ export default function OrderSummary({
   };
 
   const handleFinishOrder = async () => {
-    // --- 1. VALIDADOR (REJECTS) ---
+    // --- 1. VALIDADOR ---
     let newErrors = { clientName: "", clientCpf: "", clientEmail: "", clientPhone: "" };
     let hasError = false;
 
@@ -102,25 +98,21 @@ export default function OrderSummary({
       return;
     }
 
-    // Validação Nome (Mínimo 3 letras)
     if (clientName.trim().length < 3) {
       newErrors.clientName = "Nome completo é obrigatório.";
       hasError = true;
     }
 
-    // Validação CPF (Deve ter 14 caracteres: 000.000.000-00)
     if (clientCpf.length < 14) {
       newErrors.clientCpf = "CPF inválido ou incompleto.";
       hasError = true;
     }
 
-    // Validação Email
     if (!clientEmail || !validateEmail(clientEmail)) {
       newErrors.clientEmail = "Insira um e-mail válido.";
       hasError = true;
     }
 
-    // Validação Telefone (Mínimo 14 caracteres: (11) 9999-9999)
     if (clientPhone.length < 14) {
       newErrors.clientPhone = "Telefone obrigatório.";
       hasError = true;
@@ -128,18 +120,13 @@ export default function OrderSummary({
 
     setErrors(newErrors);
 
-    if (hasError) {
-      return; // REJECT: Para a execução aqui se houver erros
-    }
+    if (hasError) return;
     
     setLoading(true);
 
-    // 2. Lógica de Envio
+    // 2. SALVAR LEAD NO BANCO (Sem Score)
     const carNameResolved = currentCar.model_name || currentCar.name || currentCar.model || `Veículo ID ${currentCar.id}`;
     
-    const simulatedScore = Math.floor(Math.random() * (999 - 300 + 1)) + 300;
-    setScore(simulatedScore);
-
     try {
       const saleData = {
         car_id: currentCar.id,
@@ -150,8 +137,7 @@ export default function OrderSummary({
         client_email: clientEmail,
         client_phone: clientPhone,
         total_price: totalPrice,
-        score_result: simulatedScore,
-        status: simulatedScore > 600 ? "Aprovado" : "Em Análise",
+        status: "Enviado para Análise", 
         interest_type: paymentMethod,
         details: {
           color: selectedColor?.name || "Padrão",
@@ -162,45 +148,38 @@ export default function OrderSummary({
         created_at: new Date().toISOString(),
       };
 
-      const { error } = await supabase.from("sales").insert([saleData]);
-      if (error) throw error;
-      setSuccess(true);
+      // Salva no Supabase
+      await supabase.from("sales").insert([saleData]);
+
+      // 3. REDIRECIONAR PARA PÁGINA DE ANÁLISE
+      const query = new URLSearchParams({
+        nome: clientName,
+        cpf: clientCpf,
+        modelo: carNameResolved,
+        valor: totalPrice.toString(),
+        
+        // Passamos '0' pois este formulário não coleta esses dados
+        entrada: "0", 
+        renda: "0",
+        
+        // Imagem do carro configurado
+        imagem: currentCar.image_url || ""
+      }).toString();
+
+      // Redireciona para o comparativo
+      router.push(`/vendedor/analise?${query}`);
+
     } catch (error: any) {
-      console.error("Erro ao salvar no Supabase:", error);
-      alert("Erro ao salvar: " + error.message);
-    } finally {
+      console.error("Erro ao processar:", error);
+      alert("Erro ao processar pedido: " + error.message);
       setLoading(false);
     }
   };
 
-  if (success) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] bg-white text-center p-8 space-y-8 animate-in fade-in duration-500">
-        <div className="w-24 h-24 bg-green-600 rounded-full flex items-center justify-center shadow-lg">
-          <Check size={48} className="text-white" />
-        </div>
-        <div>
-           <h2 className="text-4xl font-light text-gray-900 mb-2">Pedido Registrado</h2>
-           <p className="text-gray-500">A proposta de <strong>{paymentMethod}</strong> foi enviada para análise.</p>
-        </div>
-        <div className="bg-gray-50 p-10 rounded border border-gray-200 shadow-xl w-full max-w-md">
-          <p className="text-gray-400 uppercase text-xs font-bold tracking-widest mb-4">SCORE DE CRÉDITO</p>
-          <div className="text-7xl font-bold text-gray-900 mb-6 tracking-tighter">{score}</div>
-          <div className={`inline-block px-6 py-2 rounded-full text-sm font-bold uppercase tracking-wide ${score && score > 600 ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-            {score && score > 600 ? 'Pré-Aprovado' : 'Em Análise'}
-          </div>
-        </div>
-        <button onClick={() => window.location.reload()} className="text-blue-600 hover:text-blue-800 font-medium transition-colors border-b border-transparent hover:border-blue-800">
-          Voltar ao início
-        </button>
-      </div>
-    );
-  }
-
   return (
     <div className="w-full bg-white font-sans text-[#1a1a1a]">
       
-      {/* 1. HEADER (Fixo) */}
+      {/* HEADER */}
       <div className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm flex-none">
         <div className="max-w-[1400px] mx-auto px-6 h-20 flex items-center justify-between">
           <h1 className="text-3xl font-light tracking-tight">Sua 2026 {currentCar.model_name || currentCar.name}</h1>
@@ -214,8 +193,8 @@ export default function OrderSummary({
                 <button className="hidden md:block px-6 py-2 bg-gray-100 text-gray-900 font-medium rounded hover:bg-gray-200 transition-colors text-sm">
                   Inventário
                 </button>
-                <button className="px-6 py-2 bg-black text-white font-medium rounded hover:bg-gray-800 transition-colors text-sm">
-                  Enviar pedido
+                <button onClick={handleFinishOrder} className="px-6 py-2 bg-black text-white font-medium rounded hover:bg-gray-800 transition-colors text-sm">
+                  Escolher Crédito
                 </button>
               </>
             )}
@@ -223,7 +202,7 @@ export default function OrderSummary({
         </div>
       </div>
 
-      {/* 2. CONTEÚDO PRINCIPAL */}
+      {/* CONTEÚDO PRINCIPAL */}
       <main className="w-full pb-20">
         
         {/* HERO IMAGE */}
@@ -239,7 +218,7 @@ export default function OrderSummary({
 
         <div className="max-w-[1200px] mx-auto px-6">
           
-          {/* BLOCO DE RESUMO */}
+          {/* RESUMO */}
           <section className="mb-16 border-b border-gray-200 pb-12">
             <div className="flex justify-between items-baseline mb-8 border-b border-gray-200 pb-4">
               <h2 className="text-3xl font-normal">Resumo</h2>
@@ -249,7 +228,6 @@ export default function OrderSummary({
             </div>
 
             <div className="space-y-0">
-              {/* DETALHES DO VEÍCULO (Mantido igual) */}
               <div className="grid grid-cols-1 md:grid-cols-4 py-8 border-b border-gray-200">
                  <div className="text-lg font-normal mb-4 md:mb-0">Versões</div>
                  <div className="md:col-span-3">
@@ -262,7 +240,6 @@ export default function OrderSummary({
                  </div>
               </div>
 
-              {/* Exterior */}
               <div className="grid grid-cols-1 md:grid-cols-4 py-8 border-b border-gray-200">
                  <div className="text-lg font-normal mb-4 md:mb-0">Exterior</div>
                  <div className="md:col-span-3 space-y-8">
@@ -289,7 +266,6 @@ export default function OrderSummary({
                  </div>
               </div>
 
-              {/* PREÇO */}
               <div className="grid grid-cols-1 md:grid-cols-4 py-8 border-b border-gray-200">
                  <div className="text-lg font-normal mb-4 md:mb-0">Total</div>
                  <div className="md:col-span-3">
@@ -299,7 +275,7 @@ export default function OrderSummary({
             </div>
           </section>
 
-          {/* DADOS PARA PROPOSTA E SCORE (SEGMENTO PROTEGIDO) */}
+          {/* DADOS DO CLIENTE */}
           <section className="pt-10 border-t border-gray-200">
              <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
                
@@ -318,7 +294,7 @@ export default function OrderSummary({
                        </div>
                        <h3 className="text-xl font-bold text-gray-900 mb-2">Funcionalidade Restrita</h3>
                        <p className="text-gray-500 mb-6 max-w-md">
-                         A consulta de Score e finalização de propostas são exclusivas para vendedores logados.
+                         A finalização de propostas é exclusiva para vendedores logados.
                        </p>
                        <Link href="/login" className="bg-blue-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-blue-700 transition-colors">
                          Fazer Login de Vendedor
@@ -327,7 +303,7 @@ export default function OrderSummary({
                   ) : (
                     <div className="grid grid-cols-1 gap-6">
                       
-                      {/* SELEÇÃO DE MODALIDADE */}
+                      {/* BOTÕES DE ESCOLHA */}
                       <div className="grid grid-cols-2 gap-4 mb-2">
                         <button
                           onClick={() => setPaymentMethod("Financiamento")}
@@ -352,7 +328,7 @@ export default function OrderSummary({
                         </button>
                       </div>
 
-                      {/* CAMPOS COM VALIDAÇÃO */}
+                      {/* INPUTS */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           <div>
                             <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
@@ -431,7 +407,7 @@ export default function OrderSummary({
                               ${paymentMethod === 'Consorcio' ? 'bg-purple-700' : 'bg-[#1c1c1c]'}
                             `}
                           >
-                            {loading ? <Loader2 className="animate-spin" size={18} /> : `Finalizar (${paymentMethod})`}
+                            {loading ? <Loader2 className="animate-spin" size={18} /> : `Escolher Crédito`}
                           </button>
                       </div>
                     </div>
@@ -442,7 +418,6 @@ export default function OrderSummary({
 
         </div>
       </main>
-      
     </div>
   );
 }

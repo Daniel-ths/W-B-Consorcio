@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserClient } from '@supabase/ssr';
 import { Mail, Lock, Loader2, ArrowRight, ShieldCheck } from "lucide-react";
@@ -10,20 +10,43 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true); // <--- NOVO: Controla o loading inicial da sessão
   const [error, setError] = useState<string | null>(null);
 
-  // Cliente Supabase para gerenciar cookies corretamente
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
+
+  // 1. PROTEÇÃO ANTI-LOOP: Verifica se já está logado ao entrar na página
+  useEffect(() => {
+    const checkUser = async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+            // Se já tem sessão, busca o cargo e redireciona
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('role')
+                .eq('id', session.user.id)
+                .single();
+            
+            const role = profile?.role || 'vendedor';
+            
+            if (role === 'admin') router.replace('/admin');
+            else router.replace('/vendedor/dashboard');
+        } else {
+            // Se não tem sessão, libera o formulário
+            setCheckingSession(false);
+        }
+    };
+    checkUser();
+  }, [router, supabase]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
-    // 1. Tenta Logar
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -35,10 +58,8 @@ export default function LoginPage() {
       return;
     }
 
-    // 2. SUCESSO! Lógica de Cookies e Redirecionamento
     router.refresh(); 
 
-    // Verifica o cargo para redirecionar certo
     const { data: profile } = await supabase
         .from('profiles')
         .select('role')
@@ -47,10 +68,9 @@ export default function LoginPage() {
 
     const role = profile?.role || 'vendedor';
 
-    // Pequeno delay artificial só para a animação do botão fluir (opcional, mas fica chique)
+    // Delay visual (UX)
     await new Promise(resolve => setTimeout(resolve, 500));
 
-    // 3. Redireciona
     if (role === 'admin') {
         router.replace('/admin');
     } else {
@@ -58,19 +78,26 @@ export default function LoginPage() {
     }
   };
 
+  // Se estiver checando a sessão, mostra um loading de tela cheia (evita piscar o formulário)
+  if (checkingSession) {
+      return (
+        <div className="min-h-screen w-full flex items-center justify-center bg-white">
+            <Loader2 className="animate-spin text-gray-400" size={32} />
+        </div>
+      );
+  }
+
   return (
     <div className="flex min-h-screen w-full font-sans bg-white">
       
-      {/* --- LADO ESQUERDO: IMAGEM/BRANDING (Escondido em Mobile) --- */}
+      {/* --- LADO ESQUERDO: IMAGEM/BRANDING --- */}
       <div className="hidden lg:flex w-1/2 relative bg-black items-center justify-center overflow-hidden">
-        {/* Imagem de Fundo com Overlay */}
         <div 
             className="absolute inset-0 bg-cover bg-center opacity-60"
             style={{ backgroundImage: "url('https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?q=80&w=1920&auto=format&fit=crop')" }}
         ></div>
         <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/40"></div>
 
-        {/* Texto sobre a imagem */}
         <div className="relative z-10 p-12 text-white max-w-lg">
             <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-lg flex items-center justify-center mb-6 border border-white/10">
                 <ShieldCheck size={28} className="text-white" />
@@ -88,13 +115,11 @@ export default function LoginPage() {
       <div className="flex-1 flex flex-col items-center justify-center p-8 lg:p-12 bg-white">
         <div className="w-full max-w-sm space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
             
-            {/* Cabeçalho do Form */}
             <div className="text-center lg:text-left">
                 <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Bem-vindo de volta</h1>
                 <p className="text-gray-500 mt-2 text-sm">Digite suas credenciais para acessar o painel.</p>
             </div>
 
-            {/* Mensagem de Erro */}
             {error && (
                 <div className="bg-red-50 text-red-600 p-4 rounded-lg text-sm flex items-center gap-2 border border-red-100 animate-in fade-in">
                     <span className="w-1.5 h-1.5 bg-red-600 rounded-full"></span>
@@ -104,7 +129,6 @@ export default function LoginPage() {
 
             <form onSubmit={handleLogin} className="space-y-5">
                 
-                {/* Input Email */}
                 <div className="space-y-1.5">
                     <label className="text-xs font-bold text-gray-700 uppercase tracking-wide ml-1">E-mail Corporativo</label>
                     <div className="relative group">
@@ -120,7 +144,6 @@ export default function LoginPage() {
                     </div>
                 </div>
 
-                {/* Input Senha */}
                 <div className="space-y-1.5">
                     <div className="flex justify-between items-center ml-1">
                         <label className="text-xs font-bold text-gray-700 uppercase tracking-wide">Senha</label>
@@ -139,7 +162,6 @@ export default function LoginPage() {
                     </div>
                 </div>
 
-                {/* Botão de Login */}
                 <button 
                     type="submit" 
                     disabled={loading}
