@@ -7,11 +7,15 @@ import {
 } from "lucide-react";
 
 // --- CONFIGURAÇÃO ---
-const BASE_URL_IMG = "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/";
+// 1. URL BASE DA PASTA NO SUPABASE (Termina com /)
+const BASE_URL_IMG = "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/logo/";
+
+// 2. NOME DO ARQUIVO DO LOGO PRINCIPAL (Deve estar dentro da pasta acima)
+const LOGO_FILE = "seminovos.png"; // Verifique se no Supabase é .png ou .webp
 
 // IDs reais da Tabela FIPE para consulta na API
 const BRANDS = [
-  { name: 'CHEVROLET', id: 23, file: 'chevrolet.webp?v=3' }, 
+  { name: 'CHEVROLET', id: 23, file: 'cars/chevrolet-logo.svg' }, 
   { name: 'VOLKSWAGEN', id: 59, file: 'volkswagen.webp?v=3' }, 
   { name: 'RENAULT', id: 44, file: 'renault.webp?v=3' },
   { name: 'FORD', id: 22, file: 'ford.webp?v=3' },
@@ -107,9 +111,14 @@ export default function SeminovosPage() {
       <div className="bg-[#f2e14c] w-full py-6 px-6 shadow-md pt-20 sticky top-0 z-30 transition-all duration-300 ease-in-out">
          <div className="max-w-6xl mx-auto flex items-center justify-between">
             <div className="flex items-center gap-4 animate-in fade-in slide-in-from-left-4 duration-500">
-                 <img src={`${BASE_URL_IMG}logo semi novos.webp?v=8`} className="h-8 w-auto object-contain" alt="Logo" />
+                 {/* LOGO PRINCIPAL SEMINOVOS */}
+                 <img 
+                    src={`${BASE_URL_IMG}${LOGO_FILE}`} 
+                    className="h-10 w-auto object-contain" 
+                    alt="Logo Seminovos" 
+                 />
                  <h1 className="text-sm font-black text-black uppercase tracking-widest hidden md:block">
-                    Módulo de Seminovos
+                   
                  </h1>
             </div>
             {!selectedBrand && (
@@ -146,7 +155,16 @@ export default function SeminovosPage() {
                             style={{ animationDelay: `${index * 50}ms` }}
                             className="h-40 bg-gray-50 border border-gray-200 rounded-xl relative group flex flex-col items-center justify-center p-4 transition-all duration-300 ease-out hover:border-[#f2e14c] hover:bg-yellow-50/30 hover:-translate-y-2 hover:shadow-xl animate-in fade-in slide-in-from-bottom-2 backwards"
                         >
-                            <img src={`${BASE_URL_IMG}${brand.file}`} alt={brand.name} className="h-20 w-auto object-contain mb-4 transition-transform duration-500 group-hover:scale-110"/>
+                            {/* IMAGENS DAS MARCAS */}
+                            <img 
+                                src={`${BASE_URL_IMG}${brand.file}`} 
+                                alt={brand.name} 
+                                className="h-20 w-auto object-contain mb-4 transition-transform duration-500 group-hover:scale-110"
+                                onError={(e) => {
+                                    // Fallback caso a imagem quebre
+                                    (e.target as HTMLImageElement).src = "https://placehold.co/100x100?text=LOGO";
+                                }}
+                            />
                             <span className="font-black text-gray-400 transition-colors duration-300 group-hover:text-black uppercase text-sm">{brand.name}</span>
                         </button>
                     ))}
@@ -177,7 +195,7 @@ export default function SeminovosPage() {
                         <div>
                             <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">Marca Selecionada</label>
                             
-                            {/* --- AQUI ESTÁ A MUDANÇA: LOGO + NOME --- */}
+                            {/* LOGO DA MARCA SELECIONADA */}
                             <div className="flex items-center gap-3 animate-in fade-in slide-in-from-left-2">
                                 <img 
                                     src={`${BASE_URL_IMG}${selectedBrand.file}`} 
@@ -186,7 +204,6 @@ export default function SeminovosPage() {
                                 />
                                 <div className="font-black text-xl text-black uppercase">{selectedBrand.name}</div>
                             </div>
-                            {/* --------------------------------------- */}
 
                         </div>
 

@@ -111,10 +111,7 @@ export default function VehiclesMenu({ onClose }: VehiclesMenuProps) {
                         <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-8">Qualidade Certificada Chevrolet</p>
                         <div className="flex justify-center gap-4">
                             <Link href="/seminovos" onClick={onClose} className="px-6 py-3 bg-blue-600 text-white text-xs font-bold uppercase tracking-wide hover:bg-blue-700 transition-colors">
-                                Ver Estoque
-                            </Link>
-                            <Link href="/seminovos/premium" onClick={onClose} className="px-6 py-3 border border-gray-300 text-gray-700 text-xs font-bold uppercase tracking-wide hover:bg-gray-200 transition-colors">
-                                Linha Premium
+                                Consultar
                             </Link>
                         </div>
                     </div>
