@@ -2,18 +2,18 @@
 
 import { useState, Suspense, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase"; 
 import { 
-  CheckCircle2, ShieldCheck, Loader2, ArrowLeft, Printer, CarFront, User, FileText, Calendar, DollarSign, MapPin
+  CheckCircle2, Loader2, ArrowLeft, Printer, CarFront, User, DollarSign, Briefcase, Send
 } from "lucide-react";
 
-function ContratoContent() {
+function PedidoContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // --- DADOS RECEBIDOS ---
+  // --- DADOS DO PEDIDO (Vindos da URL) ---
   const dados = {
     tipo: searchParams.get('tipo') || "CONSORCIO",
-    nome: searchParams.get('nome') || "Cliente",
     cpf: searchParams.get('cpf') || "", 
     modelo: searchParams.get('modelo') || "Veículo Selecionado",
     valor: parseFloat(searchParams.get('valor') || "0"),
@@ -24,24 +24,31 @@ function ContratoContent() {
     imagem: searchParams.get('imagem') || "", 
   };
 
-  const [etapa, setEtapa] = useState<1 | 2>(1);
-  const [loadingValidacao, setLoadingValidacao] = useState(false);
-  const [statusCPF, setStatusCPF] = useState<'PENDENTE' | 'VALIDO' | 'INVALIDO'>('PENDENTE');
-  const [nomeReceita, setNomeReceita] = useState("");
-  const [termosAceitos, setTermosAceitos] = useState(false);
+  const [loadingValidacao, setLoadingValidacao] = useState(true);
+  const [loadingSalvar, setLoadingSalvar] = useState(false); 
+  const [pedidoSalvo, setPedidoSalvo] = useState(false); 
+  
+  // DADOS DA API E MANUAIS
+  const [apiData, setApiData] = useState<any>(null);
+  const [erroApi, setErroApi] = useState(false);
+  const [nomeManual, setNomeManual] = useState(""); // <--- NOVO: Nome editável
   const [dataAtual, setDataAtual] = useState("");
 
-  // Formata a data apenas no cliente para evitar erro de hidratação
   useEffect(() => {
-    setDataAtual(new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' }));
+    setDataAtual(new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }));
+    
+    if (dados.cpf) {
+        validarReceita();
+    } else {
+        setLoadingValidacao(false);
+    }
   }, []);
 
   const formatMoney = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
-  const protocolo = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+  const numeroPedido = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
 
-  // --- VALIDAÇÃO API ---
-  const handleValidarReceita = async () => {
-    setLoadingValidacao(true);
+  // --- 1. CONSULTA API RECEITA ---
+  const validarReceita = async () => {
     try {
       const response = await fetch('/api/consultar-cpf', {
         method: 'POST',
@@ -50,278 +57,278 @@ function ContratoContent() {
       });
       const data = await response.json();
 
-      if (data && data.situacaoCadastral === 'REGULAR') {
-        setStatusCPF('VALIDO');
-        setNomeReceita(data.nome); 
+      if (data && !data.error) {
+        setApiData(data); 
+        setNomeManual(data.nome); // <--- NOVO: Preenche o nome se a API achar
       } else {
-        setStatusCPF('INVALIDO');
-        alert("CPF irregular na Receita Federal ou erro de conexão.");
+        setErroApi(true); // API falhou, mas não vamos travar a venda
       }
     } catch (error) {
       console.error(error);
-      alert("Erro ao validar CPF.");
+      setErroApi(true);
     } finally {
       setLoadingValidacao(false);
     }
   };
 
+  // --- 2. ENVIAR PARA O ADMIN (SUPABASE) ---
+  const handleFinalizarSolicitacao = async () => {
+    // Validação simples: Precisa ter pelo menos um nome digitado
+    if (!nomeManual || nomeManual.trim().length < 3) {
+        alert("Por favor, preencha o Nome do Cliente antes de finalizar.");
+        return;
+    }
+
+    setLoadingSalvar(true);
+
+    try {
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (!user) {
+            alert("Erro: Você precisa estar logado para finalizar uma venda.");
+            return;
+        }
+
+        // Prepara o objeto para salvar no banco
+        const payload = {
+            seller_id: user.id,
+            car_name: dados.modelo,
+            // USA O NOME QUE ESTIVER NO CAMPO (Seja da API ou Digitado)
+            client_name: nomeManual.toUpperCase(), 
+            client_cpf: dados.cpf,
+            status: "Aguardando Aprovação",
+            total_price: dados.valor,
+            interest_type: dados.tipo,
+            client_phone: "Não informado",
+            created_at: new Date().toISOString()
+        };
+
+        const { error } = await supabase.from('sales').insert([payload]);
+
+        if (error) throw error;
+
+        setPedidoSalvo(true);
+        alert("Solicitação enviada com sucesso para o Painel Administrativo!");
+
+    } catch (error: any) {
+        console.error("Erro ao salvar:", error);
+        alert("Erro ao enviar solicitação: " + error.message);
+    } finally {
+        setLoadingSalvar(false);
+    }
+  };
+
+  if (loadingValidacao) {
+      return (
+          <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center">
+              <Loader2 className="animate-spin text-[#f2e14c] w-12 h-12 mb-4"/>
+              <p className="text-slate-500 font-bold uppercase text-sm animate-pulse">Preparando Documento...</p>
+          </div>
+      )
+  }
+
   return (
     <div className="min-h-screen bg-[#f3f4f6] font-sans text-slate-900 pb-20 print:bg-white print:pb-0">
         
-        {/* --- HEADER (Escondido na Impressão) --- */}
+        {/* HEADER (Tela) */}
         <header className="px-6 py-4 bg-white border-b border-gray-200 sticky top-0 z-50 print:hidden shadow-sm">
-            <div className="max-w-6xl mx-auto flex items-center justify-between">
+            <div className="max-w-5xl mx-auto flex items-center justify-between">
                 <button onClick={() => router.back()} className="group flex items-center gap-3 text-slate-500 hover:text-black transition-colors">
                     <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center group-hover:bg-gray-200"><ArrowLeft size={16}/></div>
                     <span className="text-sm font-bold uppercase tracking-wide">Voltar</span>
                 </button>
                 <div className="flex items-center gap-2">
-                    <span className={`h-2 w-2 rounded-full ${etapa === 1 ? 'bg-yellow-400 animate-pulse' : 'bg-emerald-500'}`}></span>
-                    <span className="text-xs font-bold uppercase text-slate-500">
-                        {etapa === 1 ? 'Aguardando Validação' : 'Contrato Emitido'}
-                    </span>
+                    <button onClick={() => window.print()} className="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-slate-50 flex items-center gap-2 transition-all">
+                        <Printer size={14}/> Imprimir
+                    </button>
+                    
+                    {!pedidoSalvo ? (
+                        <button 
+                            onClick={handleFinalizarSolicitacao} 
+                            disabled={loadingSalvar} 
+                            // ^^^ AQUI MUDOU: Removemos "|| erroApi". O botão SEMPRE funciona agora.
+                            className="bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-black flex items-center gap-2 shadow-md transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {loadingSalvar ? <Loader2 className="animate-spin" size={14}/> : <Send size={14}/>}
+                            {loadingSalvar ? "Enviando..." : "Finalizar Solicitação"}
+                        </button>
+                    ) : (
+                        <div className="bg-emerald-100 text-emerald-700 px-4 py-2 rounded-lg text-xs font-bold uppercase flex items-center gap-2">
+                            <CheckCircle2 size={14}/> Enviado ao Admin
+                        </div>
+                    )}
                 </div>
             </div>
         </header>
 
-        <main className="max-w-6xl mx-auto px-4 py-8 md:px-6">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <main className="max-w-5xl mx-auto px-4 py-8 md:px-6">
+            
+            <div className="bg-white shadow-xl rounded-xl overflow-hidden print:shadow-none print:rounded-none border border-gray-200 print:border-none">
                 
-                {/* --- COLUNA ESQUERDA: O DOCUMENTO (Visual de Papel) --- */}
-                <div className="lg:col-span-8">
-                    
-                    {/* FOLHA A4 DIGITAL */}
-                    <div id="contrato-print" className="bg-white rounded-xl shadow-xl p-10 md:p-12 min-h-[800px] relative overflow-hidden border border-gray-100 print:shadow-none print:border-none print:p-0 print:w-full">
-                        
-                        {/* Marca D'água (Sutil) */}
-                        <div className="absolute inset-0 pointer-events-none flex items-center justify-center opacity-[0.03] select-none">
-                            <CarFront size={400} />
-                        </div>
-
-                        {/* Cabeçalho do Documento */}
-                        <div className="border-b-2 border-black pb-6 mb-8 flex justify-between items-end">
+                {/* CABEÇALHO DO PEDIDO */}
+                <div className="bg-gray-100 p-8 border-b border-gray-300 print:bg-white print:border-b-2 print:border-black">
+                    <div className="flex justify-between items-start">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-black text-[#f2e14c] flex items-center justify-center rounded font-black text-xl">W</div>
                             <div>
-                                <h1 className="text-2xl font-black uppercase tracking-tighter mb-1">Pré-Contrato de Intenção</h1>
-                                <p className="text-xs font-bold text-gray-500 uppercase">Documento Auxiliar de Venda • {dados.tipo}</p>
-                            </div>
-                            <div className="text-right">
-                                <p className="text-[10px] font-mono text-gray-400 uppercase mb-1">Protocolo</p>
-                                <p className="text-xl font-mono font-bold text-black bg-gray-100 px-2 rounded">#{protocolo}</p>
+                                <h1 className="text-xl font-black uppercase tracking-tight text-slate-900">Solicitação de Pedido</h1>
+                                <p className="text-xs font-bold text-slate-500 uppercase">W B C Consórcio & Veículos</p>
                             </div>
                         </div>
+                        <div className="text-right">
+                            <p className="text-[10px] uppercase text-slate-500 font-bold">Número do Pedido</p>
+                            <p className="text-2xl font-mono font-bold text-black tracking-widest">#{numeroPedido}</p>
+                            <div className="flex justify-end gap-1 mt-1">
+                                <span className="inline-block px-2 py-0.5 bg-[#f2e14c] text-black text-[10px] font-bold uppercase rounded">
+                                    {dados.tipo}
+                                </span>
+                                {pedidoSalvo && <span className="inline-block px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase rounded border border-emerald-200">Sincronizado</span>}
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-                        {/* Seção 1: Contratante */}
+                <div className="p-8 md:p-12 space-y-8">
+
+                    {/* 1. DADOS DO PROPONENTE (Cliente) */}
+                    <section className="border border-gray-200 rounded-lg overflow-hidden">
+                        <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 flex items-center gap-2">
+                            <User size={14} className="text-slate-500"/>
+                            <h3 className="text-xs font-black uppercase text-slate-700">Dados do Proponente</h3>
+                        </div>
+                        <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-6">
+                            
+                            {/* CAMPO DE NOME AGORA É EDITÁVEL */}
+                            <div className="md:col-span-2 relative">
+                                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Nome Completo</label>
+                                <input 
+                                    type="text" 
+                                    value={nomeManual}
+                                    onChange={(e) => setNomeManual(e.target.value.toUpperCase())}
+                                    className="w-full border-b-2 border-slate-200 bg-transparent py-1 text-sm font-bold text-slate-900 uppercase focus:border-black focus:outline-none placeholder:text-slate-300"
+                                    placeholder="Digite o nome do cliente..."
+                                />
+                                {erroApi && <span className="text-[10px] text-orange-500 font-bold absolute right-0 top-0">Preenchimento Manual</span>}
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-bold text-slate-400 uppercase">CPF</label>
+                                <div className="text-sm font-mono font-bold text-slate-900">{dados.cpf}</div>
+                            </div>
+                            
+                            <div>
+                                <label className="block text-[10px] font-bold text-slate-400 uppercase">Status Cadastral</label>
+                                <div className="flex items-center gap-1">
+                                    {/* Se der erro na API, mostra bolinha cinza, senão mostra a cor correta */}
+                                    <div className={`w-2 h-2 rounded-full ${erroApi ? 'bg-gray-300' : (apiData?.situacaoCadastral === 'REGULAR' ? 'bg-emerald-500' : 'bg-red-500')}`}></div>
+                                    <span className="text-sm font-bold text-slate-700">{erroApi ? "Não verificado (API)" : (apiData?.situacaoCadastral || "Verificar")}</span>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-bold text-slate-400 uppercase">Data de Nascimento</label>
+                                <div className="text-sm text-slate-700">{apiData?.dataNascimento || "---"}</div>
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* 2. DADOS DO VEÍCULO (Item do Pedido) */}
+                    <section className="border border-gray-200 rounded-lg overflow-hidden">
+                        <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 flex items-center gap-2">
+                            <CarFront size={14} className="text-slate-500"/>
+                            <h3 className="text-xs font-black uppercase text-slate-700">Especificação do Item</h3>
+                        </div>
+                        <div className="p-4 flex gap-6 items-center">
+                            {dados.imagem && (
+                                <img src={dados.imagem} className="w-24 h-16 object-cover rounded border border-gray-200 bg-white print:hidden" />
+                            )}
+                            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label className="block text-[10px] font-bold text-slate-400 uppercase">Modelo / Descrição</label>
+                                    <div className="text-lg font-black text-slate-900 uppercase">{dados.modelo}</div>
+                                    <div className="text-xs text-slate-500">Ano/Modelo: 2026 • 0KM</div>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-bold text-slate-400 uppercase">Valor de Tabela</label>
+                                    <div className="text-lg font-bold text-slate-900">{formatMoney(dados.valor)}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* 3. RESUMO FINANCEIRO (Tabela) */}
+                    <section className="border border-gray-200 rounded-lg overflow-hidden">
+                        <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 flex items-center gap-2">
+                            <DollarSign size={14} className="text-slate-500"/>
+                            <h3 className="text-xs font-black uppercase text-slate-700">Condições de Pagamento</h3>
+                        </div>
+                        <table className="w-full text-sm text-left">
+                            <thead className="text-xs text-slate-500 uppercase bg-gray-50/50 border-b border-gray-100">
+                                <tr>
+                                    <th className="px-4 py-2 font-bold">Descrição</th>
+                                    <th className="px-4 py-2 font-bold text-right">Valor</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                <tr>
+                                    <td className="px-4 py-3 font-medium text-slate-700">Entrada / Lance Inicial</td>
+                                    <td className="px-4 py-3 font-bold text-slate-900 text-right">{formatMoney(dados.entrada)}</td>
+                                </tr>
+                                <tr>
+                                    <td className="px-4 py-3 font-medium text-slate-700">Saldo Restante ({dados.tipo})</td>
+                                    <td className="px-4 py-3 font-bold text-slate-900 text-right">{formatMoney(dados.valor - dados.entrada)}</td>
+                                </tr>
+                                <tr className="bg-[#f2e14c]/10">
+                                    <td className="px-4 py-3 font-bold text-slate-900 flex items-center gap-2">
+                                        <Briefcase size={14}/> Plano Selecionado ({dados.prazo}x)
+                                    </td>
+                                    <td className="px-4 py-3 font-black text-slate-900 text-right text-lg">{formatMoney(dados.parcela)} <span className="text-xs font-normal text-slate-500">/mês</span></td>
+                                </tr>
+                                <tr>
+                                    <td className="px-4 py-3 font-medium text-slate-500">Custo Total Estimado</td>
+                                    <td className="px-4 py-3 font-medium text-slate-500 text-right">{formatMoney(dados.total)}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </section>
+
+                    {/* RODAPÉ E OBSERVAÇÕES */}
+                    <div className="pt-8 mt-4 border-t-2 border-dashed border-gray-200">
                         <div className="mb-8">
-                            <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4 border-b border-gray-100 pb-1 flex items-center gap-2">
-                                <User size={12}/> Dados do Contratante
-                            </h3>
-                            <div className="grid grid-cols-2 gap-y-4 text-sm">
-                                <div>
-                                    <span className="block text-[10px] font-bold text-gray-400 uppercase">Nome Completo</span>
-                                    <span className="font-bold text-gray-900 uppercase">{nomeReceita || dados.nome}</span>
-                                </div>
-                                <div>
-                                    <span className="block text-[10px] font-bold text-gray-400 uppercase">CPF</span>
-                                    <span className="font-mono text-gray-900">{dados.cpf}</span>
-                                </div>
-                                <div>
-                                    <span className="block text-[10px] font-bold text-gray-400 uppercase">Situação Cadastral</span>
-                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${statusCPF === 'VALIDO' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
-                                        {statusCPF === 'VALIDO' ? 'REGULAR NA RECEITA FEDERAL' : 'AGUARDANDO VALIDAÇÃO'}
-                                    </span>
-                                </div>
-                                <div>
-                                    <span className="block text-[10px] font-bold text-gray-400 uppercase">Data de Emissão</span>
-                                    <span className="text-gray-900">{dataAtual}</span>
-                                </div>
+                            <h4 className="text-[10px] font-bold text-slate-400 uppercase mb-2">Observações Internas / Pendências</h4>
+                            <div className="w-full h-20 border border-gray-200 rounded bg-gray-50/50 p-2 text-xs text-gray-400">
+                                (Espaço reservado para anotações manuais do vendedor)
                             </div>
                         </div>
 
-                        {/* Seção 2: O Veículo */}
-                        <div className="mb-8 p-4 bg-gray-50 rounded-lg border border-gray-100 print:bg-white print:border-black">
-                            <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4 flex items-center gap-2">
-                                <CarFront size={12}/> Objeto do Contrato
-                            </h3>
-                            <div className="flex gap-6 items-center">
-                                {dados.imagem && (
-                                    <div className="w-24 h-16 bg-white border border-gray-200 rounded flex items-center justify-center overflow-hidden print:hidden">
-                                        <img src={dados.imagem} className="w-full h-full object-cover" />
-                                    </div>
-                                )}
-                                <div>
-                                    <p className="text-lg font-black text-gray-900 uppercase">{dados.modelo}</p>
-                                    <p className="text-sm text-gray-500">Ano/Modelo 2025/2026 • 0KM</p>
-                                </div>
+                        <div className="grid grid-cols-2 gap-8 items-end">
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Responsável pela Venda</p>
+                                <p className="text-sm font-bold text-slate-900 border-b border-slate-300 pb-1">W B C Consórcio LTDA</p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Cliente / Proponente</p>
+                                <p className="text-sm font-bold text-slate-900 border-b border-slate-300 pb-1">{nomeManual || "________________________"}</p>
                             </div>
                         </div>
 
-                        {/* Seção 3: Valores Financeiros */}
-                        <div className="mb-12">
-                            <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4 border-b border-gray-100 pb-1 flex items-center gap-2">
-                                <DollarSign size={12}/> Condições Comerciais
-                            </h3>
-                            <div className="grid grid-cols-3 gap-6">
-                                <div className="p-3 border border-gray-200 rounded print:border-black">
-                                    <span className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Valor do Bem</span>
-                                    <span className="block text-lg font-bold text-gray-900">{formatMoney(dados.valor)}</span>
-                                </div>
-                                <div className="p-3 border border-gray-200 rounded print:border-black bg-gray-50 print:bg-white">
-                                    <span className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Entrada / Lance</span>
-                                    <span className="block text-lg font-bold text-gray-900">{formatMoney(dados.entrada)}</span>
-                                </div>
-                                <div className="p-3 border border-black bg-black text-white rounded print:bg-white print:text-black shadow-lg print:shadow-none">
-                                    <span className="block text-[10px] font-bold text-white/60 print:text-black uppercase mb-1">Condição Escolhida</span>
-                                    <span className="block text-lg font-bold">{dados.prazo}x de {formatMoney(dados.parcela)}</span>
-                                </div>
-                            </div>
-                            <div className="mt-4 text-right">
-                                <p className="text-xs font-bold text-gray-400 uppercase">Valor Total da Operação: <span className="text-gray-900">{formatMoney(dados.total)}</span></p>
-                            </div>
-                        </div>
-
-                        {/* Área de Assinaturas (Só aparece visualmente, e na impressão) */}
-                        <div className="mt-20 grid grid-cols-2 gap-12 print:mt-32">
-                            <div className="border-t border-black pt-2 text-center">
-                                <p className="text-xs font-bold uppercase text-gray-900">{nomeReceita || "Assinatura do Cliente"}</p>
-                                <p className="text-[10px] text-gray-400">Contratante</p>
-                            </div>
-                            <div className="border-t border-black pt-2 text-center">
-                                <p className="text-xs font-bold uppercase text-gray-900">W B C Consórcio LTDA</p>
-                                <p className="text-[10px] text-gray-400">Contratada</p>
-                            </div>
-                        </div>
-
-                        <div className="mt-12 pt-6 border-t border-gray-100 text-center print:hidden">
-                            <p className="text-[10px] text-gray-400">Este documento é uma simulação de intenção de compra e depende de aprovação final de crédito.</p>
+                        <div className="mt-8 text-center">
+                            <p className="text-[10px] text-slate-400">
+                                Este documento é uma <strong>solicitação de pedido</strong> e não garante a aprovação do crédito. Ao assinar, o cliente autoriza a consulta aos órgãos de proteção ao crédito.
+                            </p>
+                            <p className="text-[10px] text-slate-300 font-mono mt-1 uppercase">
+                                Emitido em: {dataAtual}
+                            </p>
                         </div>
                     </div>
+
                 </div>
-
-                {/* --- COLUNA DIREITA: AÇÕES (Escondido na Impressão) --- */}
-                <div className="lg:col-span-4 space-y-6 print:hidden">
-                    
-                    {/* Status Card */}
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
-                        <h3 className="text-xs font-black uppercase text-gray-400 mb-4 tracking-widest">Status do Processo</h3>
-                        
-                        <div className="space-y-4">
-                            {/* Passo 1 */}
-                            <div className="flex gap-3">
-                                <div className="flex flex-col items-center">
-                                    <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center text-white"><CheckCircle2 size={14}/></div>
-                                    <div className="h-full w-0.5 bg-emerald-200 my-1"></div>
-                                </div>
-                                <div className="pb-4">
-                                    <p className="text-sm font-bold text-gray-900">Simulação Realizada</p>
-                                    <p className="text-xs text-gray-500">Valores definidos.</p>
-                                </div>
-                            </div>
-
-                            {/* Passo 2 */}
-                            <div className="flex gap-3">
-                                <div className="flex flex-col items-center">
-                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${statusCPF === 'VALIDO' ? 'bg-emerald-500 text-white' : 'bg-yellow-400 text-black'}`}>
-                                        {statusCPF === 'VALIDO' ? <CheckCircle2 size={14}/> : <ShieldCheck size={14}/>}
-                                    </div>
-                                    <div className={`h-full w-0.5 my-1 transition-colors ${etapa === 2 ? 'bg-emerald-200' : 'bg-gray-100'}`}></div>
-                                </div>
-                                <div className="pb-4">
-                                    <p className="text-sm font-bold text-gray-900">Validação Cadastral</p>
-                                    <p className="text-xs text-gray-500">{statusCPF === 'VALIDO' ? 'CPF Regular na Receita.' : 'Pendente de validação.'}</p>
-                                </div>
-                            </div>
-
-                            {/* Passo 3 */}
-                            <div className="flex gap-3">
-                                <div className="flex flex-col items-center">
-                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${etapa === 2 ? 'bg-emerald-500 text-white' : 'bg-gray-200 text-gray-400'}`}>
-                                        <FileText size={14}/>
-                                    </div>
-                                </div>
-                                <div>
-                                    <p className={`text-sm font-bold transition-colors ${etapa === 2 ? 'text-gray-900' : 'text-gray-400'}`}>Emissão do Contrato</p>
-                                    <p className="text-xs text-gray-500">Pronto para assinatura.</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Botões de Ação */}
-                    <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-200 sticky top-24">
-                        
-                        {/* Se ainda não validou */}
-                        {statusCPF !== 'VALIDO' && (
-                            <div className="space-y-4">
-                                <div className="bg-blue-50 p-3 rounded text-xs text-blue-700 font-medium">
-                                    Para emitir o contrato, primeiro valide o CPF do cliente.
-                                </div>
-                                <button 
-                                    onClick={handleValidarReceita} 
-                                    disabled={loadingValidacao} 
-                                    className="w-full bg-[#f2e14c] hover:bg-[#ebd52a] text-black font-black py-4 rounded-xl uppercase text-xs tracking-widest shadow-md transition-all flex items-center justify-center gap-2"
-                                >
-                                    {loadingValidacao ? <Loader2 className="animate-spin" size={16}/> : <ShieldCheck size={16}/>}
-                                    {loadingValidacao ? "Consultando..." : "Validar CPF na API"}
-                                </button>
-                            </div>
-                        )}
-
-                        {/* Se já validou, mas não emitiu */}
-                        {statusCPF === 'VALIDO' && etapa === 1 && (
-                            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
-                                <div className="flex items-start gap-2 p-3 bg-gray-50 rounded border border-gray-100">
-                                    <input 
-                                        type="checkbox" 
-                                        id="termos" 
-                                        className="mt-1"
-                                        checked={termosAceitos}
-                                        onChange={(e) => setTermosAceitos(e.target.checked)}
-                                    />
-                                    <label htmlFor="termos" className="text-xs text-gray-500 cursor-pointer select-none">
-                                        Declaro que os dados foram conferidos com o documento original do cliente e são verdadeiros.
-                                    </label>
-                                </div>
-
-                                <button 
-                                    onClick={() => setEtapa(2)}
-                                    disabled={!termosAceitos}
-                                    className="w-full bg-slate-900 hover:bg-black disabled:bg-gray-300 text-white font-black py-4 rounded-xl uppercase text-xs tracking-widest shadow-xl transition-all flex items-center justify-center gap-2"
-                                >
-                                    <FileText size={16}/> Gerar Contrato Oficial
-                                </button>
-                            </div>
-                        )}
-
-                        {/* Se já emitiu */}
-                        {etapa === 2 && (
-                            <div className="space-y-3 animate-in zoom-in">
-                                <div className="bg-emerald-50 text-emerald-700 p-3 rounded-lg text-xs font-bold text-center border border-emerald-100 mb-4">
-                                    Contrato #{protocolo} gerado com sucesso!
-                                </div>
-                                <button 
-                                    onClick={() => window.print()}
-                                    className="w-full bg-slate-900 hover:bg-black text-white font-bold py-4 rounded-xl uppercase text-xs tracking-widest shadow-lg flex items-center justify-center gap-2"
-                                >
-                                    <Printer size={16}/> Imprimir Documento
-                                </button>
-                                <button 
-                                    onClick={() => router.push('/vendedor/dashboard')}
-                                    className="w-full bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 font-bold py-4 rounded-xl uppercase text-xs tracking-widest transition-all"
-                                >
-                                    Novo Atendimento
-                                </button>
-                            </div>
-                        )}
-
-                    </div>
-                </div>
-
             </div>
+
         </main>
     </div>
   );
 }
 
-export default function ContratoPage() {
-  return <Suspense fallback={<div>Carregando...</div>}><ContratoContent /></Suspense>;
+export default function PedidoPage() {
+  return <Suspense fallback={<div>Carregando...</div>}><PedidoContent /></Suspense>;
 }

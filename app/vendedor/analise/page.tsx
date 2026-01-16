@@ -3,7 +3,7 @@
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { 
-  ArrowLeft, AlertTriangle, Loader2, TrendingDown, Landmark, ChevronRight, AlertCircle, ThumbsUp, CarFront, ExternalLink
+  ArrowLeft, AlertTriangle, Loader2, TrendingDown, Landmark, ChevronRight, AlertCircle, CarFront, ExternalLink
 } from "lucide-react";
 
 // --- TABELAS DE CÁLCULO (COEFICIENTES) ---
@@ -73,7 +73,6 @@ function AnaliseContent() {
 
   // --- AÇÃO 1: SANTANDER (Link Externo) ---
   const irParaSantander = () => {
-    // Link direto para a originação do Santander
     window.open("https://www.cliente.santanderfinanciamentos.com.br/originacaocliente/?mathts=nonpaid#/dados-pessoais", "_blank");
   };
 
@@ -92,7 +91,7 @@ function AnaliseContent() {
   if (loading) return (
     <div className="h-screen flex flex-col items-center justify-center bg-slate-50">
         <Loader2 className="animate-spin h-10 w-10 text-[#f2e14c] mb-4"/>
-        <p className="text-sm font-bold text-slate-500 uppercase">Analisando Crédito...</p>
+        <p className="text-sm font-bold text-slate-500 uppercase">Calculando Opções...</p>
     </div>
   );
 
@@ -117,26 +116,25 @@ function AnaliseContent() {
 
         <main className="max-w-6xl mx-auto px-6 py-8">
             <div className="text-center mb-10">
-                <h2 className="text-3xl font-black text-slate-900 mb-2">Painel de Decisão</h2>
-                <p className="text-slate-500 font-medium">Compare as opções disponíveis.</p>
+                <h2 className="text-3xl font-black text-slate-900 mb-2">Opções Disponíveis</h2>
+                <p className="text-slate-500 font-medium">Selecione a modalidade ideal para o cliente.</p>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
                 
-                {/* FINANCIAMENTO (Leva ao Santander) */}
-                <div className="bg-white rounded-2xl border border-slate-200 flex flex-col h-full shadow-lg hover:shadow-xl transition-all relative overflow-hidden group">
-                    <div className="h-2 w-full bg-red-600"></div> {/* Vermelho Santander */}
+                {/* --- OPÇÃO 1: FINANCIAMENTO (AGORA AMARELO) --- */}
+                <div className="bg-white rounded-2xl border border-slate-200 flex flex-col h-full shadow-lg hover:shadow-xl transition-all relative overflow-hidden group hover:-translate-y-1 ring-1 ring-transparent hover:ring-[#f2e14c]">
+                    <div className="h-2 w-full bg-[#f2e14c]"></div>
+                    
                     <div className="p-8 flex-1 flex flex-col">
                         <div className="flex justify-between items-start mb-6">
                             <div>
                                 <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Financiamento</h3>
                                 <p className="text-[10px] text-slate-500 font-bold uppercase mt-1 flex items-center gap-1"><Landmark size={12}/> Banco Santander</p>
                             </div>
-                            {resultado.financiamento.status === "ALERTA_ENTRADA" && 
-                                <span className="px-3 py-1 bg-amber-50 text-amber-700 text-[10px] font-black uppercase rounded-full border border-amber-100 flex items-center gap-1"><AlertTriangle size={12}/> Entrada Baixa</span>
-                            }
                         </div>
 
+                        {/* Alerta de Entrada (Aparece se necessário) */}
                         {resultado.financiamento.status === "ALERTA_ENTRADA" && (
                              <div className="bg-amber-50 p-4 rounded-lg border border-amber-100 mb-6 text-center">
                                 <p className="text-amber-800 font-bold text-xs uppercase">Atenção</p>
@@ -159,20 +157,17 @@ function AnaliseContent() {
 
                         <button 
                             onClick={irParaSantander}
-                            className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-xl uppercase text-xs tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg"
+                            className="w-full bg-[#f2e14c] hover:bg-[#d4c435] text-black font-black py-4 rounded-xl uppercase text-xs tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-xl"
                         >
-                            Abrir Santander <ExternalLink size={14}/>
+                            Ir para Santander <ExternalLink size={14}/>
                         </button>
                     </div>
                 </div>
 
-                {/* CONSÓRCIO (Leva ao Contrato Interno) */}
-                <div className="bg-white rounded-2xl border border-slate-200 flex flex-col h-full shadow-xl hover:shadow-2xl transition-all relative overflow-hidden group hover:-translate-y-1 ring-1 ring-transparent hover:ring-[#f2e14c]">
+                {/* --- OPÇÃO 2: CONSÓRCIO (IGUALMENTE ATRATIVO) --- */}
+                <div className="bg-white rounded-2xl border border-slate-200 flex flex-col h-full shadow-lg hover:shadow-xl transition-all relative overflow-hidden group hover:-translate-y-1 ring-1 ring-transparent hover:ring-[#f2e14c]">
                     <div className="h-2 w-full bg-[#f2e14c]"></div>
-                    <div className="absolute top-6 right-6 bg-[#f2e14c] text-black text-[10px] font-black uppercase px-3 py-1 rounded-full shadow-sm flex items-center gap-1">
-                        <ThumbsUp size={12}/> Recomendado
-                    </div>
-
+                    
                     <div className="p-8 flex-1 flex flex-col">
                         <div className="flex justify-between items-start mb-6">
                             <div>
@@ -181,8 +176,9 @@ function AnaliseContent() {
                             </div>
                         </div>
 
+                        {/* Bloco de Economia */}
                         <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-100 mb-6 flex flex-col items-center text-center">
-                             <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Economia Total</p>
+                             <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Economia Total Estimada</p>
                              <p className="text-3xl font-black text-emerald-600 tracking-tight">{formatMoney(economia)}</p>
                              <p className="text-[10px] text-emerald-700/60 font-medium mt-1">Comparado ao financiamento</p>
                         </div>
@@ -201,7 +197,7 @@ function AnaliseContent() {
 
                         <button 
                             onClick={irParaContratoConsorcio}
-                            className="w-full bg-[#f2e14c] hover:bg-[#ebd52a] text-black font-black py-4 rounded-xl uppercase text-xs tracking-widest shadow-lg shadow-yellow-100 transition-all flex items-center justify-center gap-2"
+                            className="w-full bg-[#f2e14c] hover:bg-[#d4c435] text-black font-black py-4 rounded-xl uppercase text-xs tracking-widest shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2"
                         >
                             Fechar Consórcio <ChevronRight size={14}/>
                         </button>

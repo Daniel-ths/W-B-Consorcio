@@ -17,7 +17,6 @@ import {
   FileText,
   ExternalLink,
   Trash2,
-  AlertCircle,
   Check,
   Phone
 } from "lucide-react";

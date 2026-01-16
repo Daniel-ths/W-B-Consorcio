@@ -1,257 +1,322 @@
 "use client";
 
-import { useState, Suspense, useEffect } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { 
-  CheckCircle2, ShieldCheck, Loader2, ArrowLeft, Printer, CarFront, User, DollarSign
+  Search, ArrowRight, User, Wallet, Phone, Car, Loader2, X, ChevronDown 
 } from "lucide-react";
 
-function ContratoContent() {
+// --- CONFIGURAÇÃO ---
+const BASE_URL_IMG = "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/";
+
+// IDs reais da Tabela FIPE para consulta na API
+const BRANDS = [
+  { name: 'CHEVROLET', id: 23, file: 'chevrolet.webp?v=3' }, 
+  { name: 'VOLKSWAGEN', id: 59, file: 'volkswagen.webp?v=3' }, 
+  { name: 'RENAULT', id: 44, file: 'renault.webp?v=3' },
+  { name: 'FORD', id: 22, file: 'ford.webp?v=3' },
+  { name: 'HYUNDAI', id: 26, file: 'hyundai.webp?v=3' },
+  { name: 'TOYOTA', id: 56, file: 'toyota.webp?v=3' },
+  { name: 'NISSAN', id: 43, file: 'nissan.webp?v=3' },
+  { name: 'HONDA', id: 25, file: 'honda.webp?v=3' },
+  { name: 'FIAT', id: 21, file: 'fiat.webp?v=3' },
+  { name: 'JEEP', id: 29, file: 'jeep.webp?v=3' },
+  { name: 'CITROËN', id: 11, file: 'citroen.webp?v=3' },
+  { name: 'PEUGEOT', id: 41, file: 'peugeot.webp?v=3' },
+];
+
+// Máscaras
+const maskPhone = (v: string) => v.replace(/\D/g, "").replace(/(\d{2})(\d)/, "($1) $2").replace(/(\d{5})(\d)/, "$1-$2").replace(/(-\d{4})\d+?$/, "$1");
+const maskCpf = (v: string) => v.replace(/\D/g, "").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d{1,2})$/, "$1-$2").replace(/(-\d{2})\d+?$/, "$1");
+
+export default function SeminovosPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const [searchTerm, setSearchTerm] = useState("");
+  
+  // Estados do Formulário
+  const [selectedBrand, setSelectedBrand] = useState<any>(null);
+  const [modelos, setModelos] = useState<any[]>([]);
+  const [loadingModelos, setLoadingModelos] = useState(false);
 
-  // --- DADOS RECEBIDOS ---
-  const dados = {
-    tipo: searchParams.get('tipo') || "CONSORCIO",
-    nome: searchParams.get('nome') || "Cliente",
-    cpf: searchParams.get('cpf') || "", 
-    modelo: searchParams.get('modelo') || "Veículo Selecionado",
-    valor: parseFloat(searchParams.get('valor') || "0"),
-    entrada: parseFloat(searchParams.get('entrada') || "0"),
-    parcela: parseFloat(searchParams.get('parcela_escolhida') || "0"),
-    prazo: searchParams.get('prazo_escolhido') || "0",
-    total: parseFloat(searchParams.get('total_final') || "0"),
-    imagem: searchParams.get('imagem') || "", 
-  };
+  // --- ESTADOS PARA BUSCA DE MODELO (AUTOCOMPLETE) ---
+  const [modelSearch, setModelSearch] = useState("");
+  const [showModelList, setShowModelList] = useState(false);
 
-  const [loadingValidacao, setLoadingValidacao] = useState(false);
-  const [statusCPF, setStatusCPF] = useState<'PENDENTE' | 'VALIDO' | 'INVALIDO'>('PENDENTE');
-  const [nomeReceita, setNomeReceita] = useState("");
-  const [dataAtual, setDataAtual] = useState("");
+  const [formData, setFormData] = useState({
+    modelo: "",
+    ano: "",
+    valor: "",
+    nome: "",
+    cpf: "",
+    telefone: "",
+    renda: "",
+    entrada: ""
+  });
 
-  useEffect(() => {
-    setDataAtual(new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' }));
-  }, []);
+  const filteredBrands = BRANDS.filter((brand) =>
+    brand.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
-  const formatMoney = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
-  const protocolo = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+  // Filtra os modelos da FIPE conforme o usuário digita
+  const filteredModels = modelos.filter((m) => 
+    m.nome.toLowerCase().includes(modelSearch.toLowerCase())
+  );
 
-  // --- VALIDAÇÃO API ---
-  const handleValidarReceita = async () => {
-    setLoadingValidacao(true);
+  // --- API FIPE ---
+  const handleBrandSelect = async (brand: any) => {
+    setSelectedBrand(brand);
+    setLoadingModelos(true);
+    setFormData(prev => ({ ...prev, modelo: "" }));
+    setModelSearch(""); // Limpa a busca anterior
+    setShowModelList(false);
+    // Scroll suave para o topo ao trocar de fase
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
     try {
-      const response = await fetch('/api/consultar-cpf', {
-        method: 'POST',
-        body: JSON.stringify({ cpf: dados.cpf }),
-        headers: { 'Content-Type': 'application/json' }
-      });
-      const data = await response.json();
-
-      if (data && data.situacaoCadastral === 'REGULAR') {
-        setStatusCPF('VALIDO');
-        setNomeReceita(data.nome); 
-      } else {
-        setStatusCPF('INVALIDO');
-        alert("CPF irregular na Receita Federal ou erro de conexão.");
-      }
+      // Busca modelos na API da FIPE
+      const res = await fetch(`https://parallelum.com.br/fipe/api/v1/carros/marcas/${brand.id}/modelos`);
+      const data = await res.json();
+      setModelos(data.modelos || []);
     } catch (error) {
-      console.error(error);
-      alert("Erro ao validar CPF. Verifique a conexão.");
+      console.error("Erro ao buscar modelos", error);
+      alert("Erro ao conectar com a FIPE. Tente novamente.");
     } finally {
-      setLoadingValidacao(false);
+      setLoadingModelos(false);
     }
   };
 
+  const handleSelectModel = (nomeModelo: string) => {
+    setFormData({ ...formData, modelo: nomeModelo });
+    setModelSearch(nomeModelo); // Preenche o input com o nome escolhido
+    setShowModelList(false); // Fecha a lista
+  };
+
+  const handleSubmit = () => {
+    const query = new URLSearchParams({
+      ...formData,
+      marca: selectedBrand?.name || "",
+    }).toString();
+    
+    router.push(`/vendedor/analise?${query}`);
+  };
+
   return (
-    <div className="min-h-screen bg-[#f3f4f6] font-sans text-slate-900 pb-20 print:bg-white print:pb-0">
+    <div className="min-h-screen bg-white font-sans pb-20">
+      
+      {/* HEADER AMARELO */}
+      <div className="bg-[#f2e14c] w-full py-6 px-6 shadow-md pt-20 sticky top-0 z-30 transition-all duration-300 ease-in-out">
+         <div className="max-w-6xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-4 animate-in fade-in slide-in-from-left-4 duration-500">
+                 <img src={`${BASE_URL_IMG}logo semi novos.webp?v=8`} className="h-8 w-auto object-contain" alt="Logo" />
+                 <h1 className="text-sm font-black text-black uppercase tracking-widest hidden md:block">
+                    Módulo de Seminovos
+                 </h1>
+            </div>
+            {!selectedBrand && (
+                <div className="relative w-full max-w-md group animate-in fade-in slide-in-from-right-4 duration-500 delay-100">
+                    {/* INPUT DE BUSCA COM ANIMAÇÃO DE FOCO */}
+                    <input 
+                        type="text" placeholder="Buscar marca..." 
+                        value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full pl-4 pr-10 py-2 bg-white/90 border-none text-sm font-bold uppercase rounded-sm shadow-sm transition-all duration-300 ease-in-out focus:ring-2 focus:ring-black/20 focus:bg-white focus:shadow-md focus:scale-[1.01] outline-none"
+                    />
+                    <Search className="absolute right-2 top-2 text-black transition-transform duration-300 group-focus-within:scale-110" size={18} />
+                </div>
+            )}
+         </div>
+      </div>
+
+      <main className="max-w-6xl mx-auto px-6 py-8">
         
-        {/* --- HEADER (Escondido na Impressão) --- */}
-        <header className="px-6 py-4 bg-white border-b border-gray-200 sticky top-0 z-50 print:hidden shadow-sm">
-            <div className="max-w-6xl mx-auto flex items-center justify-between">
-                <button onClick={() => router.back()} className="group flex items-center gap-3 text-slate-500 hover:text-black transition-colors">
-                    <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center group-hover:bg-gray-200"><ArrowLeft size={16}/></div>
-                    <span className="text-sm font-bold uppercase tracking-wide">Voltar</span>
-                </button>
-                <div className="flex items-center gap-2">
-                    <span className={`h-2 w-2 rounded-full ${statusCPF === 'VALIDO' ? 'bg-emerald-500' : 'bg-yellow-400 animate-pulse'}`}></span>
-                    <span className="text-xs font-bold uppercase text-slate-500">
-                        {statusCPF === 'VALIDO' ? 'Pronto para Impressão' : 'Aguardando Validação'}
-                    </span>
+        {/* FASE 1: ESCOLHER MARCA */}
+        {!selectedBrand ? (
+             <div className="animate-in fade-in duration-700">
+                <div className="text-center mb-8">
+                    <h2 className="text-xl font-bold text-gray-800 uppercase inline-block border-b-4 border-[#f2e14c] pb-1 tracking-wide">
+                        Selecione a Marca
+                    </h2>
                 </div>
-            </div>
-        </header>
-
-        <main className="max-w-6xl mx-auto px-4 py-8 md:px-6">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 
-                {/* --- COLUNA ESQUERDA: O DOCUMENTO (Visual de Papel) --- */}
-                <div className="lg:col-span-8">
-                    
-                    {/* FOLHA A4 DIGITAL */}
-                    <div id="contrato-print" className="bg-white rounded-xl shadow-xl p-10 md:p-12 min-h-[800px] relative overflow-hidden border border-gray-100 print:shadow-none print:border-none print:p-0 print:w-full">
-                        
-                        {/* Marca D'água */}
-                        <div className="absolute inset-0 pointer-events-none flex items-center justify-center opacity-[0.03] select-none">
-                            <CarFront size={400} />
+                {/* GRID COM ANIMAÇÃO DE FILTRAGEM */}
+                <div key={searchTerm} className="grid grid-cols-2 md:grid-cols-4 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out">
+                    {filteredBrands.map((brand, index) => (
+                        <button 
+                            key={brand.id} 
+                            onClick={() => handleBrandSelect(brand)}
+                            style={{ animationDelay: `${index * 50}ms` }}
+                            className="h-40 bg-gray-50 border border-gray-200 rounded-xl relative group flex flex-col items-center justify-center p-4 transition-all duration-300 ease-out hover:border-[#f2e14c] hover:bg-yellow-50/30 hover:-translate-y-2 hover:shadow-xl animate-in fade-in slide-in-from-bottom-2 backwards"
+                        >
+                            <img src={`${BASE_URL_IMG}${brand.file}`} alt={brand.name} className="h-20 w-auto object-contain mb-4 transition-transform duration-500 group-hover:scale-110"/>
+                            <span className="font-black text-gray-400 transition-colors duration-300 group-hover:text-black uppercase text-sm">{brand.name}</span>
+                        </button>
+                    ))}
+                </div>
+                 {filteredBrands.length === 0 && (
+                     <p className="text-center text-gray-400 mt-8 animate-in fade-in">Nenhuma marca encontrada para "{searchTerm}"</p>
+                 )}
+             </div>
+        ) : (
+            // FASE 2: FORMULÁRIO DE DADOS
+            <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in slide-in-from-right-8 duration-700 ease-out">
+                
+                {/* Lado Esquerdo: Dados do Veículo */}
+                <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+                    <div className="flex items-center justify-between mb-6 border-b border-gray-100 pb-4">
+                        <h2 className="text-lg font-black text-gray-900 uppercase flex items-center gap-2">
+                            <Car className="text-[#f2e14c]" /> Dados do Veículo
+                        </h2>
+                        <button 
+                            onClick={() => { setSelectedBrand(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }} 
+                            className="text-xs font-bold text-blue-600 hover:underline transition-all hover:text-blue-800"
+                        >
+                            Trocar Marca
+                        </button>
+                    </div>
+
+                    <div className="space-y-4">
+                        <div>
+                            <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">Marca Selecionada</label>
+                            
+                            {/* --- AQUI ESTÁ A MUDANÇA: LOGO + NOME --- */}
+                            <div className="flex items-center gap-3 animate-in fade-in slide-in-from-left-2">
+                                <img 
+                                    src={`${BASE_URL_IMG}${selectedBrand.file}`} 
+                                    alt={selectedBrand.name} 
+                                    className="h-10 w-auto object-contain p-1 bg-gray-50 rounded-md border border-gray-100"
+                                />
+                                <div className="font-black text-xl text-black uppercase">{selectedBrand.name}</div>
+                            </div>
+                            {/* --------------------------------------- */}
+
                         </div>
 
-                        {/* Cabeçalho do Documento */}
-                        <div className="border-b-2 border-black pb-6 mb-8 flex justify-between items-end">
+                        {/* --- CAMPO DE BUSCA DE MODELO --- */}
+                        <div className="relative z-20 pt-2">
+                            <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">
+                                Pesquisar Modelo
+                            </label>
+                            
+                            {loadingModelos ? (
+                                <div className="flex items-center gap-2 text-sm text-gray-400 py-3 px-3 bg-gray-50 rounded border border-gray-200 animate-pulse">
+                                    <Loader2 className="animate-spin" size={16}/> Carregando tabela FIPE...
+                                </div>
+                            ) : (
+                                <div className="relative group">
+                                    <input 
+                                        type="text"
+                                        placeholder="Digite para buscar (Ex: Onix)"
+                                        value={modelSearch}
+                                        onChange={(e) => {
+                                            setModelSearch(e.target.value);
+                                            setShowModelList(true);
+                                            setFormData({...formData, modelo: ""});
+                                        }}
+                                        onFocus={() => setShowModelList(true)}
+                                        className="w-full p-3 pl-10 bg-white border border-gray-300 rounded font-bold text-gray-700 uppercase transition-all duration-300 ease-in-out focus:border-[#f2e14c] focus:ring-2 focus:ring-[#f2e14c]/50 focus:shadow-sm outline-none"
+                                    />
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 transition-colors group-focus-within:text-[#f2e14c]" size={18}/>
+                                    
+                                    {modelSearch && (
+                                        <button 
+                                            onClick={() => { setModelSearch(""); setFormData({...formData, modelo: ""}); }}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500 transition-colors hover:scale-110"
+                                        >
+                                            <X size={16} />
+                                        </button>
+                                    )}
+
+                                    {/* Lista de Sugestões */}
+                                    {showModelList && filteredModels.length > 0 && (
+                                        <ul className="absolute z-50 w-full bg-white border border-gray-200 rounded-b-lg shadow-xl max-h-60 overflow-y-auto mt-1 custom-scrollbar animate-in fade-in slide-in-from-top-2 duration-200 ease-out origin-top">
+                                            {filteredModels.map((m) => (
+                                                <li 
+                                                    key={m.codigo} 
+                                                    onClick={() => handleSelectModel(m.nome)}
+                                                    className="px-4 py-3 hover:bg-[#f2e14c]/20 cursor-pointer text-sm font-bold text-gray-700 border-b border-gray-50 last:border-0 transition-colors duration-200 uppercase"
+                                                >
+                                                    {m.nome}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                    
+                                    {showModelList && modelSearch && filteredModels.length === 0 && (
+                                        <div className="absolute z-50 w-full bg-white border border-gray-200 rounded-b-lg shadow-xl p-4 text-center text-sm text-gray-500 mt-1 animate-in fade-in">
+                                            Nenhum modelo encontrado.
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <h1 className="text-2xl font-black uppercase tracking-tighter mb-1">Pré-Contrato de Intenção</h1>
-                                <p className="text-xs font-bold text-gray-500 uppercase">Documento Auxiliar de Venda • {dados.tipo}</p>
+                                <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Ano</label>
+                                <input type="number" placeholder="2024" className="w-full p-3 bg-gray-50 border border-gray-200 rounded font-bold outline-none transition-all focus:border-black focus:bg-white focus:shadow-sm"
+                                    value={formData.ano} onChange={e => setFormData({...formData, ano: e.target.value})}
+                                />
                             </div>
-                            <div className="text-right">
-                                <p className="text-[10px] font-mono text-gray-400 uppercase mb-1">Protocolo</p>
-                                <p className="text-xl font-mono font-bold text-black bg-gray-100 px-2 rounded">#{protocolo}</p>
+                            <div>
+                                <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Valor (R$)</label>
+                                <input type="number" placeholder="0,00" className="w-full p-3 bg-gray-50 border border-gray-200 rounded font-bold outline-none transition-all focus:border-black focus:bg-white focus:shadow-sm"
+                                    value={formData.valor} onChange={e => setFormData({...formData, valor: e.target.value})}
+                                />
                             </div>
-                        </div>
-
-                        {/* Seção 1: Contratante */}
-                        <div className="mb-8">
-                            <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4 border-b border-gray-100 pb-1 flex items-center gap-2">
-                                <User size={12}/> Dados do Contratante
-                            </h3>
-                            <div className="grid grid-cols-2 gap-y-4 text-sm">
-                                <div>
-                                    <span className="block text-[10px] font-bold text-gray-400 uppercase">Nome Completo</span>
-                                    <span className="font-bold text-gray-900 uppercase">{nomeReceita || dados.nome}</span>
-                                </div>
-                                <div>
-                                    <span className="block text-[10px] font-bold text-gray-400 uppercase">CPF</span>
-                                    <span className="font-mono text-gray-900">{dados.cpf}</span>
-                                </div>
-                                <div>
-                                    <span className="block text-[10px] font-bold text-gray-400 uppercase">Situação Cadastral</span>
-                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${statusCPF === 'VALIDO' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
-                                        {statusCPF === 'VALIDO' ? 'REGULAR NA RECEITA FEDERAL' : 'AGUARDANDO VALIDAÇÃO'}
-                                    </span>
-                                </div>
-                                <div>
-                                    <span className="block text-[10px] font-bold text-gray-400 uppercase">Data de Emissão</span>
-                                    <span className="text-gray-900">{dataAtual}</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Seção 2: O Veículo */}
-                        <div className="mb-8 p-4 bg-gray-50 rounded-lg border border-gray-100 print:bg-white print:border-black">
-                            <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4 flex items-center gap-2">
-                                <CarFront size={12}/> Objeto do Contrato
-                            </h3>
-                            <div className="flex gap-6 items-center">
-                                {dados.imagem && (
-                                    <div className="w-24 h-16 bg-white border border-gray-200 rounded flex items-center justify-center overflow-hidden print:hidden">
-                                        <img src={dados.imagem} className="w-full h-full object-cover" />
-                                    </div>
-                                )}
-                                <div>
-                                    <p className="text-lg font-black text-gray-900 uppercase">{dados.modelo}</p>
-                                    <p className="text-sm text-gray-500">Ano/Modelo 2025/2026 • 0KM</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Seção 3: Valores Financeiros */}
-                        <div className="mb-12">
-                            <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4 border-b border-gray-100 pb-1 flex items-center gap-2">
-                                <DollarSign size={12}/> Condições Comerciais
-                            </h3>
-                            <div className="grid grid-cols-3 gap-6">
-                                <div className="p-3 border border-gray-200 rounded print:border-black">
-                                    <span className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Valor do Bem</span>
-                                    <span className="block text-lg font-bold text-gray-900">{formatMoney(dados.valor)}</span>
-                                </div>
-                                <div className="p-3 border border-gray-200 rounded print:border-black bg-gray-50 print:bg-white">
-                                    <span className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Entrada / Lance</span>
-                                    <span className="block text-lg font-bold text-gray-900">{formatMoney(dados.entrada)}</span>
-                                </div>
-                                <div className="p-3 border border-black bg-black text-white rounded print:bg-white print:text-black shadow-lg print:shadow-none">
-                                    <span className="block text-[10px] font-bold text-white/60 print:text-black uppercase mb-1">Condição Escolhida</span>
-                                    <span className="block text-lg font-bold">{dados.prazo}x de {formatMoney(dados.parcela)}</span>
-                                </div>
-                            </div>
-                            <div className="mt-4 text-right">
-                                <p className="text-xs font-bold text-gray-400 uppercase">Valor Total da Operação: <span className="text-gray-900">{formatMoney(dados.total)}</span></p>
-                            </div>
-                        </div>
-
-                        {/* Área de Assinaturas */}
-                        <div className="mt-20 grid grid-cols-2 gap-12 print:mt-32">
-                            <div className="border-t border-black pt-2 text-center">
-                                <p className="text-xs font-bold uppercase text-gray-900">{nomeReceita || "Assinatura do Cliente"}</p>
-                                <p className="text-[10px] text-gray-400">Contratante</p>
-                            </div>
-                            <div className="border-t border-black pt-2 text-center">
-                                <p className="text-xs font-bold uppercase text-gray-900">W B C Consórcio LTDA</p>
-                                <p className="text-[10px] text-gray-400">Contratada</p>
-                            </div>
-                        </div>
-
-                        <div className="mt-12 pt-6 border-t border-gray-100 text-center print:hidden">
-                            <p className="text-[10px] text-gray-400">Este documento é uma simulação de intenção de compra e depende de aprovação final de crédito.</p>
                         </div>
                     </div>
                 </div>
 
-                {/* --- COLUNA DIREITA: AÇÕES (Escondido na Impressão) --- */}
-                <div className="lg:col-span-4 space-y-6 print:hidden">
-                    
-                    {/* CARD AÇÕES */}
-                    <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-200 sticky top-24">
-                        <div className="mb-6">
-                            <h3 className="text-lg font-black text-slate-900">Ações Disponíveis</h3>
-                            <p className="text-xs text-slate-500">Valide os dados para liberar a impressão.</p>
+                {/* Lado Direito: Dados do Cliente */}
+                <div className="bg-gray-900 p-6 rounded-xl shadow-lg text-white h-fit sticky top-24">
+                    <h2 className="text-lg font-black text-[#f2e14c] uppercase mb-6 flex items-center gap-2 border-b border-gray-700 pb-4">
+                        <User /> Dados do Cliente
+                    </h2>
+
+                    <div className="space-y-4">
+                        <input type="text" placeholder="NOME COMPLETO" className="w-full p-3 bg-gray-800 border border-gray-700 rounded text-white font-bold placeholder-gray-500 transition-all focus:border-[#f2e14c] focus:bg-gray-800/80 focus:shadow-md outline-none uppercase"
+                            value={formData.nome} onChange={e => setFormData({...formData, nome: e.target.value})}
+                        />
+                        <div className="grid grid-cols-2 gap-4">
+                            <input type="text" placeholder="CPF" maxLength={14} className="w-full p-3 bg-gray-800 border border-gray-700 rounded text-white font-bold placeholder-gray-500 transition-all focus:border-[#f2e14c] focus:bg-gray-800/80 focus:shadow-md outline-none"
+                                value={formData.cpf} onChange={e => setFormData({...formData, cpf: maskCpf(e.target.value)})}
+                            />
+                            <input type="text" placeholder="TELEFONE" maxLength={15} className="w-full p-3 bg-gray-800 border border-gray-700 rounded text-white font-bold placeholder-gray-500 transition-all focus:border-[#f2e14c] focus:bg-gray-800/80 focus:shadow-md outline-none"
+                                value={formData.telefone} onChange={e => setFormData({...formData, telefone: maskPhone(e.target.value)})}
+                            />
                         </div>
 
-                        {/* Se ainda não validou */}
-                        {statusCPF !== 'VALIDO' ? (
-                            <div className="space-y-4">
-                                <div className="bg-blue-50 p-4 rounded-lg text-xs text-blue-700 font-medium border border-blue-100">
-                                    <p className="font-bold mb-1">Passo 1: Validação</p>
-                                    É obrigatório validar o CPF na base da Receita Federal antes de imprimir o contrato.
+                        <div className="pt-4 border-t border-gray-700 mt-4">
+                            <h3 className="text-sm font-bold text-[#f2e14c] uppercase mb-3 flex items-center gap-2"><Wallet size={16}/> Financeiro</h3>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase">Renda Mensal</label>
+                                    <input type="number" placeholder="R$ 0,00" className="w-full p-3 bg-gray-800 border border-gray-700 rounded text-white font-bold outline-none transition-all focus:border-[#f2e14c] focus:bg-gray-800/80 focus:shadow-md"
+                                        value={formData.renda} onChange={e => setFormData({...formData, renda: e.target.value})}
+                                    />
                                 </div>
-                                <button 
-                                    onClick={handleValidarReceita} 
-                                    disabled={loadingValidacao} 
-                                    className="w-full bg-[#f2e14c] hover:bg-[#ebd52a] text-black font-black py-4 rounded-xl uppercase text-xs tracking-widest shadow-md transition-all flex items-center justify-center gap-2"
-                                >
-                                    {loadingValidacao ? <Loader2 className="animate-spin" size={16}/> : <ShieldCheck size={16}/>}
-                                    {loadingValidacao ? "Consultando..." : "Validar CPF na Receita"}
-                                </button>
-                            </div>
-                        ) : (
-                            // SE VALIDADO -> MOSTRA BOTÃO DE IMPRIMIR DIRETO
-                            <div className="space-y-3 animate-in zoom-in">
-                                <div className="bg-emerald-50 text-emerald-700 p-3 rounded-lg text-xs font-bold text-center border border-emerald-100 mb-4 flex items-center justify-center gap-2">
-                                    <CheckCircle2 size={16}/> Dados validados com sucesso.
+                                <div>
+                                    <label className="text-[10px] font-bold text-gray-400 uppercase">Entrada</label>
+                                    <input type="number" placeholder="R$ 0,00" className="w-full p-3 bg-gray-800 border border-gray-700 rounded text-white font-bold outline-none transition-all focus:border-[#f2e14c] focus:bg-gray-800/80 focus:shadow-md"
+                                        value={formData.entrada} onChange={e => setFormData({...formData, entrada: e.target.value})}
+                                    />
                                 </div>
-                                
-                                <button 
-                                    onClick={() => window.print()}
-                                    className="w-full bg-slate-900 hover:bg-black text-white font-bold py-4 rounded-xl uppercase text-xs tracking-widest shadow-lg flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
-                                >
-                                    <Printer size={16}/> Imprimir Contrato
-                                </button>
-                                
-                                <button 
-                                    onClick={() => router.push('/vendedor/dashboard')}
-                                    className="w-full bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 font-bold py-4 rounded-xl uppercase text-xs tracking-widest transition-all"
-                                >
-                                    Novo Atendimento
-                                </button>
                             </div>
-                        )}
+                        </div>
 
+                        <button 
+                            onClick={handleSubmit}
+                            disabled={!formData.modelo || !formData.valor || !formData.nome || !formData.renda}
+                            className="w-full mt-6 bg-[#f2e14c] hover:bg-[#d4c435] text-black font-black py-4 rounded uppercase tracking-widest flex items-center justify-center gap-2 transition-all duration-300 ease-out disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-xl hover:-translate-y-1 active:scale-[0.98] active:shadow-sm"
+                        >
+                            Gerar Análise de Crédito <ArrowRight size={20} className="transition-transform group-hover:translate-x-1"/>
+                        </button>
                     </div>
                 </div>
 
             </div>
-        </main>
-    </div>
-  );
-}
+        )}
 
-export default function ContratoPage() {
-  return <Suspense fallback={<div>Carregando...</div>}><ContratoContent /></Suspense>;
+      </main>
+    </div>
+  )
 }
