@@ -12,12 +12,10 @@ import {
   X, 
   Phone, 
   ShoppingBag, 
-  Briefcase, 
   ChevronDown,
   LayoutDashboard, 
   LogOut,
-  ShieldCheck,
-  CarFront
+  ShieldCheck
 } from "lucide-react";
 import VehiclesMenu from "./VehiclesMenu";
 
@@ -100,7 +98,7 @@ export default function Navbar() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    router.refresh();
+    // Força recarregamento completo para limpar estados
     window.location.href = "/login"; 
   };
 
@@ -130,8 +128,6 @@ export default function Navbar() {
           </button>
 
           <div className="hidden md:flex gap-6 items-center">
-            
-            {/* 🟢 ALTERAÇÃO: Removido 'isAuthorized' daqui. Agora TODOS veem o menu. */}
             {!loading && (
                 <button 
                   onClick={() => toggleMenu('veiculos')}
@@ -143,11 +139,12 @@ export default function Navbar() {
           </div>
         </div>
 
-        {/* CENTRO */}
+        {/* CENTRO - CORREÇÃO DO LOOP APLICADA AQUI */}
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-          <Link href="/" onClick={() => setMenuAberto(null)}>
+          {/* Usamos a tag <a> padrão para forçar um Hard Refresh e evitar o loop de navegação do Next.js */}
+          <a href="/" onClick={() => setMenuAberto(null)}>
             <img src={LOGO_NAVBAR} alt="Logo" className="h-8 w-auto object-contain" />
-          </Link>
+          </a>
         </div>
 
         {/* DIREITA */}
@@ -181,7 +178,7 @@ export default function Navbar() {
                 </div>
 
                 <div className="p-2 space-y-1">
-                  {/* PAINEL (RESTRIÇÃO MANTIDA - SÓ STAFF) */}
+                  {/* PAINEL */}
                   {isAuthorized && (
                       <Link href={dashboardLink} className={`flex items-center gap-3 px-4 py-3 text-sm font-bold rounded-lg transition-colors ${isAdmin ? 'text-gray-800 hover:bg-black hover:text-yellow-400' : 'text-gray-700 hover:bg-yellow-50 hover:text-yellow-700'}`}>
                         {isAdmin ? <ShieldCheck size={18} /> : <LayoutDashboard size={18} />}
@@ -211,7 +208,7 @@ export default function Navbar() {
         </div>
       </nav>
 
-      {/* MEGA MENU (Liberado para todos) */}
+      {/* MEGA MENU */}
       <div className={`fixed top-[0px] left-0 w-full bg-white shadow-2xl border-t border-gray-100 z-[1000] menu-dropdown ${menuAberto === 'veiculos' ? 'menu-dropdown-ativo' : ''}`}>
           <VehiclesMenu onClose={() => setMenuAberto(null)} />
       </div>
@@ -234,9 +231,6 @@ export default function Navbar() {
           <div className="space-y-6">
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Menu</p>
             
-            {/* 🟢 ALTERAÇÃO: Removido 'isAuthorized'. Link visível para todos. */}
-            {/* Se o usuário clicar e não estiver logado, o Middleware da página vai barrar ele lá, não aqui. */}
-
             <Link href="/#estoque" onClick={() => setSidebarOpen(false)} className="flex items-center gap-4 text-gray-800 font-bold text-sm uppercase tracking-wide hover:text-[#CD9834] group transition-colors">
               <ShoppingBag size={18} className="text-gray-400 group-hover:text-[#CD9834]"/> Comprar
             </Link>

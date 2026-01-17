@@ -14,16 +14,12 @@ export default function AdminButton() {
 
     async function verificarUsuario() {
       try {
-        console.log("Verificando sessão para o botão...");
-
-        // 1. Pega a sessão atual (mais estável que getUser para componentes de UI)
-        // Isso evita o erro de 'locks.js' e o AbortError
+        // 1. Pega a sessão atual
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         
         if (sessionError) throw sessionError;
 
         if (!session?.user) {
-          console.log("Usuário não logado.");
           if (montado) setDestino(null);
           return;
         }
@@ -36,12 +32,9 @@ export default function AdminButton() {
           .single();
         
         if (profileError) {
-          // Se o perfil ainda não existir ou a API falhar, não quebramos o app
           console.warn("Perfil não encontrado ou erro na busca.");
           return;
         }
-
-        console.log("Cargo encontrado:", profile?.role);
 
         // 3. Define o link correto apenas se o componente estiver ativo
         if (montado) {
@@ -56,9 +49,8 @@ export default function AdminButton() {
           }
         }
       } catch (err: any) {
-        // Ignora erros de aborto que causam o loop visual
         if (err.name !== 'AbortError') {
-          console.error("Erro crítico no AdminButton:", err);
+          console.error("Erro no AdminButton:", err);
         }
       }
     }
@@ -66,11 +58,13 @@ export default function AdminButton() {
     // Execução inicial
     verificarUsuario();
     
-    // Ouve mudanças de auth para atualizar o botão de forma otimizada
+    // Ouve mudanças de auth
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-        console.log("Evento de Auth detectado:", event);
-        // Só revalida se houver mudança real de login/logout/token
-        if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
+        // --- CORREÇÃO AQUI ---
+        // Removido: || event === 'TOKEN_REFRESHED'
+        // Agora ele ignora a renovação silenciosa de 20s e evita o loop.
+        if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+            console.log("Mudança de Login/Logout detectada:", event);
             verificarUsuario();
         }
     });
@@ -81,7 +75,7 @@ export default function AdminButton() {
     };
   }, []);
 
-  // Se não tiver destino definido (não é admin nem vendedor), não mostra nada
+  // Se não tiver destino definido, não mostra nada
   if (!destino) return null;
 
   return (
