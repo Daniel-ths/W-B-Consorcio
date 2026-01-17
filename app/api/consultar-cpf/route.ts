@@ -2,51 +2,65 @@ import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
   try {
-    const { cpf } = await request.json();
-    if (!cpf) {
-      return NextResponse.json({ error: "CPF vazio" }, { status: 400 });
+    const body = await request.json();
+    let cleanCPF = (body?.cpf || "").replace(/\D/g, "");
+
+    // Validação básica
+    if (cleanCPF.length !== 11) {
+      return NextResponse.json(
+        { error: "CPF inválido" },
+        { status: 400 }
+      );
     }
 
-    const cleanCPF = cpf.replace(/\D/g, "");
+    // 🔑 Secret Key da APIBrasil (PRINT ROXO)
+    const API_KEY = process.env.APIBRASIL_RECEITA_KEY;
 
-    const DEVICE_TOKEN = "ed0dbc79-88e9-4526-9ed7-897dd7fd0609";
-    const BEARER_TOKEN = "SEU_TOKEN_AQUI"; // ⚠️ ideal mover para env
+    if (!API_KEY) {
+      return NextResponse.json(
+        { error: "API key da APIBrasil não configurada" },
+        { status: 500 }
+      );
+    }
 
-    const url =
-      `https://gateway.apibrasil.io/api/v2/receita-federal/cpf?cpf=${cleanCPF}`;
+    // 🌐 Endpoint correto
+    const url = `https://gateway.apibrasil.io/receita-federal/cpf?cpf=${cleanCPF}`;
 
     const response = await fetch(url, {
       method: "GET",
       headers: {
-        "Authorization": `Bearer ${BEARER_TOKEN}`,
-        "DeviceToken": DEVICE_TOKEN,
-        "Content-Type": "application/json",
+        Authorization: `Bearer ${API_KEY}`,
+        "Content-Type": "application/json"
       },
-      cache: "no-store",
+      cache: "no-store"
     });
 
     if (!response.ok) {
-      const erro = await response.text();
-      console.error("Erro APIBrasil:", response.status, erro);
+      const erroTexto = await response.text();
       return NextResponse.json(
-        { error: "Erro na consulta da Receita Federal" },
+        {
+          error: "Erro na APIBrasil",
+          status: response.status,
+          detalhe: erroTexto
+        },
         { status: response.status }
       );
     }
 
     const data = await response.json();
-
-    // 🔎 Normalização segura
-    const base = data?.dados || data;
+    const base = data.response || data.dados || data;
 
     return NextResponse.json({
       nome: base.nome || "",
-      situacaoCadastral: base.situacao_cadastral || base.situacao || "ATIVO",
-      dataNascimento: base.data_nascimento || "",
+      situacaoCadastral: base.situacao_cadastral || base.situacao || "",
+      dataNascimento: base.data_nascimento || ""
     });
 
-  } catch (error) {
-    console.error("Erro interno:", error);
-    return NextResponse.json({ error: "Erro interno" }, { status: 500 });
+  } catch (err) {
+    console.error("Erro interno:", err);
+    return NextResponse.json(
+      { error: "Erro interno" },
+      { status: 500 }
+    );
   }
 }
