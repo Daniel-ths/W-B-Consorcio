@@ -140,10 +140,6 @@ export default function Navbar() {
                   {menuAberto === 'veiculos' ? <X size={16}/> : null} Veículos
                 </button>
             )}
-
-            <Link href="/#estoque" className="text-xs font-bold text-gray-600 uppercase tracking-wide hover:text-black transition-colors">
-              Comprar
-            </Link>
           </div>
         </div>
 
@@ -240,9 +236,6 @@ export default function Navbar() {
             
             {/* 🟢 ALTERAÇÃO: Removido 'isAuthorized'. Link visível para todos. */}
             {/* Se o usuário clicar e não estiver logado, o Middleware da página vai barrar ele lá, não aqui. */}
-            <Link href="/vendedor/seminovos" className="flex items-center gap-4 text-gray-800 font-bold text-sm uppercase tracking-wide hover:text-[#CD9834] group transition-colors">
-              <CarFront size={18} className="text-gray-400 group-hover:text-[#CD9834]"/> Catálogo Seminovos
-            </Link>
 
             <Link href="/#estoque" onClick={() => setSidebarOpen(false)} className="flex items-center gap-4 text-gray-800 font-bold text-sm uppercase tracking-wide hover:text-[#CD9834] group transition-colors">
               <ShoppingBag size={18} className="text-gray-400 group-hover:text-[#CD9834]"/> Comprar

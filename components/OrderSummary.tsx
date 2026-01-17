@@ -13,7 +13,8 @@ import {
   Wallet,
   Banknote,
   CheckCircle2,
-  AlertCircle 
+  AlertCircle,
+  ArrowRight
 } from "lucide-react";
 
 // --- MÁSCARAS E HELPER FUNCTIONS ---
@@ -60,7 +61,10 @@ export default function OrderSummary({
 }: any) {
   
   const router = useRouter(); 
-  const [paymentMethod, setPaymentMethod] = useState<"Financiamento" | "Consorcio">("Financiamento");
+  
+  // Agora o paymentMethod é fixo como contexto informativo, 
+  // pois a escolha real ocorre na aba de coeficientes.
+  const [paymentMethod] = useState("Análise de Crédito");
 
   // Estados dos Campos
   const [clientName, setClientName] = useState("");
@@ -90,7 +94,6 @@ export default function OrderSummary({
   };
 
   const handleFinishOrder = async () => {
-    // --- 1. VALIDADOR ---
     let newErrors = { clientName: "", clientCpf: "", clientEmail: "", clientPhone: "" };
     let hasError = false;
 
@@ -125,7 +128,6 @@ export default function OrderSummary({
     
     setLoading(true);
 
-    // 2. SALVAR LEAD NO BANCO (Sem Score)
     const carNameResolved = currentCar.model_name || currentCar.name || currentCar.model || `Veículo ID ${currentCar.id}`;
     
     try {
@@ -139,7 +141,7 @@ export default function OrderSummary({
         client_phone: clientPhone,
         total_price: totalPrice,
         status: "Enviado para Análise", 
-        interest_type: paymentMethod,
+        interest_type: "Pendente (Aba Análise)",
         details: {
           color: selectedColor?.name || "Padrão",
           wheels: selectedWheel?.name || "Padrão",
@@ -149,25 +151,18 @@ export default function OrderSummary({
         created_at: new Date().toISOString(),
       };
 
-      // Salva no Supabase
       await supabase.from("sales").insert([saleData]);
 
-      // 3. REDIRECIONAR PARA PÁGINA DE ANÁLISE
       const query = new URLSearchParams({
         nome: clientName,
         cpf: clientCpf,
         modelo: carNameResolved,
         valor: totalPrice.toString(),
-        
-        // Passamos '0' pois este formulário não coleta esses dados
         entrada: "0", 
         renda: "0",
-        
-        // Imagem do carro configurado
         imagem: currentCar.image_url || ""
       }).toString();
 
-      // Redireciona para o comparativo
       router.push(`/vendedor/analise?${query}`);
 
     } catch (error: any) {
@@ -281,9 +276,9 @@ export default function OrderSummary({
              <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
                
                <div className="lg:col-span-1">
-                  <h3 className="text-2xl font-normal text-gray-900 mb-4">Dados para Proposta</h3>
+                  <h3 className="text-2xl font-normal text-gray-900 mb-4">Finalização</h3>
                   <p className="text-sm text-gray-500">
-                    Preencha os dados do cliente com atenção. O CPF e Telefone serão formatados automaticamente.
+                    O próximo passo enviará este veículo configurado para o módulo de <strong>Análise de Crédito</strong>, onde você poderá calcular as parcelas de Financiamento ou Consórcio.
                   </p>
                </div>
 
@@ -302,35 +297,13 @@ export default function OrderSummary({
                        </Link>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 gap-6">
+                    <div className="grid grid-cols-1 gap-10">
                       
-                      {/* BOTÕES DE ESCOLHA */}
-                      <div className="grid grid-cols-2 gap-4 mb-2">
-                        <button
-                          onClick={() => setPaymentMethod("Financiamento")}
-                          className={`py-4 rounded border-2 font-bold flex items-center justify-center gap-2 transition-all
-                            ${paymentMethod === "Financiamento" 
-                              ? "border-blue-600 bg-blue-50 text-blue-700" 
-                              : "border-gray-200 hover:border-blue-200 text-gray-500"}`}
-                        >
-                          <Banknote size={20} /> Financiamento
-                          {paymentMethod === "Financiamento" && <CheckCircle2 size={16} />}
-                        </button>
-
-                        <button
-                          onClick={() => setPaymentMethod("Consorcio")}
-                          className={`py-4 rounded border-2 font-bold flex items-center justify-center gap-2 transition-all
-                            ${paymentMethod === "Consorcio" 
-                              ? "border-purple-600 bg-purple-50 text-purple-700" 
-                              : "border-gray-200 hover:border-purple-200 text-gray-500"}`}
-                        >
-                          <Wallet size={20} /> Consórcio
-                          {paymentMethod === "Consorcio" && <CheckCircle2 size={16} />}
-                        </button>
-                      </div>
-
-                      {/* INPUTS */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* FORMULÁRIO */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white p-2">
+                          <div className="md:col-span-2">
+                             <h4 className="text-lg font-medium mb-4 pb-2 border-b border-gray-100">Informações do Cliente</h4>
+                          </div>
                           <div>
                             <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
                                 Nome Completo <span className="text-red-500">*</span>
@@ -400,15 +373,43 @@ export default function OrderSummary({
                           </div>
                       </div>
 
-                      <div className="mt-4 flex justify-end">
+                      {/* SEÇÃO INFORMATIVA DE CRÉDITO (NÃO CLICÁVEL) */}
+                      <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
+                        <h4 className="text-sm font-bold text-gray-700 uppercase mb-4 flex items-center gap-2">
+                          <CheckCircle2 size={16} className="text-green-600" /> Próxima Etapa: Crédito
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 opacity-70">
+                           <div className="bg-white p-4 rounded border border-gray-200 flex items-center gap-3">
+                              <Banknote className="text-blue-600" size={24} />
+                              <div>
+                                <p className="text-sm font-bold text-gray-900 leading-none">Financiamento</p>
+                                <p className="text-[11px] text-gray-500 mt-1 uppercase">Aprovação em minutos</p>
+                              </div>
+                           </div>
+                           <div className="bg-white p-4 rounded border border-gray-200 flex items-center gap-3">
+                              <Wallet className="text-purple-600" size={24} />
+                              <div>
+                                <p className="text-sm font-bold text-gray-900 leading-none">Consórcio</p>
+                                <p className="text-[11px] text-gray-500 mt-1 uppercase">Cartas de crédito</p>
+                              </div>
+                           </div>
+                        </div>
+                        <p className="text-[11px] text-gray-400 mt-4 italic">
+                          * As taxas e coeficientes serão aplicados na próxima aba após a validação dos dados acima.
+                        </p>
+                      </div>
+
+                      <div className="flex justify-end">
                           <button 
                             onClick={handleFinishOrder}
                             disabled={loading}
-                            className={`text-white font-bold py-4 px-12 rounded hover:opacity-90 transition-colors flex items-center gap-3 shadow-lg disabled:opacity-70 text-sm uppercase tracking-wider
-                              ${paymentMethod === 'Consorcio' ? 'bg-purple-700' : 'bg-[#1c1c1c]'}
-                            `}
+                            className="bg-[#1c1c1c] text-white font-bold py-5 px-16 rounded hover:bg-black transition-all flex items-center gap-3 shadow-lg disabled:opacity-70 text-sm uppercase tracking-widest group"
                           >
-                            {loading ? <Loader2 className="animate-spin" size={18} /> : `Escolher Crédito`}
+                            {loading ? <Loader2 className="animate-spin" size={18} /> : (
+                              <>
+                                Avançar para Análise <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                              </>
+                            )}
                           </button>
                       </div>
                     </div>
