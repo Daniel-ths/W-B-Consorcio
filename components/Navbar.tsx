@@ -23,7 +23,8 @@ import VehiclesMenu from "./VehiclesMenu";
 // 🔧 ÁREA DE CONFIGURAÇÃO DE IMAGENS
 // =====================================================================
 const LOGO_NAVBAR = "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/chevrolet-logo.svg";
-const LOGO_SIDEBAR = "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/Parceirologo.jpg";
+// 👇 LINK ATUALIZADO AQUI
+const LOGO_SIDEBAR = "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/parceirologo.jpg";
 // =====================================================================
 
 export default function Navbar() {
@@ -139,10 +140,10 @@ export default function Navbar() {
           </div>
         </div>
 
-        {/* CENTRO - CORREÇÃO DO LOOP APLICADA AQUI */}
+        {/* CENTRO */}
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-          {/* Usamos a tag <a> padrão para forçar um Hard Refresh e evitar o loop de navegação do Next.js */}
-          <a href="/" onClick={() => setMenuAberto(null)}>
+          {/* Usamos a tag <a> padrão para forçar um Hard Refresh e evitar o loop de navegação */}
+          <a href="/">
             <img src={LOGO_NAVBAR} alt="Logo" className="h-8 w-auto object-contain" />
           </a>
         </div>
@@ -217,16 +218,24 @@ export default function Navbar() {
         <div onClick={() => setMenuAberto(null)} className="fixed inset-0 top-16 bg-black/40 z-[999] backdrop-blur-[2px] transition-opacity duration-300"/>
       )}
 
-      {/* SIDEBAR MOBILE */}
+      {/* SIDEBAR MOBILE - CORRIGIDO */}
+      {/* 1. O Fundo escuro (Overlay) */}
       <div className={`fixed inset-0 bg-black/60 z-[2000] backdrop-blur-sm transition-opacity duration-500 ${sidebarOpen ? 'opacity-100 visible' : 'opacity-0 invisible'}`} onClick={() => setSidebarOpen(false)}></div>
 
+      {/* 2. O Menu Lateral Deslizante */}
       <div className={`fixed top-0 left-0 h-full w-[300px] bg-white z-[2001] shadow-2xl transform transition-transform duration-500 ease-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        
         <div className="flex justify-between items-center p-6 border-b border-gray-100 h-16">
-          <img src={LOGO_SIDEBAR} alt="Logo" className="h-14 w-auto" />
+          {/* Logo Clicável com Hard Refresh */}
+          <a href="/">
+             <img src={LOGO_SIDEBAR} alt="Logo" className="h-14 w-auto object-contain" />
+          </a>
+
           <button onClick={() => setSidebarOpen(false)} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors">
             <X size={20} className="text-gray-600"/>
           </button>
         </div>
+
         <div className="p-8 space-y-8 overflow-y-auto h-full pb-24">
           <div className="space-y-6">
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Menu</p>
@@ -242,7 +251,7 @@ export default function Navbar() {
             </Link>
           </div>
         </div>
-      </div>
+      </div> 
     </>
   );
 }

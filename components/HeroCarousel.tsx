@@ -20,7 +20,7 @@ export default function HeroCarousel() {
           id: 0,
           title: "Bem-vindo à Chevrolet",
           subtitle: "Cadastre seus banners no Painel Admin",
-          image_url: "https://chevrolet.com.br/content/dam/chevrolet/mercosur/brazil/portuguese/index/pickups-and-trucks/2024-silverado/jellys/silverado-high-country-01.jpg?imwidth=1200"
+          image_url: ""
         }]);
       }
       setLoading(false);

@@ -12,7 +12,7 @@ export default function Footer() {
             <Link href="/" className="flex items-center gap-4 group">
                 {/* LOGO AUMENTADA (h-4 -> h-32) */}
                 <img 
-                    src="https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/Parceirologo.jpg" 
+                    src="https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/parceirologo.jpg" 
                     alt="WB Auto" 
                     className="h-32 w-auto object-contain mix-blend-multiply" 
                 />

@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   title: "Chevrolet | WB Auto",
   description: "Concessionária Chevrolet - Encontre seu 0km",
   icons: {
-    icon: 'https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/chevrolet-bowtie-120.svg',
+    icon: 'https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/chevrolet-logo.svg',
   },
 };
 
