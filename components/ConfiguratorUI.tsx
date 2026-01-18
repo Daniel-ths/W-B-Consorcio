@@ -144,8 +144,9 @@ export default function ConfiguratorUI({
                         <h1 className="text-3xl font-bold mb-2 tracking-tight">{currentCar.model_name}</h1>
                         <p className="text-gray-500 text-sm mb-6 leading-relaxed">Selecione a versão que melhor se adapta ao seu estilo de vida.</p>
                         <div className="space-y-3">
-                            {relatedCars.map(car => (
-                                <div key={car.id} onClick={() => router.push(`/configurador?id=${car.id}`)} className={`cursor-pointer border rounded-xl p-4 transition-all duration-200 relative group ${currentCar.id === car.id ? 'border-black ring-1 ring-black bg-gray-50 shadow-md' : 'hover:border-gray-400 hover:shadow-sm'}`}>
+                            {/* CORREÇÃO: Adicionado index 'i' para evitar duplicidade de key */}
+                            {relatedCars.map((car, i) => (
+                                <div key={car.id || i} onClick={() => router.push(`/configurador?id=${car.id}`)} className={`cursor-pointer border rounded-xl p-4 transition-all duration-200 relative group ${currentCar.id === car.id ? 'border-black ring-1 ring-black bg-gray-50 shadow-md' : 'hover:border-gray-400 hover:shadow-sm'}`}>
                                     <div className="flex justify-between font-bold text-sm mb-1">
                                         <span className="group-hover:translate-x-1 transition-transform">{car.model_name}</span>
                                         <span>{formatMoney(car.price_start)}</span>
@@ -164,9 +165,10 @@ export default function ConfiguratorUI({
                         <div>
                             <h3 className="font-bold mb-3 text-sm flex justify-between">Cores <span className="text-gray-400 font-normal">{selectedColor?.name}</span></h3>
                             <div className="flex flex-wrap gap-3">
-                                {currentCar.exterior_colors?.map((c:any) => (
+                                {/* CORREÇÃO: key usa nome ou index */}
+                                {currentCar.exterior_colors?.map((c:any, i:number) => (
                                     <button 
-                                        key={c.name} 
+                                        key={c.name || i} 
                                         onClick={() => {setSelectedColor(c); setViewIndex(0);}} 
                                         className={`w-12 h-12 rounded-full border-2 shadow-sm transition-all duration-300 hover:scale-110 ${selectedColor?.name === c.name ? 'ring-2 ring-offset-2 ring-blue-600 scale-110 border-white' : 'border-gray-100 hover:border-gray-300'}`} 
                                         style={{backgroundColor: c.hex}} 
@@ -175,12 +177,13 @@ export default function ConfiguratorUI({
                             </div>
                         </div>
 
-                        {/* Rodas (COM IMAGEM CORRIGIDA) */}
+                        {/* Rodas */}
                         <div className="border-t border-gray-100 pt-8">
                             <h3 className="font-bold mb-4 text-sm">Rodas</h3>
                             <div className="space-y-4">
-                                {currentCar.wheels?.map((w:any) => (
-                                    <div key={w.id} onClick={() => setSelectedWheel(w)} className={`flex items-center gap-4 p-3 border rounded-xl cursor-pointer transition-all duration-200 hover:shadow-md ${selectedWheel?.id === w.id ? 'border-black ring-1 ring-black bg-gray-50' : 'border-gray-200'}`}>
+                                {/* CORREÇÃO: key usa id ou index */}
+                                {currentCar.wheels?.map((w:any, i:number) => (
+                                    <div key={w.id || i} onClick={() => setSelectedWheel(w)} className={`flex items-center gap-4 p-3 border rounded-xl cursor-pointer transition-all duration-200 hover:shadow-md ${selectedWheel?.id === w.id ? 'border-black ring-1 ring-black bg-gray-50' : 'border-gray-200'}`}>
                                         <div className="w-20 h-20 bg-white rounded-lg flex items-center justify-center border border-gray-100 shrink-0">
                                             <img src={w.image} className="w-full h-full object-contain mix-blend-multiply p-1"/> 
                                         </div>
@@ -194,12 +197,13 @@ export default function ConfiguratorUI({
                             </div>
                         </div>
 
-                        {/* Acessórios Externos (COM IMAGEM CORRIGIDA) */}
+                        {/* Acessórios Externos */}
                         <div className="border-t border-gray-100 pt-8">
                             <h3 className="font-bold mb-4 text-sm">Acessórios</h3>
                             <div className="space-y-4">
-                                {extAccessories.length > 0 ? extAccessories.map((acc:any) => (
-                                    <div key={acc.id} onClick={() => toggleAccessory(acc.id)} className={`flex gap-4 cursor-pointer p-3 border rounded-xl transition-all duration-200 hover:shadow-sm ${selectedAccs.includes(acc.id) ? 'bg-gray-50 ring-1 ring-black border-black' : 'border-gray-200 hover:border-gray-300'}`}>
+                                {/* CORREÇÃO: key usa id ou index */}
+                                {extAccessories.length > 0 ? extAccessories.map((acc:any, i:number) => (
+                                    <div key={acc.id || i} onClick={() => toggleAccessory(acc.id)} className={`flex gap-4 cursor-pointer p-3 border rounded-xl transition-all duration-200 hover:shadow-sm ${selectedAccs.includes(acc.id) ? 'bg-gray-50 ring-1 ring-black border-black' : 'border-gray-200 hover:border-gray-300'}`}>
                                         <div className="w-24 h-16 bg-white rounded-lg border border-gray-200 overflow-hidden shrink-0">
                                             <img src={acc.image} className="w-full h-full object-cover" alt={acc.name} />
                                         </div>
@@ -225,7 +229,7 @@ export default function ConfiguratorUI({
                             {hasSeats && <button onClick={() => {setInteriorView('seats'); setImageLoaded(false);}} className={`flex-1 py-2 px-3 rounded-md text-xs font-bold transition-all shadow-sm ${interiorView === 'seats' ? 'bg-white text-black shadow' : 'text-gray-500 hover:text-black'}`}><Armchair size={16} className="mx-auto mb-1"/> Bancos</button>}
                         </div>
 
-                        {/* Acabamento Bancos (COM IMAGEM CORRIGIDA) */}
+                        {/* Acabamento Bancos */}
                         <div className="border-t border-gray-100 pt-6">
                             <h3 className="font-bold mb-4 text-sm">Acabamento</h3>
                             <div className="space-y-4">
@@ -240,8 +244,9 @@ export default function ConfiguratorUI({
                                     {selectedSeatType === null && <Check size={16} className="text-black"/>}
                                 </div>
 
-                                {currentCar.seat_types?.map((s:any) => (
-                                    <div key={s.id} onClick={() => {setSelectedSeatType(s); setInteriorView('seats');}} className={`cursor-pointer border rounded-xl p-3 flex gap-4 items-center transition-all ${selectedSeatType?.id === s.id ? 'border-black ring-1 ring-black bg-gray-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                                {/* CORREÇÃO: key usa id ou index */}
+                                {currentCar.seat_types?.map((s:any, i:number) => (
+                                    <div key={s.id || i} onClick={() => {setSelectedSeatType(s); setInteriorView('seats');}} className={`cursor-pointer border rounded-xl p-3 flex gap-4 items-center transition-all ${selectedSeatType?.id === s.id ? 'border-black ring-1 ring-black bg-gray-50' : 'border-gray-200 hover:border-gray-300'}`}>
                                         <div className="w-20 h-20 bg-white rounded-lg flex items-center justify-center border border-gray-200 shrink-0 overflow-hidden">
                                             <img src={s.image} className="w-full h-full object-cover" />
                                         </div>
@@ -255,12 +260,13 @@ export default function ConfiguratorUI({
                             </div>
                         </div>
 
-                        {/* Acessórios Internos (COM IMAGEM CORRIGIDA) */}
+                        {/* Acessórios Internos */}
                         <div className="border-t border-gray-100 pt-6">
                             <h3 className="font-bold mb-4 text-sm">Acessórios Internos</h3>
                             <div className="space-y-4">
-                                {intAccessories.length > 0 ? intAccessories.map((acc:any) => (
-                                    <div key={acc.id} onClick={() => toggleAccessory(acc.id)} className={`flex gap-4 cursor-pointer p-3 border rounded-xl transition-all duration-200 hover:shadow-sm ${selectedAccs.includes(acc.id) ? 'bg-gray-50 ring-1 ring-black border-black' : 'border-gray-200 hover:border-gray-300'}`}>
+                                {/* CORREÇÃO: key usa id ou index */}
+                                {intAccessories.length > 0 ? intAccessories.map((acc:any, i:number) => (
+                                    <div key={acc.id || i} onClick={() => toggleAccessory(acc.id)} className={`flex gap-4 cursor-pointer p-3 border rounded-xl transition-all duration-200 hover:shadow-sm ${selectedAccs.includes(acc.id) ? 'bg-gray-50 ring-1 ring-black border-black' : 'border-gray-200 hover:border-gray-300'}`}>
                                         <div className="w-24 h-16 bg-white rounded-lg border border-gray-200 overflow-hidden shrink-0">
                                             <img src={acc.image} className="w-full h-full object-cover" alt={acc.name} />
                                         </div>
