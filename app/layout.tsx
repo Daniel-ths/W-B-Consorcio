@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
-// MUDANÇA 1: Importamos o Wrapper em vez do Footer direto
 import FooterWrapper from "@/components/FooterWrapper"; 
 import { AuthProvider } from "@/contexts/AuthContext";
 
@@ -25,12 +24,11 @@ export default function RootLayout({
         <AuthProvider>
           <Navbar />
 
-          {/* MAIN precisa ser flex-grow e padding-bottom suficiente para o footer */}
+          {/* MAIN com flex-grow para garantir que o footer fique lá embaixo */}
           <main className="flex-grow">
             {children}
           </main>
 
-          {/* MUDANÇA 2: Usamos o Wrapper que decide se mostra ou não o Footer */}
           <FooterWrapper />
           
         </AuthProvider>

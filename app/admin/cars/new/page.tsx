@@ -5,24 +5,65 @@ import { supabase } from '@/lib/supabase'
 import { Trash2, UploadCloud, Plus, Pencil, Ban, Eye, Loader2, X, Copy, Save, Settings, Palette, EyeOff, CheckCircle2, ImagePlus } from 'lucide-react'
 import Link from 'next/link'
 
+// --- INTERFACES (Para o TypeScript não reclamar) ---
+interface UploadProps {
+  label?: string;
+  file?: File | null;
+  previewUrl?: string | null;
+  onRemove?: () => void;
+  onSelect?: (file: File, url: string) => void;
+  setFile?: (file: File | null, url: string | null) => void;
+}
+
+interface GalleryItem {
+  id: string;
+  file: File | null;
+  url: string | null;
+  preview: string | null;
+}
+
+interface ColorItem {
+  id: string;
+  name: string;
+  hex: string;
+  priceFormatted: string;
+  files: Record<string, File | null>;
+  previews: Record<string, string | null>;
+}
+
+interface ConfigurableItem {
+  id: string;
+  name: string;
+  priceFormatted: string;
+  type: string;
+  file: File | null;
+  preview: string | null;
+}
+
 // --- UPLOAD MINI (Componente Puro) ---
-const MiniUpload = ({ label, file, previewUrl, onRemove, onSelect }: any) => {
+const MiniUpload = ({ label, previewUrl, onRemove, onSelect }: UploadProps) => {
   return (
     <div className="w-full">
       <label className="block text-[9px] font-bold uppercase text-gray-400 mb-1 truncate" title={label}>{label}</label>
       <div className={`relative h-20 rounded-lg border-2 border-dashed transition-all flex flex-col items-center justify-center overflow-hidden group 
         ${previewUrl ? 'border-green-500 bg-green-50/30' : 'border-gray-200 hover:border-blue-400 hover:bg-blue-50/50'}`}>
-        <input type="file" accept="image/*" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" 
+        <input 
+          type="file" 
+          accept="image/*" 
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" 
           onChange={(e) => {
             const f = e.target.files?.[0];
-            if(f) onSelect(f, URL.createObjectURL(f));
+            if(f && onSelect) {
+                onSelect(f, URL.createObjectURL(f));
+                e.target.value = ""; // Reset para permitir selecionar o mesmo arquivo se necessário
+            }
           }} 
         />
         {previewUrl ? (
           <>
             <img src={previewUrl} alt="Preview" className="h-full w-full object-contain p-1 z-10" />
             <div className="absolute top-1 right-1 z-30">
-               <button type="button" onClick={(e) => { e.preventDefault(); onRemove() }} className="bg-red-500 text-white p-1 rounded-full shadow hover:scale-110 z-40 cursor-pointer"><X size={10} /></button>
+               <button type="button" onClick={(e) => { e.preventDefault(); if(onRemove) onRemove() }} className="bg-red-500 text-white p-1 rounded-full shadow hover:scale-110 z-40 cursor-pointer"><X size={10} /></button>
             </div>
           </>
         ) : (
@@ -34,27 +75,28 @@ const MiniUpload = ({ label, file, previewUrl, onRemove, onSelect }: any) => {
 }
 
 // --- UPLOAD PADRÃO (Componente Puro) ---
-const ImageUpload = ({ label, file, previewUrl, setFile }: any) => {
-    const handleFile = (selectedFile: File | null) => {
-      if (selectedFile) {
+const ImageUpload = ({ label, previewUrl, setFile }: UploadProps) => {
+    const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const selectedFile = e.target.files?.[0];
+      if (selectedFile && setFile) {
         setFile(selectedFile, URL.createObjectURL(selectedFile))
-      } else {
-        setFile(null, null) 
       }
+      e.target.value = ""; // Reset do input
     }
-    const handleRemove = (e: any) => { e.preventDefault(); e.stopPropagation(); setFile(null, null); }
+    
+    const handleRemove = (e: any) => { e.preventDefault(); e.stopPropagation(); if(setFile) setFile(null, null); }
   
     return (
       <div className="w-full">
         {label && <label className="block text-[10px] font-bold uppercase text-gray-500 mb-1.5">{label}</label>}
         <div className={`relative h-24 rounded-lg border-2 border-dashed transition-all flex flex-col items-center justify-center overflow-hidden group 
           ${previewUrl ? 'border-green-500 bg-green-50/30' : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50/50'}`}>
-          <input type="file" accept="image/*" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" onChange={(e) => handleFile(e.target.files?.[0] || null)} />
+          <input type="file" accept="image/*" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" onChange={handleFile} />
           {previewUrl ? (
             <>
               <img src={previewUrl} alt="Preview" className="h-full w-full object-contain p-1 z-10" />
               <div className="absolute top-1 right-1 z-30">
-                 <button type="button" onClick={handleRemove} className="bg-red-500 text-white p-1 rounded-full shadow hover:scale-110 z-40 cursor-pointer"><Trash2 size={12} /></button>
+                  <button type="button" onClick={handleRemove} className="bg-red-500 text-white p-1 rounded-full shadow hover:scale-110 z-40 cursor-pointer"><Trash2 size={12} /></button>
               </div>
             </>
           ) : (
@@ -65,22 +107,23 @@ const ImageUpload = ({ label, file, previewUrl, setFile }: any) => {
     )
 }
 
-// --- NOVO: GALERIA BULK UPLOAD (Várias fotos de uma vez) ---
-const GalleryUpload = ({ images, setImages }: any) => {
+// --- GALERIA BULK UPLOAD ---
+const GalleryUpload = ({ images, setImages }: { images: GalleryItem[], setImages: React.Dispatch<React.SetStateAction<GalleryItem[]>> }) => {
     const handleMultipleFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
             const newFiles = Array.from(e.target.files).map(file => ({
                 id: crypto.randomUUID(),
                 file: file,
-                url: null, // Ainda não subiu pro supabase
+                url: null,
                 preview: URL.createObjectURL(file)
             }));
-            setImages((prev: any[]) => [...prev, ...newFiles]);
+            setImages((prev) => [...prev, ...newFiles]);
+            e.target.value = ""; // Importante: Limpa o input para permitir nova seleção
         }
     };
 
     const removeImage = (id: string) => {
-        setImages((prev: any[]) => prev.filter(img => img.id !== id));
+        setImages((prev) => prev.filter(img => img.id !== id));
     };
 
     return (
@@ -95,7 +138,7 @@ const GalleryUpload = ({ images, setImages }: any) => {
                     </button>
                     <input 
                         type="file" 
-                        multiple // O SEGREDO ESTÁ AQUI
+                        multiple 
                         accept="image/*" 
                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                         onChange={handleMultipleFiles}
@@ -103,19 +146,17 @@ const GalleryUpload = ({ images, setImages }: any) => {
                 </div>
             </div>
             
-            {/* Grid de Previews */}
             <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
-                {images.map((img: any) => (
-                    <div key={img.id} className="relative aspect-square rounded-lg border border-gray-200 overflow-hidden group">
-                        <img src={img.preview || img.url} className="w-full h-full object-cover" />
+                {images.map((img) => (
+                    <div key={img.id} className="relative aspect-square rounded-lg border border-gray-200 overflow-hidden group bg-gray-50">
+                        <img src={img.preview || img.url || ''} className="w-full h-full object-cover" />
                         <button 
                             type="button" 
                             onClick={() => removeImage(img.id)}
-                            className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-10"
                         >
                             <X size={12} />
                         </button>
-                        {/* Indicador se é arquivo novo (para upload) ou URL já salva */}
                         {img.file && <div className="absolute bottom-0 left-0 right-0 bg-blue-500 text-white text-[9px] text-center font-bold py-0.5">NOVO</div>}
                     </div>
                 ))}
@@ -129,11 +170,10 @@ const GalleryUpload = ({ images, setImages }: any) => {
     )
 }
 
-// --- COMPONENTES EXTRAÍDOS (Para corrigir o bug do Scroll) ---
+// --- COMPONENTES EXTRAÍDOS ---
 const ColorList = ({ colors, setColors, formatMoneyInput, preventSubmit }: any) => {
-    const addColor = () => setColors([...colors, {id:crypto.randomUUID(), name:'', hex:'#000', priceFormatted: 'R$ 0,00', files: {}, previews: {} }])
+    const addColor = () => setColors([...colors, {id:crypto.randomUUID(), name:'', hex:'#000000', priceFormatted: 'R$ 0,00', files: {}, previews: {} }])
     
-    // Funções auxiliares simplificadas para atualizar estado
     const updateName = (i: number, val: string) => { const n = [...colors]; n[i].name = val; setColors(n); }
     const updatePrice = (i: number, val: string) => { const n = [...colors]; n[i].priceFormatted = formatMoneyInput(val); setColors(n); }
     const updateHex = (i: number, val: string) => { const n = [...colors]; n[i].hex = val; setColors(n); }
@@ -155,7 +195,7 @@ const ColorList = ({ colors, setColors, formatMoneyInput, preventSubmit }: any) 
               <button type="button" onClick={addColor} className="text-[10px] font-bold bg-black text-white px-3 py-1.5 rounded">+ Adicionar Cor</button>
           </div>
           <div className="space-y-6">
-              {colors.map((c: any, i: number) => (
+              {colors.map((c: ColorItem, i: number) => (
                   <div key={c.id} className="border-b border-gray-100 pb-6 last:border-0 bg-gray-50/50 p-4 rounded-xl">
                       <div className="flex gap-3 items-end mb-4">
                           <div className="flex-1">
@@ -173,11 +213,11 @@ const ColorList = ({ colors, setColors, formatMoneyInput, preventSubmit }: any) 
                           <button type="button" onClick={() => removeColor(i)} className="mb-1 text-red-500 hover:bg-red-50 p-2 rounded"><Trash2 size={16}/></button>
                       </div>
                       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                          <MiniUpload label="1. Frente" previewUrl={c.previews?.front} onRemove={()=>updateColorFile(i,'front',null,null)} onSelect={(f:any,u:any)=>updateColorFile(i,'front',f,u)} />
-                          <MiniUpload label="2. Lado" previewUrl={c.previews?.side} onRemove={()=>updateColorFile(i,'side',null,null)} onSelect={(f:any,u:any)=>updateColorFile(i,'side',f,u)} />
-                          <MiniUpload label="3. Ângulo" previewUrl={c.previews?.rear_angle} onRemove={()=>updateColorFile(i,'rear_angle',null,null)} onSelect={(f:any,u:any)=>updateColorFile(i,'rear_angle',f,u)} />
-                          <MiniUpload label="4. Detalhe" previewUrl={c.previews?.front_detail} onRemove={()=>updateColorFile(i,'front_detail',null,null)} onSelect={(f:any,u:any)=>updateColorFile(i,'front_detail',f,u)} />
-                          <MiniUpload label="5. Traseira" previewUrl={c.previews?.rear} onRemove={()=>updateColorFile(i,'rear',null,null)} onSelect={(f:any,u:any)=>updateColorFile(i,'rear',f,u)} />
+                          <MiniUpload label="1. Frente" previewUrl={c.previews?.front} onRemove={()=>updateColorFile(i,'front',null,null)} onSelect={(f,u)=>updateColorFile(i,'front',f,u)} />
+                          <MiniUpload label="2. Lado" previewUrl={c.previews?.side} onRemove={()=>updateColorFile(i,'side',null,null)} onSelect={(f,u)=>updateColorFile(i,'side',f,u)} />
+                          <MiniUpload label="3. Ângulo" previewUrl={c.previews?.rear_angle} onRemove={()=>updateColorFile(i,'rear_angle',null,null)} onSelect={(f,u)=>updateColorFile(i,'rear_angle',f,u)} />
+                          <MiniUpload label="4. Detalhe" previewUrl={c.previews?.front_detail} onRemove={()=>updateColorFile(i,'front_detail',null,null)} onSelect={(f,u)=>updateColorFile(i,'front_detail',f,u)} />
+                          <MiniUpload label="5. Traseira" previewUrl={c.previews?.rear} onRemove={()=>updateColorFile(i,'rear',null,null)} onSelect={(f,u)=>updateColorFile(i,'rear',f,u)} />
                       </div>
                   </div>
               ))}
@@ -198,11 +238,11 @@ const ConfigurableList = ({ configurables, setConfigurables, formatMoneyInput, p
     return (
        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
            <div className="flex justify-between mb-4"><h2 className="text-sm font-bold uppercase text-gray-800 flex items-center gap-2"><Settings size={16}/> Itens de Configuração</h2><button type="button" onClick={addItem} className="text-xs font-bold bg-black text-white px-3 py-1.5 rounded">+ Adicionar</button></div>
-           <div className="space-y-4">{configurables.map((item: any, i: number) => (
+           <div className="space-y-4">{configurables.map((item: ConfigurableItem, i: number) => (
                <div key={item.id} className="flex flex-col md:flex-row gap-3 items-start border-b border-gray-100 pb-4 bg-gray-50/50 p-3 rounded-xl">
                    <div className="w-full md:w-40"><label className="text-[9px] font-bold text-gray-400 uppercase mb-1 block">Tipo</label><select className="w-full h-9 px-2 text-xs border rounded bg-white" value={item.type} onChange={e => updateType(i, e.target.value)}><option value="wheel">Roda</option><option value="seat">Banco</option><option value="acc_ext">Aces. Externo</option><option value="acc_int">Aces. Interno</option></select></div>
                    <div className="flex-1 grid grid-cols-2 gap-2 w-full"><div><label className="text-[9px] font-bold text-gray-400 uppercase mb-1 block">Nome</label><input onKeyDown={preventSubmit} className="border rounded h-9 px-2 w-full text-sm" value={item.name} onChange={e=>updateName(i, e.target.value)}/></div><div><label className="text-[9px] font-bold text-gray-400 uppercase mb-1 block">Preço (+)</label><input onKeyDown={preventSubmit} className="border rounded h-9 px-2 w-full text-sm" value={item.priceFormatted} onChange={e=>updatePrice(i, e.target.value)}/></div></div>
-                   <div className="w-full md:w-20"><ImageUpload label="Foto" file={item.file} previewUrl={item.preview} setFile={(f:any, u:any)=>updateFile(i, f, u)}/></div>
+                   <div className="w-full md:w-20"><ImageUpload label="Foto" previewUrl={item.preview} setFile={(f, u)=>updateFile(i, f, u)}/></div>
                    <button type="button" onClick={() => removeItem(i)} className="mt-5 text-red-500 hover:bg-red-50 p-2 rounded"><Trash2 size={16}/></button>
                </div>
            ))}</div>
@@ -233,9 +273,9 @@ export default function AdminPage() {
   const [seatsDesc, setSeatsDesc] = useState('') 
 
   // Listas Complexas
-  const [colors, setColors] = useState<any[]>([])
-  const [configurables, setConfigurables] = useState<any[]>([])
-  const [galleryImages, setGalleryImages] = useState<any[]>([]) // NOVA GALERIA
+  const [colors, setColors] = useState<ColorItem[]>([])
+  const [configurables, setConfigurables] = useState<ConfigurableItem[]>([])
+  const [galleryImages, setGalleryImages] = useState<GalleryItem[]>([]) 
 
   // Banners
   const [banners, setBanners] = useState<any[]>([])
@@ -262,11 +302,13 @@ export default function AdminPage() {
     const numbers = val.replace(/\D/g, "")
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(numbers) / 100)
   }
-  const parseMoney = (val: string) => Number(val.replace(/[^0-9,-]+/g,"").replace(",", "."))
+  const parseMoney = (val: string) => {
+      if(!val) return 0;
+      return Number(val.replace(/[^0-9,-]+/g,"").replace(",", "."))
+  }
 
   const handleNameChange = (e: any) => {
     const name = e.target.value
-    // Correção Scroll: Apenas atualizamos o estado simples aqui
     if (!editingId) {
         const slug = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, '-')
         setFormData(prev => ({ ...prev, model_name: name, slug: slug }))
@@ -285,7 +327,7 @@ export default function AdminPage() {
     const finalPath = `${cleanPath}/${fileName}`;
 
     try {
-        const { data, error } = await supabase.storage.from('cars').upload(finalPath, file, { cacheControl: '3600', upsert: false })
+        const { error } = await supabase.storage.from('cars').upload(finalPath, file, { cacheControl: '3600', upsert: false })
         if (error) throw error;
         const { data: publicData } = supabase.storage.from('cars').getPublicUrl(finalPath);
         return publicData.publicUrl;
@@ -325,11 +367,11 @@ export default function AdminPage() {
             previews: c.images || (c.image ? { front: c.image } : {})
         })))
     } else {
-        setColors([{ id: crypto.randomUUID(), name: 'Padrão', hex: '#000000', price: 0, priceFormatted: 'R$ 0,00', files: {}, previews: {} }])
+        setColors([{ id: crypto.randomUUID(), name: 'Padrão', hex: '#000000', priceFormatted: 'R$ 0,00', files: {}, previews: {} }])
     }
 
     // Configuráveis
-    let merged: any[] = [];
+    let merged: ConfigurableItem[] = [];
     if (v.wheels) merged = merged.concat(v.wheels.map((w: any) => ({ ...w, id: crypto.randomUUID(), type: 'wheel', file: null, preview: w.image, priceFormatted: formatMoneyInput((w.price || 0).toString() + '00') })))
     if (v.seat_types) merged = merged.concat(v.seat_types.map((s: any) => ({ ...s, id: crypto.randomUUID(), type: 'seat', file: null, preview: s.image, priceFormatted: formatMoneyInput((s.price || 0).toString() + '00') })))
     if (v.accessories) {
@@ -355,7 +397,7 @@ export default function AdminPage() {
     setMainImg({ file: null, url: null })
     setDashImg({ file: null, url: null }); setDashDesc('');
     setSeatsImg({ file: null, url: null }); setSeatsDesc('');
-    setColors([{ id: crypto.randomUUID(), name: 'Padrão', hex: '#000000', price: 0, priceFormatted: 'R$ 0,00' }])
+    setColors([{ id: crypto.randomUUID(), name: 'Padrão', hex: '#000000', priceFormatted: 'R$ 0,00', files: {}, previews: {} }])
     setConfigurables([])
     setGalleryImages([])
   }
@@ -394,13 +436,17 @@ export default function AdminPage() {
         })
       }
 
-      // Upload Galeria (Bulk) - Upload paralelo com Promise.all para ser rápido
-      const finalGallery = await Promise.all(galleryImages.map(async (img, idx) => {
+      // Upload Galeria (Bulk) - Usando o ID único para evitar sobrescrita
+      const finalGallery = await Promise.all(galleryImages.map(async (img) => {
            if (img.file) {
-               return await uploadToSupabase(img.file, `${basePath}/galeria-${idx}`, null);
+               // Usa o ID único da imagem no nome do arquivo para garantir que não sobrescreva
+               return await uploadToSupabase(img.file, `${basePath}/galeria-${img.id}`, null);
            }
            return img.url;
       }));
+      
+      // Filtra nulls caso algum upload falhe
+      const validGallery = finalGallery.filter(url => url !== null);
 
       // Upload Configuráveis
       const finalWheels = []
@@ -427,7 +473,7 @@ export default function AdminPage() {
         image_url: mainUrl, 
         interior_images: { dash: dashUrl, dash_desc: dashDesc, seats: defaultSeatUrl, seats_desc: seatsDesc },
         exterior_colors: finalColors,
-        gallery: finalGallery, // SALVANDO A GALERIA
+        gallery: validGallery,
         wheels: finalWheels,
         seat_types: finalSeatTypes,
         accessories: finalAccessories
@@ -446,7 +492,6 @@ export default function AdminPage() {
     } catch (err: any) { alert("Erro: " + err.message) } finally { setVLoading(false) }
   }
 
-  // ... (Restante do handleReplicate, deleteVehicle, handleBannerSubmit igual ao seu código original) ...
   const handleReplicate = async () => {
     if (!formData.model_name) return alert("Preencha o nome do modelo.");
     const baseName = formData.model_name.split(' ')[0]; 
@@ -547,22 +592,22 @@ export default function AdminPage() {
                             </select>
                         </div>
 
-                        <div className="md:col-span-3 mt-4"><ImageUpload label="Capa do Catálogo (Thumbnail)" file={mainImg.file} previewUrl={mainImg.url} setFile={(f:any, u:any) => setMainImg({file:f, url:u})} /></div>
+                        <div className="md:col-span-3 mt-4"><ImageUpload label="Capa do Catálogo (Thumbnail)" previewUrl={mainImg.url} setFile={(f, u) => setMainImg({file:f, url:u})} /></div>
                     </div>
                  </div>
                  
                  <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
                     <h2 className="text-sm font-bold mb-4 uppercase text-gray-400">Interior (Padrão)</h2>
                     <div className="grid grid-cols-2 gap-5">
-                        <div><ImageUpload label="1. Painel" file={dashImg.file} previewUrl={dashImg.url} setFile={(f:any,u:any) => setDashImg({file:f, url:u})} /><input onKeyDown={preventSubmit} value={dashDesc} onChange={e => setDashDesc(e.target.value)} className="w-full mt-2 border rounded h-9 px-2 text-xs" placeholder="Descrição do Painel" /></div>
-                        <div><ImageUpload label="2. Bancos Padrão" file={seatsImg.file} previewUrl={seatsImg.url} setFile={(f:any,u:any) => setSeatsImg({file:f, url:u})} /><input onKeyDown={preventSubmit} value={seatsDesc} onChange={e => setSeatsDesc(e.target.value)} className="w-full mt-2 border rounded h-9 px-2 text-xs" placeholder="Descrição dos Bancos" /></div>
+                        <div><ImageUpload label="1. Painel" previewUrl={dashImg.url} setFile={(f,u) => setDashImg({file:f, url:u})} /><input onKeyDown={preventSubmit} value={dashDesc} onChange={e => setDashDesc(e.target.value)} className="w-full mt-2 border rounded h-9 px-2 text-xs" placeholder="Descrição do Painel" /></div>
+                        <div><ImageUpload label="2. Bancos Padrão" previewUrl={seatsImg.url} setFile={(f,u) => setSeatsImg({file:f, url:u})} /><input onKeyDown={preventSubmit} value={seatsDesc} onChange={e => setSeatsDesc(e.target.value)} className="w-full mt-2 border rounded h-9 px-2 text-xs" placeholder="Descrição dos Bancos" /></div>
                     </div>
                  </div>
 
-                 {/* GALERIA GERAL (NOVO) */}
+                 {/* GALERIA GERAL */}
                  <GalleryUpload images={galleryImages} setImages={setGalleryImages} />
 
-                 {/* CORES (COMPONENTES EXTERNOS PARA EVITAR BUG DE SCROLL) */}
+                 {/* CORES */}
                  <ColorList colors={colors} setColors={setColors} formatMoneyInput={formatMoneyInput} preventSubmit={preventSubmit} />
 
                  {/* CONFIGURÁVEIS */}
@@ -593,7 +638,7 @@ export default function AdminPage() {
                         <div><label className="text-xs font-bold text-gray-500 uppercase">Subtítulo</label><input onKeyDown={preventSubmit} className="w-full mt-1 h-10 px-3 text-sm border rounded" value={bFormData.subtitle} onChange={e => setBFormData({...bFormData, subtitle: e.target.value})} required /></div>
                         <button disabled={bLoading} type="submit" className="w-full h-10 bg-black text-white font-bold uppercase text-xs rounded hover:bg-gray-800 mt-2">{bLoading ? '...' : 'Adicionar Banner'}</button>
                     </div>
-                    <div><ImageUpload label="Imagem (1920x1080)" file={bImage.file} previewUrl={bImage.url} setFile={(f:any, u:any) => setBImage({file:f, url:u})} /></div>
+                    <div><ImageUpload label="Imagem (1920x1080)" previewUrl={bImage.url} setFile={(f, u) => setBImage({file:f, url:u})} /></div>
                 </form>
                 <div className="grid grid-cols-1 gap-4 mt-6">
                     {banners.map((banner) => (
