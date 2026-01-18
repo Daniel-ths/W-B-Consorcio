@@ -19,12 +19,16 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="pt-BR">
-      <body className={`${inter.className} flex flex-col min-h-screen bg-white text-gray-900`}>
+    // ADICIONADO: suppressHydrationWarning
+    <html lang="pt-BR" suppressHydrationWarning={true}>
+      <body 
+        className={`${inter.className} flex flex-col min-h-screen bg-white text-gray-900`}
+        // ADICIONADO: suppressHydrationWarning
+        suppressHydrationWarning={true}
+      >
         <AuthProvider>
           <Navbar />
 
-          {/* MAIN com flex-grow para garantir que o footer fique lá embaixo */}
           <main className="flex-grow">
             {children}
           </main>
