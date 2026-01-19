@@ -9,13 +9,13 @@ export async function middleware(request: NextRequest) {
     },
   })
 
-  // ⚠️ BLOCO DE SEGURANÇA: Se não tiver chaves, nem tenta rodar o Supabase
-  // Isso evita o erro 500 se você esqueceu de configurar no Vercel
+  // 🛡️ SEGURANÇA CONTRA FALHA DE CONFIGURAÇÃO
+  // Se as chaves sumirem do Vercel, o middleware para de rodar para não dar erro 500
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
   if (!supabaseUrl || !supabaseKey) {
-    return response // Retorna sem fazer nada
+    return response 
   }
 
   const supabase = createServerClient(
@@ -41,26 +41,19 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Recupera o usuário
-  const { data: { user } } = await supabase.auth.getUser()
+  // Essa linha é mágica: ela renova a sessão do usuário se estiver expirando
+  await supabase.auth.getUser()
 
-  // 🔒 PROTEÇÃO DE ROTAS (COMENTADA/DESATIVADA)
-  // O código abaixo causava o loop. Deixei comentado para você ver.
-  /*
-  if (!user && (request.nextUrl.pathname.startsWith('/admin') || request.nextUrl.pathname.startsWith('/vendedor'))) {
-    const loginUrl = new URL('/login', request.url)
-    loginUrl.searchParams.set('redirectTo', request.nextUrl.pathname)
-    return NextResponse.redirect(loginUrl)
-  }
-  */
+  // NOTA: Eu removi a parte de redirecionamento forçado aqui.
+  // Deixamos a proteção de rotas (redirect) por conta das páginas (Admin/Vendedor).
+  // O middleware servirá APENAS para manter a sessão viva (Refresh Token).
 
   return response
 }
 
 export const config = {
-  // 🛑 O "matcher" vazio significa que este middleware NÃO VAI RODAR em rota nenhuma.
-  // É o jeito mais seguro de "desligar" o arquivo sem apagar ele.
+  // Reativamos o matcher para todas as rotas, exceto arquivos estáticos
   matcher: [
-    // '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
