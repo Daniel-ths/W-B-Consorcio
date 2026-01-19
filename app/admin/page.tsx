@@ -23,24 +23,32 @@ import {
 
 export default function AdminDashboard() {
   const router = useRouter();
+  
+  // Estados de Dados
   const [sales, setSales] = useState<any[]>([]);
+  
+  // Estados de Controle e UI
   const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [isAuthorized, setIsAuthorized] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
 
+  // --- EFEITO PRINCIPAL: AUTH + DATA FETCH ---
   useEffect(() => {
-    const fetchAdminData = async () => {
+    let mounted = true;
+
+    const initDashboard = async () => {
       try {
+        // 1. Verifica Usuário
         const { data: { user } } = await supabase.auth.getUser();
         
         if (!user) {
-          router.replace("/login");
+          if (mounted) router.replace("/login");
           return;
         }
 
+        // 2. Verifica Perfil (Role)
         const { data: profile } = await supabase
           .from('profiles')
           .select('role')
@@ -48,42 +56,53 @@ export default function AdminDashboard() {
           .single();
 
         if (profile?.role !== 'admin') {
-          if (profile?.role === 'vendedor') {
-            router.replace("/vendedor/dashboard");
-          } else {
-            router.replace("/");
+          if (mounted) {
+            // Se for vendedor, manda pro painel dele. Se não, Home.
+            if (profile?.role === 'vendedor') router.replace("/vendedor/dashboard");
+            else router.replace("/");
           }
           return;
         }
 
-        setIsAdmin(true);
+        // 3. Se chegou aqui, é Admin. Autoriza e Busca Vendas.
+        if (mounted) setIsAuthorized(true);
 
         const { data: salesData, error: salesError } = await supabase
           .from("sales")
           .select(`*, profiles:seller_id (email)`) 
           .order("created_at", { ascending: false });
 
-        if (salesError) console.error("Erro ao buscar vendas:", salesError);
-        setSales(salesData || []);
+        if (salesError) {
+          console.error("Erro ao buscar vendas:", salesError);
+        }
+
+        if (mounted) {
+          setSales(salesData || []);
+        }
 
       } catch (error) {
-        console.error("Erro crítico:", error);
+        console.error("Erro crítico no dashboard:", error);
       } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     };
 
-    fetchAdminData();
+    initDashboard();
+
+    return () => { mounted = false; };
   }, [router]);
 
   // --- FUNÇÕES DE AÇÃO ---
   const handleApproveSale = async (saleId: string) => {
     const confirmApprove = window.confirm("Deseja aprovar manualmente este crédito?");
     if (!confirmApprove) return;
+    
     setIsUpdating(saleId);
     try {
       const { error } = await supabase.from('sales').update({ status: 'Aprovado' }).eq('id', saleId);
       if (error) throw error;
+      
+      // Atualiza localmente para não precisar recarregar
       setSales((prev) => prev.map((s) => s.id === saleId ? { ...s, status: 'Aprovado' } : s));
       alert("Crédito aprovado manualmente!");
     } catch (error: any) {
@@ -96,10 +115,12 @@ export default function AdminDashboard() {
   const handleDeleteSale = async (saleId: string) => {
     const confirmDelete = window.confirm("Tem certeza que deseja excluir esta transação?");
     if (!confirmDelete) return;
+    
     setIsDeleting(saleId);
     try {
       const { error } = await supabase.from('sales').delete().eq('id', saleId);
       if (error) throw error;
+      
       setSales((prev) => prev.filter((s) => s.id !== saleId));
       alert("Transação removida.");
     } catch (error: any) {
@@ -111,11 +132,10 @@ export default function AdminDashboard() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    router.refresh();
-    router.replace("/login");
+    window.location.href = "/login"; // Hard refresh para limpar estados
   };
 
-  // --- KPI & FILTROS ---
+  // --- CÁLCULOS E FILTROS (KPIs) ---
   const filteredSales = sales.filter(s => 
     s.client_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     s.car_name?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -134,11 +154,29 @@ export default function AdminDashboard() {
   }, {});
 
   const topSellers = Object.values(salesBySeller).sort((a: any, b: any) => b.total - a.total).slice(0, 3);
+  
+  // Formatadores
   const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   const formatDate = (date: string) => new Date(date).toLocaleDateString('pt-BR');
 
-  if (loading || !isAdmin) return <div className="h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-800"></div></div>;
+  // --- RENDERIZAÇÃO CONDICIONAL ---
+  
+  // 1. Carregando
+  if (loading) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-slate-800"></div>
+          <p className="text-slate-500 text-sm font-medium animate-pulse">Carregando painel...</p>
+        </div>
+      </div>
+    );
+  }
 
+  // 2. Não autorizado (Proteção extra visual)
+  if (!isAuthorized) return null;
+
+  // 3. Painel Completo
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-blue-100">
       
@@ -230,7 +268,6 @@ export default function AdminDashboard() {
               <table className="w-full text-sm text-left">
                 <thead className="bg-slate-50 text-slate-500 font-semibold uppercase text-xs border-b border-slate-200">
                   <tr>
-                    {/* Padding reduzido de px-6 para px-4 */}
                     <th className="px-4 py-3 min-w-[140px]">Cliente</th>
                     <th className="px-4 py-3 whitespace-nowrap">Contato</th>
                     <th className="px-4 py-3 min-w-[120px]">Veículo</th>
