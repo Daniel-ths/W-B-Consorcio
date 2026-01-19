@@ -25,57 +25,78 @@ export default function Navbar() {
   const [menuAberto, setMenuAberto] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Estados de Dados
+  // Estados
   const [user, setUser] = useState<any>(null);
   const [userRole, setUserRole] = useState<string | null>(null); 
   const [loading, setLoading] = useState(true);
   const [fullName, setFullName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
 
-  // --- EFEITO ÚNICO (SEM LISTENER) ---
+  // --- LÓGICA DE ATUALIZAÇÃO SEGURA ---
   useEffect(() => {
-    let isMounted = true;
+    let mounted = true;
 
-    async function loadUserOnce() {
+    // 1. Função para buscar detalhes do perfil (Nome, Foto, Cargo)
+    async function fetchProfile(userId: string) {
       try {
-        // 1. Pega a sessão apenas UMA VEZ. 
-        // Não usamos onAuthStateChange aqui para evitar briga com o AuthContext.
-        const { data: { session } } = await supabase.auth.getSession();
-
-        if (isMounted && session?.user) {
-          const userId = session.user.id;
-          setUser(session.user);
-
-          // 2. Busca perfil
-          const { data } = await supabase
-            .from('profiles')
-            .select('full_name, avatar_url, role')
-            .eq('id', userId)
-            .single();
-
-          if (isMounted && data) {
-            setFullName(data.full_name || "");
-            setAvatarUrl(data.avatar_url || "");
-            setUserRole(data.role || "user");
-          }
+        const { data } = await supabase
+          .from('profiles')
+          .select('full_name, avatar_url, role')
+          .eq('id', userId)
+          .single();
+        
+        if (mounted && data) {
+          setFullName(data.full_name || "");
+          setAvatarUrl(data.avatar_url || "");
+          setUserRole(data.role || "user");
         }
       } catch (error) {
-        console.log("Navbar: Visitante ou erro de conexão");
-      } finally {
-        if (isMounted) setLoading(false);
+        console.log("Navbar: Perfil pendente");
       }
     }
 
-    // Pequeno delay para garantir que o AuthContext carregou primeiro
-    const timer = setTimeout(() => {
-      loadUserOnce();
-    }, 100);
+    // 2. Carregamento Inicial
+    async function getInitialSession() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (mounted && session?.user) {
+          setUser(session.user);
+          await fetchProfile(session.user.id);
+        }
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+
+    getInitialSession();
+
+    // 3. O ESCUTADOR (A CORREÇÃO DO BUG) 👂
+    // Reativamos isso para o botão mudar quando você logar/deslogar.
+    // O segredo para não dar loop: NÃO colocamos router.push aqui dentro.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted) return;
+
+      if (session?.user) {
+        // Se logou, atualiza o estado visual
+        setUser(session.user);
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+            await fetchProfile(session.user.id);
+        }
+      } else {
+        // Se deslogou, limpa tudo
+        setUser(null);
+        setFullName("");
+        setAvatarUrl("");
+        setUserRole(null);
+      }
+      setLoading(false);
+    });
 
     return () => {
-      isMounted = false;
-      clearTimeout(timer);
+      mounted = false;
+      subscription.unsubscribe();
     };
-  }, []); 
+  }, []);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -86,7 +107,7 @@ export default function Navbar() {
     setMenuAberto(menuAberto === menu ? null : menu);
   };
 
-  // Permissões e Variáveis
+  // Permissões
   const isAdmin = userRole === 'admin';
   const isSeller = userRole === 'vendedor';
   const isAuthorized = isAdmin || isSeller;
@@ -109,14 +130,14 @@ export default function Navbar() {
           </button>
 
           <div className="hidden md:flex gap-6 items-center">
-            {!loading && (
+             {!loading && (
                 <button 
                   onClick={() => toggleMenu('veiculos')}
                   className={`text-xs font-bold uppercase tracking-wide flex items-center gap-1 transition-colors ${menuAberto === 'veiculos' ? 'text-black' : 'text-gray-600 hover:text-black'}`}
                 >
                   {menuAberto === 'veiculos' ? <X size={16}/> : null} Veículos
                 </button>
-            )}
+             )}
           </div>
         </div>
 
@@ -134,46 +155,51 @@ export default function Navbar() {
           {loading ? (
              <div className="w-8 h-8 rounded-full bg-gray-200 animate-pulse"/>
           ) : user ? (
-            // LOGADO
+            // --- ESTADO LOGADO (Agora vai aparecer automaticamente) ---
             <div className="relative group py-2">
               <button className="flex items-center gap-2 px-3 py-2 rounded-full hover:bg-white hover:shadow-sm transition-all border border-transparent hover:border-gray-200">
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shadow-sm overflow-hidden ${isAdmin ? 'bg-black text-yellow-400' : 'bg-gray-900 text-white'}`}>
                   {avatarUrl ? <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" /> : <User size={16} />}
                 </div>
                 <div className="hidden md:block text-left">
-                  <p className="text-xs font-bold text-gray-900 leading-none">Conta</p>
+                  <p className="text-xs font-bold text-gray-900 leading-none">Minha Conta</p>
                   <p className="text-[10px] text-gray-500 font-medium truncate max-w-[100px]">{displayName}</p>
                 </div>
                 <ChevronDown size={14} className="text-gray-400 group-hover:rotate-180 transition-transform" />
               </button>
 
+              {/* DROPDOWN */}
               <div className="absolute right-0 top-full mt-2 w-72 bg-white border border-gray-100 rounded-xl shadow-2xl p-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform group-hover:translate-y-0 translate-y-2 origin-top-right">
                 <div className="p-4 border-b border-gray-100">
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Logado como</p>
                   <p className="text-sm font-bold text-gray-900 truncate">{user.email}</p>
-                  <span className="text-[10px] text-gray-500 uppercase font-bold">{isAdmin ? 'Admin' : isSeller ? 'Vendedor' : 'Cliente'}</span>
+                  <span className={`inline-block mt-2 px-2 py-0.5 text-[10px] font-bold rounded-full uppercase tracking-wide ${isAdmin ? 'bg-black text-yellow-400' : 'bg-green-100 text-green-700'}`}>
+                    {isAdmin ? 'Administrador' : isSeller ? 'Vendedor' : 'Cliente'}
+                  </span>
                 </div>
 
                 <div className="p-2 space-y-1">
                   {isAuthorized && (
-                      <Link href={dashboardLink} className="flex items-center gap-3 px-4 py-3 text-sm font-bold rounded-lg transition-colors text-gray-700 hover:bg-gray-50">
+                      <Link href={dashboardLink} className={`flex items-center gap-3 px-4 py-3 text-sm font-bold rounded-lg transition-colors ${isAdmin ? 'text-gray-800 hover:bg-black hover:text-yellow-400' : 'text-gray-700 hover:bg-yellow-50 hover:text-yellow-700'}`}>
                         {isAdmin ? <ShieldCheck size={18} /> : <LayoutDashboard size={18} />}
                         {dashboardLabel}
                       </Link>
                   )}
-                  <Link href="/profile" className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-50">
+
+                  <Link href="/profile" className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-50 hover:text-black transition-colors">
                     <User size={18} /> Meus Dados
                   </Link>
                 </div>
 
                 <div className="p-2 border-t border-gray-100 mt-1">
-                  <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-red-600 rounded-lg hover:bg-red-50">
-                    <LogOut size={18} /> Sair
+                  <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-red-600 rounded-lg hover:bg-red-50 transition-colors">
+                    <LogOut size={18} /> Sair da Conta
                   </button>
                 </div>
               </div>
             </div>
           ) : (
-            // DESLOGADO
+            // --- ESTADO DESLOGADO ---
             <Link href="/login" className="text-sm font-bold text-gray-700 hover:text-black hover:bg-gray-100 px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
               <User size={18} /> Entrar
             </Link>
@@ -181,14 +207,14 @@ export default function Navbar() {
           <button className="hover:text-black transition-colors hidden sm:block"><MapPin size={20} /></button>
         </div>
       </nav>
-
-      {/* MENUS E SIDEBAR (Mantidos igual) */}
+      
+      {/* MEGA MENU VEÍCULOS */}
       <div className={`fixed top-[0px] left-0 w-full bg-white shadow-2xl border-t border-gray-100 z-[1000] menu-dropdown ${menuAberto === 'veiculos' ? 'menu-dropdown-ativo' : ''}`}>
           <VehiclesMenu onClose={() => setMenuAberto(null)} />
       </div>
-
       {menuAberto && <div onClick={() => setMenuAberto(null)} className="fixed inset-0 top-16 bg-black/40 z-[999] backdrop-blur-[2px] transition-opacity duration-300"/>}
 
+      {/* SIDEBAR MOBILE */}
       <div className={`fixed inset-0 bg-black/60 z-[2000] backdrop-blur-sm transition-opacity duration-500 ${sidebarOpen ? 'opacity-100 visible' : 'opacity-0 invisible'}`} onClick={() => setSidebarOpen(false)}></div>
 
       <div className={`fixed top-0 left-0 h-full w-[300px] bg-white z-[2001] shadow-2xl transform transition-transform duration-500 ease-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
@@ -201,10 +227,19 @@ export default function Navbar() {
           </button>
         </div>
         <div className="p-8 space-y-8 overflow-y-auto h-full pb-24">
-           {/* Conteúdo Sidebar mantido simples */}
            <div className="space-y-6">
-             {!user && <Link href="/login" className="flex items-center gap-4 text-blue-600 font-bold text-sm uppercase">Fazer Login</Link>}
-             {user && <button onClick={handleLogout} className="flex items-center gap-4 text-red-600 font-bold text-sm uppercase">Sair</button>}
+             <Link href="/#estoque" onClick={() => setSidebarOpen(false)} className="flex items-center gap-4 text-gray-800 font-bold text-sm uppercase hover:text-[#CD9834]">
+                <ShoppingBag size={18}/> Comprar
+             </Link>
+             {!user ? (
+               <Link href="/login" className="flex items-center gap-4 text-blue-600 font-bold text-sm uppercase">
+                 <User size={18}/> Fazer Login
+               </Link>
+             ) : (
+               <button onClick={handleLogout} className="flex items-center gap-4 text-red-600 font-bold text-sm uppercase">
+                 <LogOut size={18}/> Sair da Conta
+               </button>
+             )}
            </div>
         </div>
       </div> 
