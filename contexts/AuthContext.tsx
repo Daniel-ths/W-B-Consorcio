@@ -3,13 +3,14 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
-// Define o formato do contexto
+// Definindo o formato dos dados
 type AuthContextType = {
   user: any;
   loading: boolean;
   signOut: () => Promise<void>;
 };
 
+// Criando o contexto
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
@@ -23,24 +24,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     let mounted = true;
 
-    // 1. Busca sessão inicial
-    const getSession = async () => {
+    // 1. Função que busca o usuário UMA VEZ
+    const checkUser = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (mounted) {
           setUser(session?.user ?? null);
-          setLoading(false);
         }
       } catch (error) {
-        console.error("Erro AuthContext:", error);
+        console.error("Erro no Contexto:", error);
+      } finally {
         if (mounted) setLoading(false);
       }
     };
 
-    getSession();
+    checkUser();
 
-    // 2. Escuta mudanças (Login/Logout)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    // 2. Ouvinte passivo (Só atualiza os dados, NUNCA redireciona)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (mounted) {
         setUser(session?.user ?? null);
         setLoading(false);
@@ -53,12 +54,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
   }, []);
 
-  // Função de Logout simplificada
+  // Logout simples
   const signOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
-    // Nota: Não forçamos redirecionamento aqui para evitar conflitos. 
-    // O botão de logout da Navbar/Admin que deve lidar com isso.
+    // NÃO colocamos window.location.href aqui. Deixamos o botão decidir.
   };
 
   return (
