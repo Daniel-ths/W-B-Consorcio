@@ -1,84 +1,71 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase"; // Importe seu cliente supabase real
+import { createContext, useContext, useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
 
-// Definindo o tipo do contexto
-interface AuthContextType {
+// Define o formato do contexto
+type AuthContextType = {
   user: any;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
   loading: boolean;
-}
+  signOut: () => Promise<void>;
+};
 
-const AuthContext = createContext<AuthContextType>({} as AuthContextType);
+const AuthContext = createContext<AuthContextType>({
+  user: null,
+  loading: true,
+  signOut: async () => {},
+});
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
 
   useEffect(() => {
-    // Escuta mudanças na autenticação em tempo real (Login, Logout, Expiração)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
-      
-      // Se a sessão expirou, redireciona para login
-      if (event === 'SIGNED_OUT') {
-        router.push('/login');
+    let mounted = true;
+
+    // 1. Busca sessão inicial
+    const getSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (mounted) {
+          setUser(session?.user ?? null);
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error("Erro AuthContext:", error);
+        if (mounted) setLoading(false);
+      }
+    };
+
+    getSession();
+
+    // 2. Escuta mudanças (Login/Logout)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (mounted) {
+        setUser(session?.user ?? null);
+        setLoading(false);
       }
     });
 
-    return () => subscription.unsubscribe();
-  }, [router]);
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
 
-  // Função de Login REAL
-  const login = async (email: string, password: string) => {
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) throw error;
-
-      // O próprio supabase já salva o cookie/token automaticamente aqui.
-      // Não precisamos fazer localStorage manual.
-      
-      // Verificação opcional de perfil antes de redirecionar
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', data.user.id)
-        .single();
-
-      if (profile?.role === 'admin') {
-        router.push("/admin");
-      } else if (profile?.role === 'vendedor') {
-        router.push("/vendedor/dashboard");
-      } else {
-        router.push("/");
-      }
-
-    } catch (error: any) {
-      console.error("Erro no login:", error.message);
-      alert("Falha ao entrar: " + error.message);
-      throw error;
-    }
-  };
-
-  const logout = async () => {
+  // Função de Logout simplificada
+  const signOut = async () => {
     await supabase.auth.signOut();
-    router.push("/login");
+    setUser(null);
+    // Nota: Não forçamos redirecionamento aqui para evitar conflitos. 
+    // O botão de logout da Navbar/Admin que deve lidar com isso.
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, loading, signOut }}>
       {children}
     </AuthContext.Provider>
   );
-}
+};
 
 export const useAuth = () => useContext(AuthContext);
