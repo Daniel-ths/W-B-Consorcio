@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react"; // Removi o useEffect que causava loop
 import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, Gauge, Armchair, Loader2, Info } from "lucide-react";
 import { useRouter } from "next/navigation"; 
 
@@ -52,30 +52,71 @@ export default function ConfiguratorUI({
     if (selectedColor?.image) return selectedColor.image;
     return currentCar?.image_url;
   };
+  
   const finalImage = getFinalImageURL();
 
-  useEffect(() => { setImageLoaded(false); }, [finalImage]);
+  // --- ARQUIVO CORRIGIDO: REMOVIDO O useEffect QUE CAUSAVA LOOP ---
+  // O controle de 'imageLoaded' agora é feito nos eventos de clique.
 
   // --- BOTÃO VOLTAR BLINDADO ---
   const handleBack = () => {
     try {
         router.push('/');
     } catch {
-        window.location.href = '/'; // Fallback se der erro
+        window.location.href = '/'; 
     }
   };
 
+  // Funções auxiliares para resetar o loading manualmente ao trocar opções
+  const handleColorChange = (color: any) => {
+      if (selectedColor?.name !== color.name) {
+          setImageLoaded(false); 
+          setSelectedColor(color);
+          setViewIndex(0);
+      }
+  }
+
+  const handleSeatChange = (seat: any) => {
+      if (selectedSeatType?.id !== seat?.id) {
+          // Não precisa resetar loading se for só troca de banco, 
+          // mas se mudar a view sim.
+          setSelectedSeatType(seat); 
+          if (interiorView !== 'seats') {
+              setImageLoaded(false);
+              setInteriorView('seats');
+          }
+      }
+  }
+
+  const handleInteriorViewChange = (view: 'dash' | 'seats') => {
+      if (interiorView !== view) {
+          setImageLoaded(false);
+          setInteriorView(view);
+      }
+  }
+
   const rotateCar = (dir: 'next' | 'prev') => {
-      setImageLoaded(false);
+      setImageLoaded(false); 
       if (dir === 'next') setViewIndex((prev) => (prev + 1) % viewsOrder.length);
       else setViewIndex((prev) => (prev - 1 + viewsOrder.length) % viewsOrder.length);
   };
 
   const handleNext = () => {
     if (activeTab === 'Modelo') setActiveTab('Exterior');
-    else if (activeTab === 'Exterior') setActiveTab('Interior');
+    else if (activeTab === 'Exterior') {
+        setImageLoaded(false); // Vai trocar para interior -> nova imagem -> loading
+        setActiveTab('Interior');
+    }
     else if (activeTab === 'Interior') onFinish();
   };
+
+  const handleTabChange = (tab: any) => {
+      if (activeTab !== tab) {
+          // Se entrar ou sair do interior, a imagem muda drasticamente
+          if (tab === 'Interior' || activeTab === 'Interior') setImageLoaded(false);
+          setActiveTab(tab);
+      }
+  }
 
   return (
     <div className="fixed inset-0 z-[2000] flex flex-col lg:flex-row h-screen w-full overflow-hidden font-sans bg-white animate-in fade-in duration-500">
@@ -103,8 +144,21 @@ export default function ConfiguratorUI({
 
         <div className={`w-full h-full flex items-center justify-center relative overflow-hidden transition-all duration-700 ease-in-out z-10 ${activeTab === 'Interior' ? 'p-0' : 'p-12 lg:p-32'}`}>
              <div className={`relative w-full h-full flex items-center justify-center transition-all duration-700 ease-out transform drop-shadow-2xl ${activeTab === 'Interior' ? 'scale-105' : 'scale-100'}`}>
-                {!imageLoaded && !isSwitchingCar && (<div className="absolute inset-0 flex items-center justify-center"><Loader2 className="animate-spin text-white/20 w-10 h-10" /></div>)}
-                <img key={finalImage} src={finalImage} alt="Car View" onLoad={() => setImageLoaded(true)} className={`absolute inset-0 w-full h-full object-contain z-10 select-none pointer-events-none transition-all duration-700 ease-out ${imageLoaded && !isSwitchingCar ? 'opacity-100 scale-100 blur-0' : 'opacity-0 scale-95 blur-sm'}`} />
+                
+                {/* Loader de Imagem */}
+                {!imageLoaded && !isSwitchingCar && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <Loader2 className="animate-spin text-white/20 w-10 h-10" />
+                    </div>
+                )}
+                
+                <img 
+                    key={finalImage} // Força recriar o elemento img quando a URL muda
+                    src={finalImage} 
+                    alt="Car View" 
+                    onLoad={() => setImageLoaded(true)} 
+                    className={`absolute inset-0 w-full h-full object-contain z-10 select-none pointer-events-none transition-all duration-700 ease-out ${imageLoaded && !isSwitchingCar ? 'opacity-100 scale-100 blur-0' : 'opacity-0 scale-95 blur-sm'}`} 
+                />
             </div>
         </div>
 
@@ -130,7 +184,7 @@ export default function ConfiguratorUI({
             
             <div className="flex gap-6 mt-2 text-sm font-bold text-gray-400">
                 {['Modelo', 'Exterior', 'Interior'].map((tab: any) => (
-                    <button key={tab} onClick={() => setActiveTab(tab)} className={`pb-2 border-b-2 transition-all duration-300 ${activeTab === tab ? 'text-black border-black' : 'border-transparent hover:text-gray-600'}`}>{tab}</button>
+                    <button key={tab} onClick={() => handleTabChange(tab)} className={`pb-2 border-b-2 transition-all duration-300 ${activeTab === tab ? 'text-black border-black' : 'border-transparent hover:text-gray-600'}`}>{tab}</button>
                 ))}
             </div>
          </div>
@@ -144,7 +198,7 @@ export default function ConfiguratorUI({
                         <h1 className="text-3xl font-bold mb-2 tracking-tight">{currentCar.model_name}</h1>
                         <p className="text-gray-500 text-sm mb-6 leading-relaxed">Selecione a versão que melhor se adapta ao seu estilo de vida.</p>
                         <div className="space-y-3">
-                            {/* CORREÇÃO: Adicionado index 'i' para evitar duplicidade de key */}
+                            {/* PROTEÇÃO: key usa ID ou index para não quebrar com dados ruins */}
                             {relatedCars.map((car, i) => (
                                 <div key={car.id || i} onClick={() => router.push(`/configurador?id=${car.id}`)} className={`cursor-pointer border rounded-xl p-4 transition-all duration-200 relative group ${currentCar.id === car.id ? 'border-black ring-1 ring-black bg-gray-50 shadow-md' : 'hover:border-gray-400 hover:shadow-sm'}`}>
                                     <div className="flex justify-between font-bold text-sm mb-1">
@@ -165,11 +219,11 @@ export default function ConfiguratorUI({
                         <div>
                             <h3 className="font-bold mb-3 text-sm flex justify-between">Cores <span className="text-gray-400 font-normal">{selectedColor?.name}</span></h3>
                             <div className="flex flex-wrap gap-3">
-                                {/* CORREÇÃO: key usa nome ou index */}
+                                {/* PROTEÇÃO: key usa nome ou index */}
                                 {currentCar.exterior_colors?.map((c:any, i:number) => (
                                     <button 
                                         key={c.name || i} 
-                                        onClick={() => {setSelectedColor(c); setViewIndex(0);}} 
+                                        onClick={() => handleColorChange(c)} 
                                         className={`w-12 h-12 rounded-full border-2 shadow-sm transition-all duration-300 hover:scale-110 ${selectedColor?.name === c.name ? 'ring-2 ring-offset-2 ring-blue-600 scale-110 border-white' : 'border-gray-100 hover:border-gray-300'}`} 
                                         style={{backgroundColor: c.hex}} 
                                     />
@@ -181,7 +235,7 @@ export default function ConfiguratorUI({
                         <div className="border-t border-gray-100 pt-8">
                             <h3 className="font-bold mb-4 text-sm">Rodas</h3>
                             <div className="space-y-4">
-                                {/* CORREÇÃO: key usa id ou index */}
+                                {/* PROTEÇÃO: key usa ID ou index */}
                                 {currentCar.wheels?.map((w:any, i:number) => (
                                     <div key={w.id || i} onClick={() => setSelectedWheel(w)} className={`flex items-center gap-4 p-3 border rounded-xl cursor-pointer transition-all duration-200 hover:shadow-md ${selectedWheel?.id === w.id ? 'border-black ring-1 ring-black bg-gray-50' : 'border-gray-200'}`}>
                                         <div className="w-20 h-20 bg-white rounded-lg flex items-center justify-center border border-gray-100 shrink-0">
@@ -201,7 +255,7 @@ export default function ConfiguratorUI({
                         <div className="border-t border-gray-100 pt-8">
                             <h3 className="font-bold mb-4 text-sm">Acessórios</h3>
                             <div className="space-y-4">
-                                {/* CORREÇÃO: key usa id ou index */}
+                                {/* PROTEÇÃO: key usa ID ou index */}
                                 {extAccessories.length > 0 ? extAccessories.map((acc:any, i:number) => (
                                     <div key={acc.id || i} onClick={() => toggleAccessory(acc.id)} className={`flex gap-4 cursor-pointer p-3 border rounded-xl transition-all duration-200 hover:shadow-sm ${selectedAccs.includes(acc.id) ? 'bg-gray-50 ring-1 ring-black border-black' : 'border-gray-200 hover:border-gray-300'}`}>
                                         <div className="w-24 h-16 bg-white rounded-lg border border-gray-200 overflow-hidden shrink-0">
@@ -225,15 +279,15 @@ export default function ConfiguratorUI({
                 {activeTab === 'Interior' && (
                     <div className="space-y-8">
                         <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
-                            <button onClick={() => {setInteriorView('dash'); setImageLoaded(false);}} className={`flex-1 py-2 px-3 rounded-md text-xs font-bold transition-all shadow-sm ${interiorView === 'dash' ? 'bg-white text-black shadow' : 'text-gray-500 hover:text-black'}`}><Gauge size={16} className="mx-auto mb-1"/> Painel</button>
-                            {hasSeats && <button onClick={() => {setInteriorView('seats'); setImageLoaded(false);}} className={`flex-1 py-2 px-3 rounded-md text-xs font-bold transition-all shadow-sm ${interiorView === 'seats' ? 'bg-white text-black shadow' : 'text-gray-500 hover:text-black'}`}><Armchair size={16} className="mx-auto mb-1"/> Bancos</button>}
+                            <button onClick={() => handleInteriorViewChange('dash')} className={`flex-1 py-2 px-3 rounded-md text-xs font-bold transition-all shadow-sm ${interiorView === 'dash' ? 'bg-white text-black shadow' : 'text-gray-500 hover:text-black'}`}><Gauge size={16} className="mx-auto mb-1"/> Painel</button>
+                            {hasSeats && <button onClick={() => handleInteriorViewChange('seats')} className={`flex-1 py-2 px-3 rounded-md text-xs font-bold transition-all shadow-sm ${interiorView === 'seats' ? 'bg-white text-black shadow' : 'text-gray-500 hover:text-black'}`}><Armchair size={16} className="mx-auto mb-1"/> Bancos</button>}
                         </div>
 
                         {/* Acabamento Bancos */}
                         <div className="border-t border-gray-100 pt-6">
                             <h3 className="font-bold mb-4 text-sm">Acabamento</h3>
                             <div className="space-y-4">
-                                <div onClick={() => {setSelectedSeatType(null); setInteriorView('seats');}} className={`cursor-pointer border rounded-xl p-3 flex gap-4 items-center transition-all ${selectedSeatType === null ? 'border-black ring-1 ring-black bg-gray-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                                <div onClick={() => {setSelectedSeatType(null); handleInteriorViewChange('seats');}} className={`cursor-pointer border rounded-xl p-3 flex gap-4 items-center transition-all ${selectedSeatType === null ? 'border-black ring-1 ring-black bg-gray-50' : 'border-gray-200 hover:border-gray-300'}`}>
                                     <div className="w-20 h-20 bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200 shrink-0 overflow-hidden">
                                         <img src={currentCar.interior_images?.seats || currentCar.interior_images?.dash} className="w-full h-full object-cover opacity-80" />
                                     </div>
@@ -244,9 +298,9 @@ export default function ConfiguratorUI({
                                     {selectedSeatType === null && <Check size={16} className="text-black"/>}
                                 </div>
 
-                                {/* CORREÇÃO: key usa id ou index */}
+                                {/* PROTEÇÃO: key usa ID ou index */}
                                 {currentCar.seat_types?.map((s:any, i:number) => (
-                                    <div key={s.id || i} onClick={() => {setSelectedSeatType(s); setInteriorView('seats');}} className={`cursor-pointer border rounded-xl p-3 flex gap-4 items-center transition-all ${selectedSeatType?.id === s.id ? 'border-black ring-1 ring-black bg-gray-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                                    <div key={s.id || i} onClick={() => handleSeatChange(s)} className={`cursor-pointer border rounded-xl p-3 flex gap-4 items-center transition-all ${selectedSeatType?.id === s.id ? 'border-black ring-1 ring-black bg-gray-50' : 'border-gray-200 hover:border-gray-300'}`}>
                                         <div className="w-20 h-20 bg-white rounded-lg flex items-center justify-center border border-gray-200 shrink-0 overflow-hidden">
                                             <img src={s.image} className="w-full h-full object-cover" />
                                         </div>
@@ -264,7 +318,7 @@ export default function ConfiguratorUI({
                         <div className="border-t border-gray-100 pt-6">
                             <h3 className="font-bold mb-4 text-sm">Acessórios Internos</h3>
                             <div className="space-y-4">
-                                {/* CORREÇÃO: key usa id ou index */}
+                                {/* PROTEÇÃO: key usa ID ou index */}
                                 {intAccessories.length > 0 ? intAccessories.map((acc:any, i:number) => (
                                     <div key={acc.id || i} onClick={() => toggleAccessory(acc.id)} className={`flex gap-4 cursor-pointer p-3 border rounded-xl transition-all duration-200 hover:shadow-sm ${selectedAccs.includes(acc.id) ? 'bg-gray-50 ring-1 ring-black border-black' : 'border-gray-200 hover:border-gray-300'}`}>
                                         <div className="w-24 h-16 bg-white rounded-lg border border-gray-200 overflow-hidden shrink-0">
