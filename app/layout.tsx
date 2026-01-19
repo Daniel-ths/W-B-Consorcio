@@ -3,7 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import FooterWrapper from "@/components/FooterWrapper"; 
-import { AuthProvider } from "@/contexts/AuthContext";
+// import { AuthProvider } from "@/contexts/AuthContext"; // <--- 1. DESATIVAMOS O IMPORT
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -19,14 +19,15 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    // ADICIONADO: suppressHydrationWarning
     <html lang="pt-BR" suppressHydrationWarning={true}>
       <body 
         className={`${inter.className} flex flex-col min-h-screen bg-white text-gray-900`}
-        // ADICIONADO: suppressHydrationWarning
         suppressHydrationWarning={true}
       >
-        <AuthProvider>
+        {/* <AuthProvider>  <--- 2. COMENTAMOS O PROVEDOR PARA PARAR O LOOP */}
+        
+          {/* Se a Navbar depender do Auth, ela pode dar erro. 
+              Se der tela branca, comente a <Navbar /> também temporariamente. */}
           <Navbar />
 
           <main className="flex-grow">
@@ -35,7 +36,7 @@ export default function RootLayout({
 
           <FooterWrapper />
           
-        </AuthProvider>
+        {/* </AuthProvider> */}
       </body>
     </html>
   );
