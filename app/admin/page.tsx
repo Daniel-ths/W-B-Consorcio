@@ -18,81 +18,83 @@ import {
   ExternalLink,
   Trash2,
   Check,
-  Phone
+  Phone,
+  Loader2
 } from "lucide-react";
 
 export default function AdminDashboard() {
   const router = useRouter();
   
-  // Estados de Dados
+  // --- ESTADOS DE DADOS ---
   const [sales, setSales] = useState<any[]>([]);
   
-  // Estados de Controle e UI
-  const [loading, setLoading] = useState(true);
-  const [isAuthorized, setIsAuthorized] = useState(false);
+  // --- ESTADOS DE CONTROLE (Anti-Loop) ---
+  const [loading, setLoading] = useState(true); // Começa carregando (tela travada)
+  const [isAuthorized, setIsAuthorized] = useState(false); // Começa bloqueado
+
   const [searchTerm, setSearchTerm] = useState("");
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
 
-  // --- EFEITO PRINCIPAL: AUTH + DATA FETCH ---
+  // --- EFEITO: PROTEÇÃO + CARREGAMENTO ---
   useEffect(() => {
     let mounted = true;
 
-    const initDashboard = async () => {
+    const initPage = async () => {
       try {
-        // 1. Verifica Usuário
+        // 1. Verifica Usuário Autenticado
         const { data: { user } } = await supabase.auth.getUser();
         
         if (!user) {
-          if (mounted) router.replace("/login");
+          if (mounted) router.replace("/login"); 
           return;
         }
 
-        // 2. Verifica Perfil (Role)
+        // 2. Verifica Cargo (Role) no Perfil
         const { data: profile } = await supabase
           .from('profiles')
           .select('role')
           .eq('id', user.id)
           .single();
 
+        // Se não for admin, chuta para o lugar certo
         if (profile?.role !== 'admin') {
           if (mounted) {
-            // Se for vendedor, manda pro painel dele. Se não, Home.
             if (profile?.role === 'vendedor') router.replace("/vendedor/dashboard");
             else router.replace("/");
           }
           return;
         }
 
-        // 3. Se chegou aqui, é Admin. Autoriza e Busca Vendas.
+        // 3. SE CHEGOU AQUI: É ADMIN LEGÍTIMO
         if (mounted) setIsAuthorized(true);
 
+        // 4. Busca os dados do Dashboard
         const { data: salesData, error: salesError } = await supabase
           .from("sales")
           .select(`*, profiles:seller_id (email)`) 
           .order("created_at", { ascending: false });
 
-        if (salesError) {
-          console.error("Erro ao buscar vendas:", salesError);
-        }
+        if (salesError) console.error("Erro ao buscar vendas:", salesError);
 
         if (mounted) {
           setSales(salesData || []);
         }
 
       } catch (error) {
-        console.error("Erro crítico no dashboard:", error);
+        console.error("Erro fatal no admin:", error);
       } finally {
+        // Libera o loading apenas no final de tudo
         if (mounted) setLoading(false);
       }
     };
 
-    initDashboard();
+    initPage();
 
     return () => { mounted = false; };
   }, [router]);
 
-  // --- FUNÇÕES DE AÇÃO ---
+  // --- FUNÇÕES DE AÇÃO (Aprovar/Excluir) ---
   const handleApproveSale = async (saleId: string) => {
     const confirmApprove = window.confirm("Deseja aprovar manualmente este crédito?");
     if (!confirmApprove) return;
@@ -101,8 +103,6 @@ export default function AdminDashboard() {
     try {
       const { error } = await supabase.from('sales').update({ status: 'Aprovado' }).eq('id', saleId);
       if (error) throw error;
-      
-      // Atualiza localmente para não precisar recarregar
       setSales((prev) => prev.map((s) => s.id === saleId ? { ...s, status: 'Aprovado' } : s));
       alert("Crédito aprovado manualmente!");
     } catch (error: any) {
@@ -120,7 +120,6 @@ export default function AdminDashboard() {
     try {
       const { error } = await supabase.from('sales').delete().eq('id', saleId);
       if (error) throw error;
-      
       setSales((prev) => prev.filter((s) => s.id !== saleId));
       alert("Transação removida.");
     } catch (error: any) {
@@ -132,15 +131,14 @@ export default function AdminDashboard() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    window.location.href = "/login"; // Hard refresh para limpar estados
+    window.location.href = "/login"; // Hard Refresh para limpar cache
   };
 
-  // --- CÁLCULOS E FILTROS (KPIs) ---
+  // --- CÁLCULOS KPI ---
   const filteredSales = sales.filter(s => 
     s.client_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     s.car_name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
-
   const totalRevenue = filteredSales.reduce((acc, curr) => acc + (Number(curr.total_price) || 0), 0);
   const totalClients = new Set(filteredSales.map(s => s.client_cpf || s.client_name)).size;
   const averageTicket = sales.length > 0 ? totalRevenue / sales.length : 0;
@@ -152,31 +150,27 @@ export default function AdminDashboard() {
     acc[sellerEmail].total += Number(curr.total_price) || 0;
     return acc;
   }, {});
-
   const topSellers = Object.values(salesBySeller).sort((a: any, b: any) => b.total - a.total).slice(0, 3);
-  
-  // Formatadores
   const formatCurrency = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   const formatDate = (date: string) => new Date(date).toLocaleDateString('pt-BR');
 
-  // --- RENDERIZAÇÃO CONDICIONAL ---
-  
-  // 1. Carregando
+
+  // --- RENDERIZAÇÃO ---
+
+  // 1. TELA DE CARREGAMENTO (Isso previne o loop visual)
   if (loading) {
     return (
-      <div className="h-screen w-full flex items-center justify-center bg-slate-50">
-        <div className="flex flex-col items-center gap-3">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-slate-800"></div>
-          <p className="text-slate-500 text-sm font-medium animate-pulse">Carregando painel...</p>
-        </div>
+      <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50 gap-4">
+        <Loader2 className="animate-spin text-blue-600 w-10 h-10" />
+        <p className="text-slate-500 font-medium text-sm animate-pulse">Validando acesso administrativo...</p>
       </div>
     );
   }
 
-  // 2. Não autorizado (Proteção extra visual)
+  // 2. BLOQUEIO FINAL (Segurança extra)
   if (!isAuthorized) return null;
 
-  // 3. Painel Completo
+  // 3. PAINEL REAL
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-blue-100">
       
@@ -254,7 +248,7 @@ export default function AdminDashboard() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
-          {/* TABELA - AJUSTADA PARA NÃO FICAR ESPREMIDA */}
+          {/* TABELA */}
           <div className="lg:col-span-2 flex flex-col gap-4">
             <div className="flex justify-between items-center">
               <h3 className="font-bold text-lg text-slate-800">Últimas Transações</h3>
