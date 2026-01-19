@@ -3,16 +3,13 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import FooterWrapper from "@/components/FooterWrapper"; 
-import { AuthProvider } from "@/contexts/AuthContext";
+// import { AuthProvider } from "@/contexts/AuthContext"; // <--- 1. DESATIVADO
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Chevrolet | WB Auto",
-  description: "Concessionária Chevrolet - Encontre seu 0km",
-  icons: {
-    icon: 'https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/chevrolet-logo.svg',
-  },
+  description: "Concessionária Chevrolet",
 };
 
 export default function RootLayout({
@@ -20,21 +17,17 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="pt-BR" suppressHydrationWarning={true}>
-      <body 
-        className={`${inter.className} flex flex-col min-h-screen bg-white text-gray-900`}
-        suppressHydrationWarning={true}
-      >
-        <AuthProvider>
+      <body className={`${inter.className} flex flex-col min-h-screen bg-white text-gray-900`} suppressHydrationWarning={true}>
         
-          <Navbar />
+        {/* SEM AUTHPROVIDER - O site roda "solto" */}
+        <Navbar />
 
-          <main className="flex-grow">
-            {children}
-          </main>
+        <main className="flex-grow">
+          {children}
+        </main>
 
-          <FooterWrapper />
+        <FooterWrapper />
           
-        </AuthProvider>
       </body>
     </html>
   );
