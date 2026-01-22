@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Trash2, UploadCloud, Plus, Pencil, Ban, Eye, Loader2, X, Copy, Save, Settings, Palette, EyeOff, CheckCircle2, ImagePlus } from 'lucide-react'
+import { Trash2, UploadCloud, Plus, Pencil, Ban, Eye, Loader2, X, Copy, Save, Settings, Palette, EyeOff, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
 
-// --- INTERFACES (Para o TypeScript não reclamar) ---
+// --- INTERFACES ---
 interface UploadProps {
   label?: string;
   file?: File | null;
@@ -13,13 +13,6 @@ interface UploadProps {
   onRemove?: () => void;
   onSelect?: (file: File, url: string) => void;
   setFile?: (file: File | null, url: string | null) => void;
-}
-
-interface GalleryItem {
-  id: string;
-  file: File | null;
-  url: string | null;
-  preview: string | null;
 }
 
 interface ColorItem {
@@ -55,7 +48,7 @@ const MiniUpload = ({ label, previewUrl, onRemove, onSelect }: UploadProps) => {
             const f = e.target.files?.[0];
             if(f && onSelect) {
                 onSelect(f, URL.createObjectURL(f));
-                e.target.value = ""; // Reset para permitir selecionar o mesmo arquivo se necessário
+                e.target.value = ""; 
             }
           }} 
         />
@@ -81,7 +74,7 @@ const ImageUpload = ({ label, previewUrl, setFile }: UploadProps) => {
       if (selectedFile && setFile) {
         setFile(selectedFile, URL.createObjectURL(selectedFile))
       }
-      e.target.value = ""; // Reset do input
+      e.target.value = ""; 
     }
     
     const handleRemove = (e: any) => { e.preventDefault(); e.stopPropagation(); if(setFile) setFile(null, null); }
@@ -104,69 +97,6 @@ const ImageUpload = ({ label, previewUrl, setFile }: UploadProps) => {
           )}
         </div>
       </div>
-    )
-}
-
-// --- GALERIA BULK UPLOAD ---
-const GalleryUpload = ({ images, setImages }: { images: GalleryItem[], setImages: React.Dispatch<React.SetStateAction<GalleryItem[]>> }) => {
-    const handleMultipleFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files.length > 0) {
-            const newFiles = Array.from(e.target.files).map(file => ({
-                id: crypto.randomUUID(),
-                file: file,
-                url: null,
-                preview: URL.createObjectURL(file)
-            }));
-            setImages((prev) => [...prev, ...newFiles]);
-            e.target.value = ""; // Importante: Limpa o input para permitir nova seleção
-        }
-    };
-
-    const removeImage = (id: string) => {
-        setImages((prev) => prev.filter(img => img.id !== id));
-    };
-
-    return (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-             <div className="flex justify-between items-center mb-4">
-                <h2 className="text-sm font-bold uppercase text-gray-800 flex items-center gap-2">
-                    <ImagePlus size={16}/> Galeria de Fotos (Em Lote)
-                </h2>
-                <div className="relative">
-                    <button type="button" className="text-xs font-bold bg-black text-white px-4 py-2 rounded flex items-center gap-2">
-                        <Plus size={14}/> Selecionar Fotos
-                    </button>
-                    <input 
-                        type="file" 
-                        multiple 
-                        accept="image/*" 
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                        onChange={handleMultipleFiles}
-                    />
-                </div>
-            </div>
-            
-            <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
-                {images.map((img) => (
-                    <div key={img.id} className="relative aspect-square rounded-lg border border-gray-200 overflow-hidden group bg-gray-50">
-                        <img src={img.preview || img.url || ''} className="w-full h-full object-cover" />
-                        <button 
-                            type="button" 
-                            onClick={() => removeImage(img.id)}
-                            className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                        >
-                            <X size={12} />
-                        </button>
-                        {img.file && <div className="absolute bottom-0 left-0 right-0 bg-blue-500 text-white text-[9px] text-center font-bold py-0.5">NOVO</div>}
-                    </div>
-                ))}
-                {images.length === 0 && (
-                    <div className="col-span-full text-center py-8 text-gray-400 text-xs border-2 border-dashed border-gray-100 rounded-lg">
-                        Nenhuma foto na galeria
-                    </div>
-                )}
-            </div>
-        </div>
     )
 }
 
@@ -275,7 +205,6 @@ export default function AdminPage() {
   // Listas Complexas
   const [colors, setColors] = useState<ColorItem[]>([])
   const [configurables, setConfigurables] = useState<ConfigurableItem[]>([])
-  const [galleryImages, setGalleryImages] = useState<GalleryItem[]>([]) 
 
   // Banners
   const [banners, setBanners] = useState<any[]>([])
@@ -349,13 +278,6 @@ export default function AdminPage() {
     setDashDesc(v.interior_images?.dash_desc || '') 
     setSeatsImg({ file: null, url: v.interior_images?.seats || null })
     setSeatsDesc(v.interior_images?.seats_desc || '') 
-
-    // Galeria
-    if (v.gallery && Array.isArray(v.gallery)) {
-        setGalleryImages(v.gallery.map((url: string) => ({ id: crypto.randomUUID(), file: null, url: url, preview: url })));
-    } else {
-        setGalleryImages([]);
-    }
     
     // Cores
     if (v.exterior_colors) {
@@ -399,7 +321,6 @@ export default function AdminPage() {
     setSeatsImg({ file: null, url: null }); setSeatsDesc('');
     setColors([{ id: crypto.randomUUID(), name: 'Padrão', hex: '#000000', priceFormatted: 'R$ 0,00', files: {}, previews: {} }])
     setConfigurables([])
-    setGalleryImages([])
   }
 
   const handleVehicleSubmit = async (e: React.FormEvent) => {
@@ -436,18 +357,6 @@ export default function AdminPage() {
         })
       }
 
-      // Upload Galeria (Bulk) - Usando o ID único para evitar sobrescrita
-      const finalGallery = await Promise.all(galleryImages.map(async (img) => {
-           if (img.file) {
-               // Usa o ID único da imagem no nome do arquivo para garantir que não sobrescreva
-               return await uploadToSupabase(img.file, `${basePath}/galeria-${img.id}`, null);
-           }
-           return img.url;
-      }));
-      
-      // Filtra nulls caso algum upload falhe
-      const validGallery = finalGallery.filter(url => url !== null);
-
       // Upload Configuráveis
       const finalWheels = []
       const finalSeatTypes = []
@@ -473,7 +382,6 @@ export default function AdminPage() {
         image_url: mainUrl, 
         interior_images: { dash: dashUrl, dash_desc: dashDesc, seats: defaultSeatUrl, seats_desc: seatsDesc },
         exterior_colors: finalColors,
-        gallery: validGallery,
         wheels: finalWheels,
         seat_types: finalSeatTypes,
         accessories: finalAccessories
@@ -543,8 +451,8 @@ export default function AdminPage() {
         {activeTab === 'vehicles' && (
             <div className="space-y-12 animate-in fade-in slide-in-from-bottom-2">
               <div className="space-y-4">
-                 <h2 className="text-xl font-bold text-gray-800">Estoque ({vehicleList.length})</h2>
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <h2 className="text-xl font-bold text-gray-800">Estoque ({vehicleList.length})</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {vehicleList.map(v => (
                         <div key={v.id} className={`p-4 rounded-xl border flex gap-4 items-center transition-all relative ${editingId === v.id ? 'bg-blue-50 border-blue-500 ring-1 ring-blue-500' : 'bg-white border-gray-200 shadow-sm'} ${v.is_visible === false ? 'opacity-60 grayscale' : ''}`}>
                             {v.is_visible === false && (
@@ -559,17 +467,17 @@ export default function AdminPage() {
                             </div>
                         </div>
                     ))}
-                 </div>
+                  </div>
               </div>
               <div className="border-t border-gray-200 my-8"></div>
 
               <form onSubmit={handleVehicleSubmit} className={`space-y-6 relative ${editingId ? 'p-6 bg-blue-50/50 rounded-3xl border border-blue-100' : ''}`}>
-                 <div className="flex justify-between items-center">
+                  <div className="flex justify-between items-center">
                     <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">{editingId ? <Pencil className="bg-blue-600 text-white rounded-full p-1.5 w-7 h-7"/> : <Plus className="bg-black text-white rounded-full p-1 w-6 h-6"/>} {editingId ? 'Editando' : 'Novo Veículo'}</h2>
                     {editingId && <button type="button" onClick={cancelEditing} className="text-xs font-bold text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg flex items-center gap-1 transition"><Ban size={14}/> Cancelar</button>}
-                 </div>
+                  </div>
 
-                 <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+                  <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                         <div className="md:col-span-2"><label className="text-xs font-bold text-gray-500 uppercase">Modelo</label><input onKeyDown={preventSubmit} value={formData.model_name} className="w-full mt-1 h-10 px-3 border rounded focus:ring-1 focus:ring-black outline-none" onChange={handleNameChange} required /></div>
                         
@@ -594,26 +502,23 @@ export default function AdminPage() {
 
                         <div className="md:col-span-3 mt-4"><ImageUpload label="Capa do Catálogo (Thumbnail)" previewUrl={mainImg.url} setFile={(f, u) => setMainImg({file:f, url:u})} /></div>
                     </div>
-                 </div>
-                 
-                 <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+                  </div>
+                  
+                  <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
                     <h2 className="text-sm font-bold mb-4 uppercase text-gray-400">Interior (Padrão)</h2>
                     <div className="grid grid-cols-2 gap-5">
                         <div><ImageUpload label="1. Painel" previewUrl={dashImg.url} setFile={(f,u) => setDashImg({file:f, url:u})} /><input onKeyDown={preventSubmit} value={dashDesc} onChange={e => setDashDesc(e.target.value)} className="w-full mt-2 border rounded h-9 px-2 text-xs" placeholder="Descrição do Painel" /></div>
                         <div><ImageUpload label="2. Bancos Padrão" previewUrl={seatsImg.url} setFile={(f,u) => setSeatsImg({file:f, url:u})} /><input onKeyDown={preventSubmit} value={seatsDesc} onChange={e => setSeatsDesc(e.target.value)} className="w-full mt-2 border rounded h-9 px-2 text-xs" placeholder="Descrição dos Bancos" /></div>
                     </div>
-                 </div>
+                  </div>
 
-                 {/* GALERIA GERAL */}
-                 <GalleryUpload images={galleryImages} setImages={setGalleryImages} />
+                  {/* CORES */}
+                  <ColorList colors={colors} setColors={setColors} formatMoneyInput={formatMoneyInput} preventSubmit={preventSubmit} />
 
-                 {/* CORES */}
-                 <ColorList colors={colors} setColors={setColors} formatMoneyInput={formatMoneyInput} preventSubmit={preventSubmit} />
+                  {/* CONFIGURÁVEIS */}
+                  <ConfigurableList configurables={configurables} setConfigurables={setConfigurables} formatMoneyInput={formatMoneyInput} preventSubmit={preventSubmit} />
 
-                 {/* CONFIGURÁVEIS */}
-                 <ConfigurableList configurables={configurables} setConfigurables={setConfigurables} formatMoneyInput={formatMoneyInput} preventSubmit={preventSubmit} />
-
-                 <div className="flex gap-4">
+                  <div className="flex gap-4">
                     <button disabled={vLoading} type="submit" className={`flex-1 py-4 rounded-xl font-bold text-white uppercase text-sm tracking-widest shadow-lg transition-all flex items-center justify-center gap-2 ${editingId ? 'bg-blue-600 hover:bg-blue-700' : 'bg-black hover:bg-gray-800'}`}>
                         {vLoading ? <Loader2 className="animate-spin" size={18}/> : <Save size={18}/>}
                         {vLoading ? 'Salvando...' : editingId ? 'Salvar Alterações' : 'Cadastrar Veículo'}
@@ -624,7 +529,7 @@ export default function AdminPage() {
                             {rLoading ? '...' : 'Replicar'}
                         </button>
                     )}
-                 </div>
+                  </div>
               </form>
             </div>
         )}

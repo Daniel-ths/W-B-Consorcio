@@ -1,66 +1,50 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    let cleanCPF = (body?.cpf || "").replace(/\D/g, "");
+    const { cpf } = body;
 
-    // Validação básica
-    if (cleanCPF.length !== 11) {
-      return NextResponse.json(
-        { error: "CPF inválido" },
-        { status: 400 }
-      );
-    }
+    // --- SEUS TOKENS (Copiados da sua mensagem anterior) ---
+    const BEARE_TOKEN = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwczovL2dhdGV3YXkuYXBpYnJhc2lsLmlvL2FwaS92Mi9zb2NpYWwvZ2l0aHViL2NhbGxiYWNrIiwiaWF0IjoxNzY5MTIxNzI5LCJleHAiOjE4MDA2NTc3MjksIm5iZiI6MTc2OTEyMTcyOSwianRpIjoiaXNKYUVENG94SG5RODlOYSIsInN1YiI6IjIwMzQyIiwicHJ2IjoiMjNiZDVjODk0OWY2MDBhZGIzOWU3MDFjNDAwODcyZGI3YTU5NzZmNyJ9.FiS0iN6_N8hNOhGnBYU2f9zESSPh4wXiFI0RQ4X_F5g"; 
+    const DEVICE_TOKEN = "178bfa7c-fc33-4ef2-aabe-915aa48e89aa"; 
+    // -----------------------------------------------------
 
-    // 🔑 Secret Key da APIBrasil (PRINT ROXO)
-    const API_KEY = process.env.APIBRASIL_RECEITA_KEY;
+    const cpfLimpo = cpf.replace(/\D/g, '');
 
-    if (!API_KEY) {
-      return NextResponse.json(
-        { error: "API key da APIBrasil não configurada" },
-        { status: 500 }
-      );
-    }
+    // URL Exata da sua imagem (POST)
+    const url = "https://gateway.apibrasil.io/api/v2/dados/cpf";
 
-    // 🌐 Endpoint correto
-    const url = `https://gateway.apibrasil.io/receita-federal/cpf?cpf=${cleanCPF}`;
+    console.log(`Consultando API Brasil (POST) para CPF: ${cpfLimpo}`);
 
     const response = await fetch(url, {
-      method: "GET",
+      method: "POST", // A imagem confirma que é POST
       headers: {
-        Authorization: `Bearer ${API_KEY}`,
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${BEARE_TOKEN}`,
+        "DeviceToken": DEVICE_TOKEN
       },
-      cache: "no-store"
+      body: JSON.stringify({ 
+        cpf: cpfLimpo 
+      })
     });
-
-    if (!response.ok) {
-      const erroTexto = await response.text();
-      return NextResponse.json(
-        {
-          error: "Erro na APIBrasil",
-          status: response.status,
-          detalhe: erroTexto
-        },
-        { status: response.status }
-      );
-    }
 
     const data = await response.json();
-    const base = data.response || data.dados || data;
 
-    return NextResponse.json({
-      nome: base.nome || "",
-      situacaoCadastral: base.situacao_cadastral || base.situacao || "",
-      dataNascimento: base.data_nascimento || ""
-    });
+    // Log para debug no terminal
+    console.log("Status:", response.status);
+    
+    if (!response.ok || data.error) {
+      console.error("Erro API:", data);
+      return NextResponse.json({ 
+        error: data.message || data.error || "Erro na consulta." 
+      }, { status: response.status });
+    }
 
-  } catch (err) {
-    console.error("Erro interno:", err);
-    return NextResponse.json(
-      { error: "Erro interno" },
-      { status: 500 }
-    );
+    return NextResponse.json(data);
+
+  } catch (error) {
+    console.error("Erro interno:", error);
+    return NextResponse.json({ error: "Erro interno no servidor" }, { status: 500 });
   }
 }
