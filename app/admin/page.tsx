@@ -152,7 +152,7 @@ export default function AdminDashboard() {
           </div>
           <div className="flex gap-3 w-full md:w-auto">
             {/* Link para o CRUD de Veículos (antiga admin/page.tsx) */}
-            <Link href="/admin" className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold flex items-center gap-2 shadow-sm transition-all w-full md:w-auto justify-center">
+            <Link href="/admin/cars/new" className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold flex items-center gap-2 shadow-sm transition-all w-full md:w-auto justify-center">
               <Plus size={18}/> Gerenciar Veículos
             </Link>
             <Link href="/admin/reports" className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-4 py-2.5 rounded-lg text-sm font-semibold flex items-center gap-2 shadow-sm transition-all">
