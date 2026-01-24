@@ -1,51 +1,262 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Search, Menu, X, ShoppingBag, LayoutDashboard } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
+import { 
+  Search, 
+  User, 
+  MapPin, 
+  Menu, 
+  X, 
+  Phone, 
+  ShoppingBag, 
+  LayoutDashboard, 
+  LogOut,
+  ShieldCheck,
+  CarFront,
+  ChevronDown
+} from "lucide-react";
 import VehiclesMenu from "./VehiclesMenu";
 
+// =====================================================================
+// 🔧 ÁREA DE CONFIGURAÇÃO DE IMAGENS
+// =====================================================================
 const LOGO_NAVBAR = "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/chevrolet-logo.svg";
+const LOGO_SIDEBAR = "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/Parceirologo.jpg";
+// =====================================================================
 
 export default function Navbar() {
   const [menuAberto, setMenuAberto] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Estados de Usuário (Apenas para exibir Nome/Avatar, não para bloquear acesso)
+  const [user, setUser] = useState<any>(null);
+  const [userRole, setUserRole] = useState<string | null>(null); 
+  const [loading, setLoading] = useState(true);
   
-  // SEM LÓGICA DE USUÁRIO
-  // SEM USEEFFECT
-  // SEM SUPABASE
+  const [fullName, setFullName] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState("");
+
+  const router = useRouter();
+
+  // Função otimizada para buscar perfil
+  const fetchProfile = async (userId: string) => {
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name, avatar_url, role')
+        .eq('id', userId)
+        .maybeSingle(); // maybeSingle evita erro 406 se não existir perfil
+      
+      if (profile) {
+        setFullName(profile.full_name || "");
+        setAvatarUrl(profile.avatar_url || "");
+        setUserRole(profile.role || "user");
+      }
+    } catch (error) {
+      console.error("Erro silencioso perfil:", error);
+    }
+  };
+
+  useEffect(() => {
+    let mounted = true;
+
+    const checkAuth = async () => {
+      try {
+        // getSession é mais rápido que getUser pois usa cache local
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (mounted && session?.user) {
+          setUser(session.user);
+          await fetchProfile(session.user.id);
+        }
+      } catch (error) {
+        console.error("Auth check error", error);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    checkAuth();
+
+    // Listener para mudanças de estado (Login/Logout)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted) return;
+      
+      setUser(session?.user ?? null);
+      if (session?.user) {
+         // Só busca perfil se realmente mudou o usuário
+         if (session.user.id !== user?.id) {
+            await fetchProfile(session.user.id);
+         }
+      } else {
+         setFullName("");
+         setAvatarUrl("");
+         setUserRole(null);
+         setMenuAberto(null);
+      }
+      setLoading(false);
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []); // Array vazio garante execução única na montagem
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.refresh();
+    window.location.reload(); // Reload para limpar estados globais
+  };
+
+  const toggleMenu = (menu: string) => {
+    setMenuAberto(menuAberto === menu ? null : menu);
+  };
+
+  // Definições visuais baseadas no usuário (sem bloquear a UI)
+  const isAdmin = userRole === 'admin' || user?.email?.toLowerCase().includes("admin");
+  const dashboardLink = isAdmin ? "/admin" : "/vendedor/dashboard";
+  const dashboardLabel = isAdmin ? "Painel Gerencial" : "Painel do Vendedor";
+  const displayName = fullName || user?.email?.split('@')[0];
 
   return (
     <>
       <nav className="fixed w-full z-[1001] top-0 bg-[#f8f8f8] border-b border-gray-200 h-16 flex items-center justify-between px-6 lg:px-12 shadow-sm font-sans">
         
-        {/* MENU VEÍCULOS */}
+        {/* ESQUERDA */}
         <div className="flex items-center gap-6">
+          <button 
+            onClick={() => setSidebarOpen(true)}
+            className="p-1 text-gray-600 hover:text-black transition-colors rounded-md"
+          >
+            <Menu size={24} />
+          </button>
+
           <div className="hidden md:flex gap-6 items-center">
-            <button onClick={() => setMenuAberto(menuAberto ? null : 'veiculos')} className="text-xs font-bold uppercase flex items-center gap-1">
-              {menuAberto ? <X size={16}/> : <Menu size={16}/>} Veículos
+            
+            {/* BOTÃO VEÍCULOS (Sempre Visível) */}
+            <button 
+                onClick={() => toggleMenu('veiculos')}
+                className={`text-xs font-bold uppercase tracking-wide flex items-center gap-1 transition-colors ${menuAberto === 'veiculos' ? 'text-black' : 'text-gray-600 hover:text-black'}`}
+            >
+                {menuAberto === 'veiculos' ? <X size={16}/> : null} Veículos
             </button>
+
+            <Link href="/#estoque" className="text-xs font-bold text-gray-600 uppercase tracking-wide hover:text-black transition-colors">
+           
+            </Link>
           </div>
         </div>
 
-        {/* LOGO */}
+        {/* CENTRO */}
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-          <Link href="/"><img src={LOGO_NAVBAR} alt="Logo" className="h-8 w-auto object-contain" /></Link>
+          <Link href="/" onClick={() => setMenuAberto(null)}>
+            <img src={LOGO_NAVBAR} alt="Logo" className="h-8 w-auto object-contain" />
+          </Link>
         </div>
 
-        {/* BOTÃO DE EMERGÊNCIA PARA O FUNCIONÁRIO */}
-        <div className="flex items-center gap-6">
-          <Link href="/admin" className="bg-red-600 text-white px-4 py-2 rounded font-bold text-xs flex items-center gap-2">
-             <LayoutDashboard size={16}/> ACESSAR PAINEL
-          </Link>
+        {/* DIREITA */}
+        <div className="flex items-center gap-6 text-gray-600">
+          <button className="hover:text-black transition-colors"><Search size={20} /></button>
+
+          {loading ? (
+             <div className="w-8 h-8 rounded-full bg-gray-200 animate-pulse"/>
+          ) : user ? (
+            // --- USUÁRIO LOGADO ---
+            <div className="relative group py-2">
+              <button className="flex items-center gap-2 px-3 py-2 rounded-full hover:bg-white hover:shadow-sm transition-all border border-transparent hover:border-gray-200">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shadow-sm overflow-hidden ${isAdmin ? 'bg-black text-yellow-400' : 'bg-gray-900 text-white'}`}>
+                  {avatarUrl ? <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" /> : <User size={16} />}
+                </div>
+                <div className="hidden md:block text-left">
+                  <p className="text-xs font-bold text-gray-900 leading-none">Minha Conta</p>
+                  <p className="text-[10px] text-gray-500 font-medium truncate max-w-[100px]">{displayName}</p>
+                </div>
+                <ChevronDown size={14} className="text-gray-400 group-hover:rotate-180 transition-transform" />
+              </button>
+
+              {/* DROPDOWN DO USUÁRIO */}
+              <div className="absolute right-0 top-full mt-2 w-72 bg-white border border-gray-100 rounded-xl shadow-2xl p-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform group-hover:translate-y-0 translate-y-2 origin-top-right">
+                <div className="p-4 border-b border-gray-100">
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Logado como</p>
+                  <p className="text-sm font-bold text-gray-900 truncate">{displayName}</p>
+                  <span className={`inline-block mt-2 px-2 py-0.5 text-[10px] font-bold rounded-full uppercase tracking-wide ${isAdmin ? 'bg-black text-yellow-400' : 'bg-green-100 text-green-700'}`}>
+                    {isAdmin ? 'Administrador' : userRole === 'vendedor' ? 'Vendedor' : 'Cliente'}
+                  </span>
+                </div>
+
+                <div className="p-2 space-y-1">
+                  {/* LINK DO PAINEL (Sempre visível se logado) */}
+                  <Link href={dashboardLink} className={`flex items-center gap-3 px-4 py-3 text-sm font-bold rounded-lg transition-colors ${isAdmin ? 'text-gray-800 hover:bg-black hover:text-yellow-400' : 'text-gray-700 hover:bg-yellow-50 hover:text-yellow-700'}`}>
+                    {isAdmin ? <ShieldCheck size={18} /> : <LayoutDashboard size={18} />}
+                    {dashboardLabel}
+                  </Link>
+
+                  <Link href="/profile" className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-50 hover:text-black transition-colors">
+                    <User size={18} /> Meus Dados
+                  </Link>
+                </div>
+
+                <div className="p-2 border-t border-gray-100 mt-1">
+                  <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-red-600 rounded-lg hover:bg-red-50 transition-colors">
+                    <LogOut size={18} /> Sair da Conta
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            // --- USUÁRIO DESLOGADO ---
+            <Link href="/login" className="text-sm font-bold text-gray-700 hover:text-black hover:bg-gray-100 px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
+              <User size={18} /> Entrar
+            </Link>
+          )}
+          <button className="hover:text-black transition-colors hidden sm:block"><MapPin size={20} /></button>
         </div>
       </nav>
 
-      {/* MENU DROP */}
-      {menuAberto && (
-        <div className="fixed top-[64px] left-0 w-full bg-white shadow-xl z-[1000]">
+      {/* MEGA MENU (Liberado para todos) */}
+      <div className={`fixed top-[0px] left-0 w-full bg-white shadow-2xl border-t border-gray-100 z-[1000] menu-dropdown ${menuAberto === 'veiculos' ? 'menu-dropdown-ativo' : ''}`}>
           <VehiclesMenu onClose={() => setMenuAberto(null)} />
-        </div>
+      </div>
+
+      {menuAberto && (
+        <div onClick={() => setMenuAberto(null)} className="fixed inset-0 top-16 bg-black/40 z-[999] backdrop-blur-[2px] transition-opacity duration-300"/>
       )}
+
+      {/* SIDEBAR MOBILE */}
+      <div className={`fixed inset-0 bg-black/60 z-[2000] backdrop-blur-sm transition-opacity duration-500 ${sidebarOpen ? 'opacity-100 visible' : 'opacity-0 invisible'}`} onClick={() => setSidebarOpen(false)}></div>
+
+      <div className={`fixed top-0 left-0 h-full w-[300px] bg-white z-[2001] shadow-2xl transform transition-transform duration-500 ease-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="flex justify-between items-center p-6 border-b border-gray-100 h-16">
+          <img src={LOGO_SIDEBAR} alt="Logo" className="h-14 w-auto" />
+          <button onClick={() => setSidebarOpen(false)} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors">
+            <X size={20} className="text-gray-600"/>
+          </button>
+        </div>
+        <div className="p-8 space-y-8 overflow-y-auto h-full pb-24">
+          <div className="space-y-6">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Menu</p>
+            
+            {/* LINKS SEMPRE VISÍVEIS (Segurança removida) */}
+            <Link href="/vendedor/seminovos" onClick={() => setSidebarOpen(false)} className="flex items-center gap-4 text-gray-800 font-bold text-sm uppercase tracking-wide hover:text-[#CD9834] group transition-colors">
+              <CarFront size={18} className="text-gray-400 group-hover:text-[#CD9834]"/> Catálogo Seminovos
+            </Link>
+
+            <Link href="/#estoque" onClick={() => setSidebarOpen(false)} className="flex items-center gap-4 text-gray-800 font-bold text-sm uppercase tracking-wide hover:text-[#CD9834] group transition-colors">
+              <ShoppingBag size={18} className="text-gray-400 group-hover:text-[#CD9834]"/>
+            </Link>
+            <Link href="#" className="flex items-center gap-4 text-gray-800 font-bold text-sm uppercase tracking-wide hover:text-[#CD9834] group transition-colors">
+              <Phone size={18} className="text-gray-400 group-hover:text-[#CD9834]"/> Fale Conosco
+            </Link>
+            <Link href="#" className="flex items-center gap-4 text-gray-800 font-bold text-sm uppercase tracking-wide hover:text-[#CD9834] group transition-colors">
+              <MapPin size={18} className="text-gray-400 group-hover:text-[#CD9834]"/> Localizar Concessionária
+            </Link>
+          </div>
+        </div>
+      </div>
     </>
   );
 }
