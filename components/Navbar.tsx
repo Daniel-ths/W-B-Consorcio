@@ -24,7 +24,7 @@ import VehiclesMenu from "./VehiclesMenu";
 // 🔧 ÁREA DE CONFIGURAÇÃO DE IMAGENS
 // =====================================================================
 const LOGO_NAVBAR = "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/chevrolet-logo.svg";
-const LOGO_SIDEBAR = "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/Parceirologo.jpg";
+const LOGO_SIDEBAR = "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/parceirologo.jpg";
 // =====================================================================
 
 export default function Navbar() {
@@ -56,7 +56,8 @@ export default function Navbar() {
         setUserRole(profile.role || "user");
       }
     } catch (error) {
-      console.error("Erro silencioso perfil:", error);
+      // Erros silenciosos de perfil não precisam travar a tela
+      // console.error("Erro silencioso perfil:", error);
     }
   };
 
@@ -72,7 +73,12 @@ export default function Navbar() {
           setUser(session.user);
           await fetchProfile(session.user.id);
         }
-      } catch (error) {
+      } catch (error: any) {
+        // --- 🟢 FIX DO ERRO AbortError ---
+        // Se o erro for de abortamento (comum em dev), a gente ignora.
+        if (error.name === 'AbortError' || error.message?.includes('aborted')) {
+            return; 
+        }
         console.error("Auth check error", error);
       } finally {
         if (mounted) setLoading(false);
@@ -145,9 +151,7 @@ export default function Navbar() {
                 {menuAberto === 'veiculos' ? <X size={16}/> : null} Veículos
             </button>
 
-            <Link href="/#estoque" className="text-xs font-bold text-gray-600 uppercase tracking-wide hover:text-black transition-colors">
-              Comprar
-            </Link>
+
           </div>
         </div>
 
@@ -245,9 +249,6 @@ export default function Navbar() {
               <CarFront size={18} className="text-gray-400 group-hover:text-[#CD9834]"/> Catálogo Seminovos
             </Link>
 
-            <Link href="/#estoque" onClick={() => setSidebarOpen(false)} className="flex items-center gap-4 text-gray-800 font-bold text-sm uppercase tracking-wide hover:text-[#CD9834] group transition-colors">
-              <ShoppingBag size={18} className="text-gray-400 group-hover:text-[#CD9834]"/> Comprar
-            </Link>
             <Link href="#" className="flex items-center gap-4 text-gray-800 font-bold text-sm uppercase tracking-wide hover:text-[#CD9834] group transition-colors">
               <Phone size={18} className="text-gray-400 group-hover:text-[#CD9834]"/> Fale Conosco
             </Link>
