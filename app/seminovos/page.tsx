@@ -259,10 +259,9 @@ export default function SeminovosPage() {
                   </ul>
               </div>
               <div>
-                  <h4 className="font-bold uppercase text-xs mb-4 text-gray-900 tracking-wider">Siga-nos</h4>
+                  <h4 className="font-bold uppercase text-xs mb-4 text-gray-900 tracking-wider"></h4>
                   <div className="flex gap-4">
-                      <Instagram className="text-gray-400 hover:text-pink-500 cursor-pointer transition-all hover:scale-110" size={20}/>
-                      <Facebook className="text-gray-400 hover:text-blue-600 cursor-pointer transition-all hover:scale-110" size={20}/>
+
                   </div>
               </div>
           </div>
