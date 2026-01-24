@@ -2,15 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { ArrowRight, Loader2 } from "lucide-react"; // Loader2 importado novamente
+import { ArrowRight, Loader2, Car } from "lucide-react"; 
 import Link from "next/link";
-import CarCatalog from "@/components/CarCatalog";
 
-// 1. Slide Padrão
+// 1. Slide Padrão (Caso o banco demore ou esteja vazio)
 const DEFAULT_SLIDE = [{
   id: 0,
   title: "Bem-vindo à Chevrolet",
-  subtitle: "Cadastre seus banners no Painel Admin",
+  subtitle: "Encontre o carro dos seus sonhos.",
   image_url: ""
 }];
 
@@ -26,7 +25,7 @@ export default function Home() {
         setSlides(data);
       }
       
-      // Pequeno delay para garantir que o branco não pisque rápido demais
+      // Delay para transição suave
       setTimeout(() => {
           setLoading(false);
       }, 500);
@@ -34,6 +33,7 @@ export default function Home() {
     fetchSlides();
   }, []);
 
+  // Timer para passar os slides automaticamente
   useEffect(() => {
     if (slides.length <= 1) return;
     const timer = setInterval(() => {
@@ -44,61 +44,59 @@ export default function Home() {
 
 
   return (
-    <main className="bg-white min-h-screen">
+    <main className="bg-black min-h-screen flex flex-col">
 
-      <section className="relative h-[95vh] w-full overflow-hidden bg-gray-900">
+      {/* SEÇÃO HERO (BANNER) - Ocupa 100% da altura da tela (100vh) */}
+      <section className="relative h-screen w-full overflow-hidden bg-gray-900 flex-1">
         
-        {/* --- CORTINA DE CARREGAMENTO BRANCA COM LOADER --- */}
-        {/* 1. bg-white: Fundo Branco */}
-        {/* 2. flex items-center justify-center: Para centralizar a rodinha */}
+        {/* --- CORTINA DE CARREGAMENTO --- */}
         <div 
-            className={`absolute inset-0 z-50 bg-white flex items-center justify-center transition-opacity duration-[1500ms] ease-in-out pointer-events-none ${loading ? 'opacity-100' : 'opacity-0'}`}
+            className={`absolute inset-0 z-50 bg-black flex items-center justify-center transition-opacity duration-[1500ms] ease-in-out pointer-events-none ${loading ? 'opacity-100' : 'opacity-0'}`}
         >
-            {/* Rodinha (Loader) preta para aparecer no fundo branco */}
-            <Loader2 className={`w-10 h-10 text-black animate-spin ${loading ? 'block' : 'hidden'}`} />
+            <Loader2 className={`w-10 h-10 text-white animate-spin ${loading ? 'block' : 'hidden'}`} />
         </div>
         
+        {/* --- SLIDES DE FUNDO --- */}
         {slides.map((slide, index) => (
           <div
             key={slide.id}
-            className={`absolute inset-0 transition-opacity duration-[1500ms] ease-in-out ${
+            className={`absolute inset-0 transition-opacity duration-[2000ms] ease-in-out ${
               index === currentSlide ? "opacity-100" : "opacity-0"
             }`}
           >
-            <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/20 to-transparent z-10" />
+            {/* Gradiente para escurecer a imagem e destacar o texto */}
+            <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/40 to-transparent z-10" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent z-10" />
+            
             <img
               src={slide.image_url}
               alt={slide.title}
-              className="w-full h-full object-cover object-center"
+              className="w-full h-full object-cover object-center scale-105 animate-in fade-in zoom-in duration-[10s]" // Efeito de zoom lento (Ken Burns)
             />
           </div>
         ))}
 
+        {/* --- CONTEÚDO (TEXTO E BOTÕES) --- */}
         <div className="absolute inset-0 z-20 flex items-center">
           <div className="container mx-auto px-6 md:px-12">
-            <div className="max-w-2xl space-y-6">
+            <div className="max-w-3xl space-y-8">
               {slides.map((slide, index) => {
                 if (index !== currentSlide) return null;
                 return (
-                  <div key={slide.id} className="animate-in slide-in-from-left-10 fade-in duration-1000">
-                    <h1 className="text-5xl md:text-7xl font-bold text-white uppercase tracking-tight mb-2">
+                  <div key={slide.id} className="animate-in slide-in-from-bottom-10 fade-in duration-1000">
+                    <h1 className="text-5xl md:text-8xl font-black text-white uppercase tracking-tighter mb-4 leading-none drop-shadow-lg">
                       {slide.title}
                     </h1>
-                    <p className="text-xl md:text-2xl text-gray-200 font-light mb-8">
+                    <p className="text-xl md:text-3xl text-gray-200 font-light mb-10 max-w-xl drop-shadow-md">
                       {slide.subtitle}
                     </p>
                     
-                    <div className="flex gap-4">
-                      <Link 
-                        href="/configurador" 
-                        className="bg-white text-gray-900 hover:bg-gray-100 px-6 py-3 rounded font-bold uppercase tracking-widest transition-all flex items-center gap-2 text-sm shadow-lg hover:scale-105 transform duration-300"
-                      >
-                        Monte o Seu <ArrowRight size={18} />
-                      </Link>
+                    <div className="flex flex-col sm:flex-row gap-4">
+                      {/* BOTÃO PRINCIPAL */}
+
                       
-                      <button className="border border-white text-white px-6 py-3 rounded font-bold uppercase tracking-widest hover:bg-white hover:text-black transition-all text-sm">
-                        Saiba Mais
-                      </button>
+                      {/* BOTÃO SECUNDÁRIO */}
+
                     </div>
 
                   </div>
@@ -108,21 +106,19 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="absolute bottom-10 left-0 right-0 z-30 flex justify-center gap-3">
+        {/* --- CONTROLES DOS SLIDES (BOLINHAS) --- */}
+        <div className="absolute bottom-12 left-0 right-0 z-30 flex justify-center gap-3">
           {slides.map((_, index) => (
             <button
               key={index}
               onClick={() => setCurrentSlide(index)}
-              className={`h-1 rounded-full transition-all duration-300 ${
-                index === currentSlide ? "w-12 bg-white" : "w-6 bg-gray-500 hover:bg-white"
+              className={`h-1.5 rounded-full transition-all duration-500 shadow-sm ${
+                index === currentSlide ? "w-16 bg-white" : "w-4 bg-white/30 hover:bg-white/60"
               }`}
             />
           ))}
         </div>
       </section>
-
-      {/* --- SEÇÃO 2: CATÁLOGO --- */}
-      <CarCatalog />
 
     </main>
   );
