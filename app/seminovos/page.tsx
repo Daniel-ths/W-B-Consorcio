@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image"; 
 import { 
-  Search, ArrowRight, User, Wallet, Phone, Car, Loader2, X, ChevronDown, 
-  ShieldCheck, Zap, Gauge, MapPin, Facebook, Instagram
+  Search, ArrowRight, User, Wallet, Phone, Car, Loader2, MapPin, Facebook, Instagram
 } from "lucide-react";
 
-// --- CONFIGURAÇÃO ---
+// --- DADOS E FUNÇÕES ESTÁTICAS ---
 const BASE_URL_IMG = "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/logo/";
 const LOGO_FILE = "seminovos.png"; 
 
@@ -31,11 +31,31 @@ const getImageUrl = (file: string) => {
   return `${BASE_URL_IMG}${file}`;
 };
 
+// MÁSCARAS
 const maskPhone = (v: string) => v.replace(/\D/g, "").replace(/(\d{2})(\d)/, "($1) $2").replace(/(\d{5})(\d)/, "$1-$2").replace(/(-\d{4})\d+?$/, "$1");
 const maskCpf = (v: string) => v.replace(/\D/g, "").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d{1,2})$/, "$1-$2").replace(/(-\d{2})\d+?$/, "$1");
 
+// NOVA FUNÇÃO: Máscara de Moeda (R$)
+const formatCurrency = (value: string) => {
+  if (!value) return "";
+  // Remove tudo que não é dígito
+  const onlyNums = value.replace(/\D/g, "");
+  if (!onlyNums) return "";
+  
+  // Trata como centavos (divide por 100)
+  const numberValue = Number(onlyNums) / 100;
+  
+  // Formata para BRL
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL'
+  }).format(numberValue);
+};
+
 export default function SeminovosPage() {
   const router = useRouter();
+  
+  // Estados
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedBrand, setSelectedBrand] = useState<any>(null);
   const [modelos, setModelos] = useState<any[]>([]);
@@ -43,30 +63,45 @@ export default function SeminovosPage() {
   const [modelSearch, setModelSearch] = useState("");
   const [showModelList, setShowModelList] = useState(false);
 
+  // Cache
+  const modelsCache = useRef<Record<number, any[]>>({});
+
   const [formData, setFormData] = useState({
     modelo: "", ano: "", valor: "", nome: "", cpf: "", telefone: "", renda: "", entrada: ""
   });
 
-  const filteredBrands = BRANDS.filter((brand) =>
-    brand.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Filtros Memoizados
+  const filteredBrands = useMemo(() => {
+    return BRANDS.filter((brand) =>
+      brand.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [searchTerm]);
 
-  const filteredModels = modelos.filter((m) => 
-    m.nome.toLowerCase().includes(modelSearch.toLowerCase())
-  );
+  const filteredModels = useMemo(() => {
+    return modelos.filter((m) => 
+      m.nome.toLowerCase().includes(modelSearch.toLowerCase())
+    );
+  }, [modelos, modelSearch]);
 
   const handleBrandSelect = async (brand: any) => {
     setSelectedBrand(brand);
-    setLoadingModelos(true);
     setFormData(prev => ({ ...prev, modelo: "" }));
     setModelSearch("");
     setShowModelList(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
+    if (modelsCache.current[brand.id]) {
+      setModelos(modelsCache.current[brand.id]);
+      return;
+    }
+
+    setLoadingModelos(true);
     try {
       const res = await fetch(`https://parallelum.com.br/fipe/api/v1/carros/marcas/${brand.id}/modelos`);
       const data = await res.json();
-      setModelos(data.modelos || []);
+      const listaModelos = data.modelos || [];
+      modelsCache.current[brand.id] = listaModelos;
+      setModelos(listaModelos);
     } catch (error) {
       console.error("Erro ao buscar modelos", error);
     } finally {
@@ -75,12 +110,13 @@ export default function SeminovosPage() {
   };
 
   const handleSelectModel = (nomeModelo: string) => {
-    setFormData({ ...formData, modelo: nomeModelo });
+    setFormData(prev => ({ ...prev, modelo: nomeModelo }));
     setModelSearch(nomeModelo);
     setShowModelList(false);
   };
 
   const handleSubmit = () => {
+    // Remove formatação de moeda antes de enviar se necessário, ou envia formatado mesmo
     const query = new URLSearchParams({ ...formData, marca: selectedBrand?.name || "" }).toString();
     router.push(`/vendedor/analise?${query}`);
   };
@@ -88,7 +124,6 @@ export default function SeminovosPage() {
   return (
     <div className="min-h-screen bg-gray-50 font-sans flex flex-col">
       
-      {/* CSS PARA OCULTAR O FOOTER GLOBAL DO LAYOUT */}
       <style jsx global>{`
         footer:not(.page-exclusive-footer), 
         .main-footer, 
@@ -101,7 +136,13 @@ export default function SeminovosPage() {
       <div className="bg-[#f2e14c] w-full py-6 px-6 shadow-md pt-20 sticky top-0 z-40 transition-all">
          <div className="max-w-6xl mx-auto flex items-center justify-between">
             <div className="flex items-center gap-4 animate-in fade-in slide-in-from-left-4">
-                 <img src={getImageUrl(LOGO_FILE)} className="h-10 w-auto object-contain" alt="Logo Seminovos" />
+                 <Image 
+                    src={getImageUrl(LOGO_FILE)} 
+                    alt="Logo Seminovos" 
+                    width={0} height={0} sizes="100vw"
+                    className="h-10 w-auto object-contain"
+                    priority 
+                 />
             </div>
             {!selectedBrand && (
                 <div className="relative w-full max-w-md group animate-in fade-in slide-in-from-right-4">
@@ -120,9 +161,6 @@ export default function SeminovosPage() {
         
         {!selectedBrand ? (
              <div className="animate-in fade-in duration-700">
-                
-
-
                 <div className="text-center mb-10">
                     <h2 className="text-xl font-bold text-gray-800 uppercase inline-block border-b-4 border-[#f2e14c] pb-1 tracking-wide">
                         Selecione a Marca para Iniciar
@@ -135,10 +173,10 @@ export default function SeminovosPage() {
                             key={brand.id} onClick={() => handleBrandSelect(brand)}
                             className="h-44 bg-white border border-gray-100 rounded-3xl relative group flex flex-col items-center justify-center p-6 transition-all hover:border-[#f2e14c] hover:-translate-y-2 shadow-sm hover:shadow-2xl"
                         >
-                            <img 
+                            <Image 
                                 src={getImageUrl(brand.file)} alt={brand.name} 
+                                width={0} height={0} sizes="100vw"
                                 className="h-20 w-auto object-contain mb-4 transition-transform duration-500 group-hover:scale-110"
-                                onError={(e) => { (e.target as HTMLImageElement).src = "https://placehold.co/100x100?text=LOGO"; }}
                             />
                             <span className="font-black text-gray-300 transition-colors group-hover:text-black uppercase text-xs tracking-widest">{brand.name}</span>
                         </button>
@@ -157,7 +195,11 @@ export default function SeminovosPage() {
 
                     <div className="space-y-6">
                         <div className="p-4 bg-gray-50 rounded-2xl flex items-center gap-4 border border-gray-100 animate-in fade-in">
-                            <img src={getImageUrl(selectedBrand.file)} className="h-12 w-auto object-contain" alt={selectedBrand.name} />
+                            <Image 
+                                src={getImageUrl(selectedBrand.file)} alt={selectedBrand.name} 
+                                width={0} height={0} sizes="100vw"
+                                className="h-12 w-auto object-contain"
+                            />
                             <div>
                                 <p className="text-[10px] font-bold text-gray-400 uppercase">Marca Escolhida</p>
                                 <p className="font-black text-xl uppercase leading-none">{selectedBrand.name}</p>
@@ -175,7 +217,7 @@ export default function SeminovosPage() {
                                     <input 
                                         type="text" placeholder="Qual o modelo?"
                                         value={modelSearch}
-                                        onChange={(e) => { setModelSearch(e.target.value); setShowModelList(true); setFormData({...formData, modelo: ""}); }}
+                                        onChange={(e) => { setModelSearch(e.target.value); setShowModelList(true); setFormData(prev => ({...prev, modelo: ""})); }}
                                         onFocus={() => setShowModelList(true)}
                                         className="w-full p-4 pl-12 border-2 border-gray-100 rounded-2xl font-bold text-black uppercase focus:border-[#f2e14c] outline-none transition-all shadow-sm"
                                     />
@@ -200,7 +242,14 @@ export default function SeminovosPage() {
                             </div>
                             <div>
                                 <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">Preço (R$)</label>
-                                <input type="number" placeholder="Ex: 50.000" className="w-full p-4 bg-gray-50 border-2 border-gray-50 rounded-2xl font-bold focus:bg-white focus:border-[#f2e14c] outline-none transition-all" value={formData.valor} onChange={e => setFormData({...formData, valor: e.target.value})} />
+                                {/* Aqui aplicamos a máscara de moeda também para o preço do carro */}
+                                <input 
+                                    type="text" 
+                                    placeholder="R$ 0,00" 
+                                    className="w-full p-4 bg-gray-50 border-2 border-gray-50 rounded-2xl font-bold focus:bg-white focus:border-[#f2e14c] outline-none transition-all" 
+                                    value={formData.valor} 
+                                    onChange={e => setFormData({...formData, valor: formatCurrency(e.target.value)})} 
+                                />
                             </div>
                         </div>
                     </div>
@@ -221,11 +270,25 @@ export default function SeminovosPage() {
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="text-[10px] font-bold text-gray-400 uppercase mb-1 block">Renda Mensal</label>
-                                    <input type="number" placeholder="R$ 0,00" className="w-full p-4 bg-white/5 border border-white/10 rounded-2xl text-white font-bold focus:border-[#f2e14c] outline-none" value={formData.renda} onChange={e => setFormData({...formData, renda: e.target.value})} />
+                                    {/* MÁSCARA DE MOEDA APLICADA AQUI */}
+                                    <input 
+                                        type="text" 
+                                        placeholder="R$ 0,00" 
+                                        className="w-full p-4 bg-white/5 border border-white/10 rounded-2xl text-white font-bold focus:border-[#f2e14c] outline-none" 
+                                        value={formData.renda} 
+                                        onChange={e => setFormData({...formData, renda: formatCurrency(e.target.value)})} 
+                                    />
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-bold text-gray-400 uppercase mb-1 block">Entrada</label>
-                                    <input type="number" placeholder="R$ 0,00" className="w-full p-4 bg-white/5 border border-white/10 rounded-2xl text-white font-bold focus:border-[#f2e14c] outline-none" value={formData.entrada} onChange={e => setFormData({...formData, entrada: e.target.value})} />
+                                    {/* MÁSCARA DE MOEDA APLICADA AQUI */}
+                                    <input 
+                                        type="text" 
+                                        placeholder="R$ 0,00" 
+                                        className="w-full p-4 bg-white/5 border border-white/10 rounded-2xl text-white font-bold focus:border-[#f2e14c] outline-none" 
+                                        value={formData.entrada} 
+                                        onChange={e => setFormData({...formData, entrada: formatCurrency(e.target.value)})} 
+                                    />
                                 </div>
                             </div>
                         </div>
@@ -242,11 +305,12 @@ export default function SeminovosPage() {
         )}
       </main>
 
-      {/* FOOTER EXCLUSIVO DA PÁGINA (Com classe para não ser ocultado pelo CSS acima) */}
       <footer className="page-exclusive-footer bg-white border-t border-gray-100 py-12">
           <div className="max-w-6xl mx-auto px-6 grid grid-cols-1 md:grid-cols-4 gap-12">
               <div className="col-span-2">
-                  <img src={getImageUrl(LOGO_FILE)} className="h-8 mb-6 grayscale opacity-40" alt="Logo" />
+                  <div className="relative h-8 w-32 mb-6 opacity-40 grayscale">
+                    <Image src={getImageUrl(LOGO_FILE)} alt="Logo" fill className="object-contain" />
+                  </div>
                   <p className="text-sm text-gray-400 max-w-sm font-medium">
                       Plataforma de simulação de financiamento automotivo. Consultas integradas à Tabela FIPE e instituições financeiras parceiras.
                   </p>
@@ -259,9 +323,10 @@ export default function SeminovosPage() {
                   </ul>
               </div>
               <div>
-                  <h4 className="font-bold uppercase text-xs mb-4 text-gray-900 tracking-wider"></h4>
+                  <h4 className="font-bold uppercase text-xs mb-4 text-gray-900 tracking-wider">Siga-nos</h4>
                   <div className="flex gap-4">
-
+                      <Instagram className="text-gray-400 hover:text-pink-500 cursor-pointer transition-all hover:scale-110" size={20}/>
+                      <Facebook className="text-gray-400 hover:text-blue-600 cursor-pointer transition-all hover:scale-110" size={20}/>
                   </div>
               </div>
           </div>
