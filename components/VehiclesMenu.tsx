@@ -2,73 +2,77 @@
 
 import { useState, useEffect } from "react"
 import { supabase } from "@/lib/supabase"
-import { ArrowRight } from "lucide-react"
+import { ArrowRight, ExternalLink } from "lucide-react"
 import Link from "next/link"
+
+// --- CONFIGURAÇÃO DA ORDEM DO MENU ---
+const MENU_ORDER = [
+  { label: "Elétricos", dbKeywords: ["eletrico", "elétrico", "ev", "bolt"] },
+  { label: "SUVs", dbKeywords: ["suv", "tracker", "equinox", "trailblazer"] },
+  { label: "Picapes", dbKeywords: ["picape", "pickup", "montana", "s10", "silverado"] },
+  { label: "Hatches e Sedans", dbKeywords: ["hatch", "sedan", "onix", "cruze", "compacto"] }, // UNIFICADO
+  { label: "Esportivos", dbKeywords: ["esportivo", "camaro", "corvette", "ss"] },
+  { label: "Seminovos", dbKeywords: [] } // Item especial
+];
 
 interface VehiclesMenuProps {
   onClose: () => void
 }
 
 export default function VehiclesMenu({ onClose }: VehiclesMenuProps) {
-  const [categories, setCategories] = useState<any[]>([])
   const [vehicles, setVehicles] = useState<any[]>([])
-  const [selectedCatId, setSelectedCatId] = useState<number | string | null>(null)
+  const [selectedLabel, setSelectedLabel] = useState("Elétricos") // Controla pelo nome, não ID
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function fetchData() {
       try {
-        const { data: cats } = await supabase.from('categories').select('*').order('id')
-        const { data: vecs } = await supabase.from('vehicles').select('*').order('price_start')
+        // Trazemos os carros e o nome da categoria para poder filtrar
+        const { data: vecs } = await supabase
+            .from('vehicles')
+            .select('*, categories(name)')
+            .eq('is_visible', true)
+            .order('price_start', { ascending: true })
 
-        if (cats && cats.length > 0) {
-          const categoriasComSeminovos = [
-            ...cats, 
-            { id: 'SEMINOVOS', name: 'Seminovos' }
-          ];
-          setCategories(categoriasComSeminovos)
-          setSelectedCatId(cats[0].id)
-        }
         if (vecs) {
           setVehicles(vecs)
         }
       } catch (error) {
         console.error("Erro ao buscar menu:", error)
       } finally {
-        // Um pequeno delay artificial opcional para a animação não piscar muito rápido (pode remover se quiser mais rápido)
         setTimeout(() => setLoading(false), 500)
       }
     }
     fetchData()
   }, [])
 
-  const filteredVehicles = selectedCatId === 'SEMINOVOS' 
-    ? [] 
-    : vehicles.filter(v => v.category_id === selectedCatId)
+  // --- LÓGICA DE FILTRO (SUBSTITUI O SEU FILTRO ANTIGO) ---
+  const filteredVehicles = (() => {
+      if (selectedLabel === 'Seminovos') return [];
 
-  // --- AQUI ESTÁ A ALTERAÇÃO: SKELETON LOADING ---
-  // Em vez de um spinner, mostramos o esqueleto da página pulsando
+      const config = MENU_ORDER.find(c => c.label === selectedLabel);
+      if (!config) return [];
+
+      return vehicles.filter(v => {
+          // Procura as palavras chaves no nome da categoria OU no nome do carro
+          const searchString = `${v.categories?.name || ''} ${v.model_name}`.toLowerCase();
+          return config.dbKeywords.some(keyword => searchString.includes(keyword));
+      });
+  })();
+
+  // --- SKELETON LOADING (SEU CÓDIGO ORIGINAL) ---
   if (loading) return (
     <div className="w-full bg-white border-t border-gray-200 shadow-xl pt-16">
       <div className="max-w-[1400px] mx-auto p-10 min-h-[450px] flex">
-        
-        {/* Skeleton da Esquerda (Menu) */}
         <div className="w-1/4 border-r border-gray-100 pr-8 space-y-2 animate-pulse">
-            {[1,2,3,4,5,6].map(i => (
-                <div key={i} className="h-12 bg-gray-100 rounded-lg w-full"></div>
-            ))}
+            {[1,2,3,4,5,6].map(i => <div key={i} className="h-12 bg-gray-100 rounded-lg w-full"></div>)}
         </div>
-
-        {/* Skeleton da Direita (Cards) */}
         <div className="w-3/4 pl-12">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 animate-pulse">
                 {[1,2,3].map(i => (
                      <div key={i} className="flex flex-col items-center space-y-3">
-                        {/* Imagem do carro */}
                         <div className="h-32 bg-gray-100 rounded-lg w-full"></div>
-                        {/* Nome */}
                         <div className="h-4 bg-gray-100 rounded w-2/3"></div>
-                        {/* Preço */}
                         <div className="h-3 bg-gray-100 rounded w-1/2"></div>
                      </div>
                 ))}
@@ -79,22 +83,22 @@ export default function VehiclesMenu({ onClose }: VehiclesMenuProps) {
   )
 
   return (
-    <div className="w-full bg-white border-t border-gray-200 shadow-xl pt-16 animate-in fade-in slide-in-from-top-2 duration-500">
+    <div className="w-full bg-white border-t border-gray-200 shadow-xl pt-16 animate-in fade-in slide-in-from-top-2 duration-500" onMouseLeave={onClose}>
       <div className="max-w-[1400px] mx-auto p-10 min-h-[450px] flex">
         
-        {/* --- COLUNA ESQUERDA: LISTA DE CATEGORIAS --- */}
+        {/* --- COLUNA ESQUERDA: LISTA DE CATEGORIAS (AGORA ORDENADA) --- */}
         <div className="w-1/4 border-r border-gray-100 pr-8 space-y-1">
-          {categories.map((cat) => (
+          {MENU_ORDER.map((item) => (
             <div 
-                key={cat.id}
-                onMouseEnter={() => setSelectedCatId(cat.id)}
+                key={item.label}
+                onMouseEnter={() => setSelectedLabel(item.label)}
                 className={`cursor-pointer px-4 py-3 rounded-lg text-sm font-bold uppercase tracking-wide flex items-center justify-between transition-all 
-                ${selectedCatId === cat.id ? 'text-blue-600 bg-blue-50' : 'text-gray-500 hover:bg-gray-50'}`}
+                ${selectedLabel === item.label ? 'text-blue-600 bg-blue-50' : 'text-gray-500 hover:bg-gray-50'}`}
             >
-                <span className={cat.id === 'SEMINOVOS' ? "border-l-4 border-transparent pl-0" : ""}>
-                    {cat.name}
+                <span className={item.label === 'Seminovos' ? "border-l-4 border-transparent pl-0" : ""}>
+                    {item.label}
                 </span>
-                {selectedCatId === cat.id && <ArrowRight size={16} />}
+                {selectedLabel === item.label && <ArrowRight size={16} />}
             </div>
           ))}
         </div>
@@ -102,22 +106,22 @@ export default function VehiclesMenu({ onClose }: VehiclesMenuProps) {
         {/* --- COLUNA DIREITA: CONTEÚDO --- */}
         <div className="w-3/4 pl-12 flex items-center justify-center">
             
-            {selectedCatId === 'SEMINOVOS' ? (
-                // BANNER SEMINOVOS
+            {selectedLabel === 'Seminovos' ? (
+                // BANNER SEMINOVOS (SEU CÓDIGO ORIGINAL)
                 <div className="animate-in fade-in slide-in-from-left-4 duration-300 w-full flex justify-center">
                     <div className="w-full max-w-2xl bg-gray-50 p-12 text-center rounded-sm">
                         <img src="https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/chevrolet-logo.svg" className="h-8 mx-auto mb-6 opacity-80" alt="Logo"/>
                         <h3 className="text-4xl font-extrabold text-gray-800 uppercase tracking-tighter mb-2">Seminovos</h3>
                         <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-8">Qualidade Certificada Chevrolet</p>
                         <div className="flex justify-center gap-4">
-                            <Link href="/seminovos" onClick={onClose} className="px-6 py-3 bg-blue-600 text-white text-xs font-bold uppercase tracking-wide hover:bg-blue-700 transition-colors">
+                            <Link href="/vendedor/seminovos" onClick={onClose} className="px-6 py-3 bg-blue-600 text-white text-xs font-bold uppercase tracking-wide hover:bg-blue-700 transition-colors">
                                 Consultar
                             </Link>
                         </div>
                     </div>
                 </div>
             ) : (
-                // GRID DE VEÍCULOS
+                // GRID DE VEÍCULOS (SEU CÓDIGO ORIGINAL)
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 w-full animate-in fade-in slide-in-from-left-4 duration-300">
                     {filteredVehicles.length > 0 ? (
                         filteredVehicles.map((car) => (
@@ -140,7 +144,7 @@ export default function VehiclesMenu({ onClose }: VehiclesMenuProps) {
                                 </h4>
                                 
                                 <p className="text-xs text-gray-500 mt-1 font-semibold">
-                                    A partir de {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(car.price_start)}
+                                    A partir de {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(car.price_start)}
                                 </p>
 
                                 <span className="text-[10px] text-blue-600 font-bold uppercase mt-2 inline-block border-b border-transparent group-hover:border-blue-600">

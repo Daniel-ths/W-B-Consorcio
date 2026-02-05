@@ -3,14 +3,13 @@ import { Instagram, Facebook, MapPin, Phone, Mail } from "lucide-react";
 
 export default function Footer() {
   return (
-    // MUDANÇA: Fundo Cinza Claro (#f2f2f2) e Texto Escuro
+    // Fundo Cinza Claro (#f2f2f2) e Texto Escuro
     <footer className="bg-[#f2f2f2] border-t border-gray-200 text-gray-600 text-sm font-sans">
       <div className="max-w-[1400px] mx-auto px-6 py-16 grid grid-cols-1 md:grid-cols-4 gap-12">
         
         {/* Coluna 1: Marca */}
         <div className="space-y-6">
             <Link href="/" className="flex items-center gap-4 group">
-                {/* LOGO AUMENTADA (h-4 -> h-32) */}
                 <img 
                     src="https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/parceirologo.jpg" 
                     alt="WB Auto" 
@@ -25,8 +24,6 @@ export default function Footer() {
                 Qualidade, garantia e as melhores condições do mercado.
             </p>
             <div className="flex gap-4">
-                <a href="#" className="text-gray-400 hover:text-blue-600 transition-colors"><Instagram size={20}/></a>
-                <a href="#" className="text-gray-400 hover:text-blue-600 transition-colors"><Facebook size={20}/></a>
             </div>
         </div>
 
@@ -41,17 +38,24 @@ export default function Footer() {
             </ul>
         </div>
 
-        {/* Coluna 3: Contato */}
+        {/* Coluna 3: Atendimento */}
         <div>
             <h3 className="text-gray-900 font-bold uppercase tracking-widest mb-6 text-xs">Atendimento</h3>
             <ul className="space-y-4 text-xs font-medium tracking-wide">
                 <li className="flex items-start gap-3">
-                    <Phone size={16} className="mt-0.5 text-yellow-500"/>
-                    <span>(91) xxxx-xxxx <br/> <span className="text-gray-400 font-normal">Seg à Sex - 08h às 18h</span></span>
+                    <Phone size={16} className="mt-0.5 text-yellow-500 shrink-0"/>
+                    <div className="flex flex-col">
+                        <span>(91) 98561-3982</span>
+                        <span>(51) 99650-8806</span>
+                        <span className="text-gray-400 font-normal mt-1">Seg à Sex - 08h às 18h</span>
+                    </div>
                 </li>
-                <li className="flex items-center gap-3">
-                    <Mail size={16} className="text-yellow-500"/>
-                    <span>WBCConsórcio@gmail.com.br</span>
+                <li className="flex items-start gap-3">
+                    <Mail size={16} className="mt-0.5 text-yellow-500 shrink-0"/>
+                    <div className="flex flex-col">
+                        <a href="mailto:Sup.nacional@outlook.com" className="hover:text-black transition-colors">Sup.nacional@outlook.com</a>
+                        <a href="mailto:Supervisaovendasnacional@gmail.com" className="hover:text-black transition-colors">Supervisaovendasnacional@gmail.com</a>
+                    </div>
                 </li>
             </ul>
         </div>
@@ -63,9 +67,9 @@ export default function Footer() {
                 <li className="flex items-start gap-3">
                     <MapPin size={24} className="text-yellow-500 shrink-0"/>
                     <span>
-                        Residencial Arbre, Nº 340<br/>
-                        Casa 195 - Ananindeua/PA<br/>
-                        CEP 67120-370
+                        BR-316, 1762 - Atalaia<br/>
+                        Ananindeua - PA, 67013-000<br/>
+                        Torre 01, sala 905
                     </span>
                 </li>
             </ul>
@@ -76,7 +80,7 @@ export default function Footer() {
       <div className="border-t border-gray-200 bg-[#e5e5e5] py-6">
         <div className="max-w-[1400px] mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4 text-[10px] tracking-wider uppercase text-gray-500 font-bold">
             <p>© {new Date().getFullYear()} W B C Consórcio LTDA: Todos os direitos reservados.</p>
-            <div className="flex gap-6">
+            <div className="flex gap-6 flex-wrap justify-center">
                 <a href="#" className="hover:text-black">Política de Privacidade</a>
                 <a href="#" className="hover:text-black">Termos de Uso</a>
                 <span>CNPJ: 59.041.030/0001-99</span>

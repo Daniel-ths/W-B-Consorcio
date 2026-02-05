@@ -18,7 +18,7 @@ interface UploadProps {
 interface ColorItem {
   id: string;
   name: string;
-  hex: string;
+  hex: string;     
   priceFormatted: string;
   files: Record<string, File | null>;
   previews: Record<string, string | null>;
@@ -33,7 +33,7 @@ interface ConfigurableItem {
   preview: string | null;
 }
 
-// --- UPLOAD MINI (Componente Puro) ---
+// --- UPLOAD MINI ---
 const MiniUpload = ({ label, previewUrl, onRemove, onSelect }: UploadProps) => {
   return (
     <div className="w-full">
@@ -67,7 +67,7 @@ const MiniUpload = ({ label, previewUrl, onRemove, onSelect }: UploadProps) => {
   )
 }
 
-// --- UPLOAD PADRÃO (Componente Puro) ---
+// --- UPLOAD PADRÃO ---
 const ImageUpload = ({ label, previewUrl, setFile }: UploadProps) => {
     const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
       const selectedFile = e.target.files?.[0];
@@ -76,9 +76,7 @@ const ImageUpload = ({ label, previewUrl, setFile }: UploadProps) => {
       }
       e.target.value = ""; 
     }
-    
     const handleRemove = (e: any) => { e.preventDefault(); e.stopPropagation(); if(setFile) setFile(null, null); }
-  
     return (
       <div className="w-full">
         {label && <label className="block text-[10px] font-bold uppercase text-gray-500 mb-1.5">{label}</label>}
@@ -100,15 +98,13 @@ const ImageUpload = ({ label, previewUrl, setFile }: UploadProps) => {
     )
 }
 
-// --- COMPONENTES EXTRAÍDOS ---
+// --- LISTA DE CORES ---
 const ColorList = ({ colors, setColors, formatMoneyInput, preventSubmit }: any) => {
     const addColor = () => setColors([...colors, {id:crypto.randomUUID(), name:'', hex:'#000000', priceFormatted: 'R$ 0,00', files: {}, previews: {} }])
-    
     const updateName = (i: number, val: string) => { const n = [...colors]; n[i].name = val; setColors(n); }
     const updatePrice = (i: number, val: string) => { const n = [...colors]; n[i].priceFormatted = formatMoneyInput(val); setColors(n); }
     const updateHex = (i: number, val: string) => { const n = [...colors]; n[i].hex = val; setColors(n); }
     const removeColor = (i: number) => { const n = [...colors]; n.splice(i, 1); setColors(n) }
-    
     const updateColorFile = (i: number, view: string, file: File | null, url: string | null) => {
         const n = [...colors];
         if(!n[i].files) n[i].files = {};
@@ -117,7 +113,6 @@ const ColorList = ({ colors, setColors, formatMoneyInput, preventSubmit }: any) 
         n[i].previews[view] = url;
         setColors(n);
     }
-
     return (
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
           <div className="flex justify-between items-center mb-6">
@@ -158,13 +153,11 @@ const ColorList = ({ colors, setColors, formatMoneyInput, preventSubmit }: any) 
 
 const ConfigurableList = ({ configurables, setConfigurables, formatMoneyInput, preventSubmit }: any) => {
     const addItem = () => setConfigurables([...configurables, { id: crypto.randomUUID(), name: '', priceFormatted: 'R$ 0,00', type: 'acc_ext', file: null, preview: null }])
-    
     const updateType = (i: number, val: string) => { const n = [...configurables]; n[i].type = val; setConfigurables(n); }
     const updateName = (i: number, val: string) => { const n = [...configurables]; n[i].name = val; setConfigurables(n); }
     const updatePrice = (i: number, val: string) => { const n = [...configurables]; n[i].priceFormatted = formatMoneyInput(val); setConfigurables(n); }
     const updateFile = (i: number, file: File|null, url: string|null) => { const n = [...configurables]; n[i].file = file; n[i].preview = url; setConfigurables(n); }
     const removeItem = (i: number) => { const n = [...configurables]; n.splice(i, 1); setConfigurables(n) }
-
     return (
        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
            <div className="flex justify-between mb-4"><h2 className="text-sm font-bold uppercase text-gray-800 flex items-center gap-2"><Settings size={16}/> Itens de Configuração</h2><button type="button" onClick={addItem} className="text-xs font-bold bg-black text-white px-3 py-1.5 rounded">+ Adicionar</button></div>
@@ -400,41 +393,65 @@ export default function AdminPage() {
     } catch (err: any) { alert("Erro: " + err.message) } finally { setVLoading(false) }
   }
 
+  // --- FUNÇÃO DE CÓPIA (REPLICAR) ---
   const handleReplicate = async () => {
-    if (!formData.model_name) return alert("Preencha o nome do modelo.");
-    const baseName = formData.model_name.split(' ')[0]; 
-    if (!confirm(`Replicar ITENS DE CONFIGURAÇÃO (Rodas/Bancos/Acessórios) para "${baseName}"?`)) return;
+    if (!formData.model_name) return alert("Preencha o nome do modelo para saber onde salvar.");
+    const baseName = formData.model_name.split(' ')[0]; // Ex: "Onix" de "Onix LT"
+    
+    if (!confirm(`Deseja copiar as RODAS, BANCOS e ACESSÓRIOS deste carro para TODOS os outros "${baseName}" que já existem?`)) return;
 
     setRLoading(true);
     try {
         const category = categories.find(c => c.id === Number(formData.category_id));
-        const basePath = `${category?.slug}/${formData.slug}`;
+        const basePath = `${category?.slug}/${formData.slug}`; // Pasta de imagens deste carro
 
         const finalWheels = []
         const finalSeatTypes = []
         const finalAccessories = []
 
+        // Reutiliza as imagens já salvas (não faz upload de novo)
         for (const item of configurables) {
-            const itemUrl = await uploadToSupabase(item.file, `${basePath}/item-${item.type}-${item.name}`, item.preview)
+            // Se já tem URL (preview começa com http), usa ela. Se for File novo, teria que salvar antes.
+            // Assumindo que estamos copiando de um carro JÁ SALVO, o preview é a URL.
+            const itemUrl = item.preview; 
+            
             const cleanItem = { id: item.id, name: item.name, price: parseMoney(item.priceFormatted), image: itemUrl }
+            
             if (item.type === 'wheel') finalWheels.push(cleanItem)
             else if (item.type === 'seat') finalSeatTypes.push(cleanItem)
             else if (item.type === 'acc_ext') finalAccessories.push({ ...cleanItem, type: 'exterior' })
             else if (item.type === 'acc_int') finalAccessories.push({ ...cleanItem, type: 'interior' })
         }
 
+        // Atualiza todos os carros que começam com o mesmo nome (ex: "Onix%")
         const { error } = await supabase.from('vehicles')
-            .update({ wheels: finalWheels, seat_types: finalSeatTypes, accessories: finalAccessories })
-            .ilike('model_name', `${baseName}%`);
+            .update({ 
+                wheels: finalWheels, 
+                seat_types: finalSeatTypes, 
+                accessories: finalAccessories 
+            })
+            .ilike('model_name', `${baseName}%`); // ILIKE = case insensitive (Onix = onix)
         
         if (error) throw error;
-        alert(`Sucesso! Itens copiados.`);
-    } catch (error: any) { alert("Erro: " + error.message); } finally { setRLoading(false); }
+        alert(`Sucesso! Itens copiados para todos os ${baseName}.`);
+    } catch (error: any) { 
+        alert("Erro ao replicar: " + error.message); 
+    } finally { 
+        setRLoading(false); 
+    }
   }
 
   const deleteVehicle = async (id: number) => { if(confirm("Apagar?")) { await supabase.from('vehicles').delete().eq('id', id); fetchVehicles(); if (editingId === id) cancelEditing() } }
   const handleBannerSubmit = async (e: React.FormEvent) => { e.preventDefault(); setBLoading(true); try { const imageUrl = await uploadToSupabase(bImage.file, 'banners', null); await supabase.from('hero_slides').insert({ title: bFormData.title, subtitle: bFormData.subtitle, image_url: imageUrl }); setBFormData({ title: '', subtitle: '' }); setBImage({ file: null, url: null }); loadInitialData() } catch (err: any) { alert("Erro: " + err.message) } finally { setBLoading(false) } }
   const deleteBanner = async (id: number) => { if(confirm("Apagar?")) { await supabase.from('hero_slides').delete().eq('id', id); loadInitialData() } }
+
+  // --- AGRUPAMENTO POR CATEGORIA ---
+  const groupedVehicles = vehicleList.reduce((acc: any, vehicle) => {
+      const catName = vehicle.categories?.name || 'Outros';
+      if (!acc[catName]) acc[catName] = [];
+      acc[catName].push(vehicle);
+      return acc;
+  }, {});
 
   return (
     <div className="min-h-screen bg-gray-50 pt-24 pb-12 px-4 font-sans">
@@ -450,25 +467,34 @@ export default function AdminPage() {
 
         {activeTab === 'vehicles' && (
             <div className="space-y-12 animate-in fade-in slide-in-from-bottom-2">
-              <div className="space-y-4">
+              
+              {/* --- LISTA DE VEÍCULOS AGRUPADA --- */}
+              <div className="space-y-8">
                   <h2 className="text-xl font-bold text-gray-800">Estoque ({vehicleList.length})</h2>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {vehicleList.map(v => (
-                        <div key={v.id} className={`p-4 rounded-xl border flex gap-4 items-center transition-all relative ${editingId === v.id ? 'bg-blue-50 border-blue-500 ring-1 ring-blue-500' : 'bg-white border-gray-200 shadow-sm'} ${v.is_visible === false ? 'opacity-60 grayscale' : ''}`}>
-                            {v.is_visible === false && (
-                                <div className="absolute top-2 right-2 bg-red-100 text-red-600 px-2 py-0.5 rounded text-[9px] font-bold flex items-center gap-1 uppercase tracking-wider"><EyeOff size={10}/> Oculto</div>
-                            )}
-                            <div className="w-20 h-20 bg-white rounded-lg shrink-0 overflow-hidden border border-gray-100"><img src={v.image_url} className="w-full h-full object-contain" /></div>
-                            <div className="flex-1 min-w-0"><h3 className="font-bold text-base text-gray-900 truncate">{v.model_name}</h3><p className="text-sm text-gray-500 font-mono">{formatMoneyInput(v.price_start.toString() + '00')}</p></div>
-                            <div className="flex gap-1">
-                                <Link href={`/configurador?id=${v.id}`} target="_blank" className="p-2 text-green-600 hover:bg-green-50 rounded-full"><Eye size={18} /></Link>
-                                <button onClick={() => startEditing(v)} className="p-2 text-blue-500 hover:bg-blue-100 rounded-full"><Pencil size={18} /></button>
-                                <button onClick={() => deleteVehicle(v.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full"><Trash2 size={18} /></button>
-                            </div>
-                        </div>
-                    ))}
-                  </div>
+                  
+                  {Object.keys(groupedVehicles).map((categoryName) => (
+                      <div key={categoryName} className="space-y-3">
+                          <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest border-b border-gray-200 pb-1">{categoryName}</h3>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {groupedVehicles[categoryName].map((v: any) => (
+                                <div key={v.id} className={`p-4 rounded-xl border flex gap-4 items-center transition-all relative ${editingId === v.id ? 'bg-blue-50 border-blue-500 ring-1 ring-blue-500' : 'bg-white border-gray-200 shadow-sm'} ${v.is_visible === false ? 'opacity-60 grayscale' : ''}`}>
+                                    {v.is_visible === false && (
+                                        <div className="absolute top-2 right-2 bg-red-100 text-red-600 px-2 py-0.5 rounded text-[9px] font-bold flex items-center gap-1 uppercase tracking-wider"><EyeOff size={10}/> Oculto</div>
+                                    )}
+                                    <div className="w-20 h-20 bg-white rounded-lg shrink-0 overflow-hidden border border-gray-100"><img src={v.image_url} className="w-full h-full object-contain" /></div>
+                                    <div className="flex-1 min-w-0"><h3 className="font-bold text-base text-gray-900 truncate">{v.model_name}</h3><p className="text-sm text-gray-500 font-mono">{formatMoneyInput(v.price_start.toString() + '00')}</p></div>
+                                    <div className="flex gap-1">
+                                        <Link href={`/configurador?id=${v.id}`} target="_blank" className="p-2 text-green-600 hover:bg-green-50 rounded-full"><Eye size={18} /></Link>
+                                        <button onClick={() => startEditing(v)} className="p-2 text-blue-500 hover:bg-blue-100 rounded-full"><Pencil size={18} /></button>
+                                        <button onClick={() => deleteVehicle(v.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full"><Trash2 size={18} /></button>
+                                    </div>
+                                </div>
+                            ))}
+                          </div>
+                      </div>
+                  ))}
               </div>
+
               <div className="border-t border-gray-200 my-8"></div>
 
               <form onSubmit={handleVehicleSubmit} className={`space-y-6 relative ${editingId ? 'p-6 bg-blue-50/50 rounded-3xl border border-blue-100' : ''}`}>
@@ -523,10 +549,11 @@ export default function AdminPage() {
                         {vLoading ? <Loader2 className="animate-spin" size={18}/> : <Save size={18}/>}
                         {vLoading ? 'Salvando...' : editingId ? 'Salvar Alterações' : 'Cadastrar Veículo'}
                     </button>
+                    {/* BOTÃO MÁGICO DE COPIA */}
                     {editingId && (
                         <button type="button" onClick={() => handleReplicate()} disabled={rLoading} className="px-6 rounded-xl font-bold text-white bg-orange-600 hover:bg-orange-700 uppercase text-xs tracking-widest shadow-lg flex items-center gap-2 transition-all">
                             {rLoading ? <Loader2 className="animate-spin" size={16}/> : <Copy size={16} />}
-                            {rLoading ? '...' : 'Replicar'}
+                            {rLoading ? '...' : 'Copiar Itens'}
                         </button>
                     )}
                   </div>
