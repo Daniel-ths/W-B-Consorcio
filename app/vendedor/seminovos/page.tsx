@@ -4,7 +4,7 @@ import { useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image"; 
 import { 
-  Search, ArrowRight, User, Wallet, Phone, Car, Loader2, MapPin, Facebook, Instagram, Plus, Minus, CheckCircle2
+  Search, ArrowRight, User, Wallet, Phone, Car, Loader2, MapPin, Facebook, Instagram, Plus, Minus, CheckCircle2, DollarSign, Calendar, FileText
 } from "lucide-react";
 
 // --- DADOS E FUNÇÕES ESTÁTICAS ---
@@ -65,6 +65,12 @@ const formatCurrency = (value: string) => {
   if (!onlyNums) return "";
   const numberValue = Number(onlyNums) / 100;
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(numberValue);
+};
+
+// --- CORREÇÃO: Função para limpar moeda (R$ 1.000,00 -> 1000.00) ---
+const cleanCurrency = (value: string) => {
+    if (!value) return "0";
+    return value.replace(/\D/g, "").replace(/(\d{2})$/, ".$1"); // Converte centavos corretamente
 };
 
 export default function SeminovosPage() {
@@ -130,7 +136,17 @@ export default function SeminovosPage() {
   };
 
   const handleSubmit = () => {
-    const query = new URLSearchParams({ ...formData, marca: selectedBrand?.name || "" }).toString();
+    // --- CORREÇÃO: Enviar valores limpos (sem R$ e pontos) ---
+    const payload = {
+        ...formData,
+        marca: selectedBrand?.name || "",
+        valor: cleanCurrency(formData.valor),
+        renda: cleanCurrency(formData.renda),
+        entrada: cleanCurrency(formData.entrada),
+        imagem: selectedBrand?.file || "" // Passando a logo da marca como imagem do carro temporariamente
+    };
+    
+    const query = new URLSearchParams(payload).toString();
     router.push(`/vendedor/analise?${query}`);
   };
 
@@ -180,7 +196,7 @@ export default function SeminovosPage() {
 
       <main className="max-w-7xl mx-auto px-6 py-16 flex-grow w-full">
         
-        {/* --- [FIXO] TEXTO INTRODUTÓRIO (SEMPRE VISÍVEL) --- */}
+        {/* --- [FIXO] TEXTO INTRODUTÓRIO --- */}
         <div className="text-center max-w-4xl mx-auto mb-20 animate-in fade-in slide-in-from-bottom-8 duration-700">
             <span className="text-[#dcb512] font-black text-xs uppercase tracking-[0.2em] mb-4 block">Segurança e Procedência</span>
             <h1 className="text-4xl md:text-5xl font-black text-gray-900 mb-6 uppercase tracking-tighter leading-tight">
@@ -220,7 +236,7 @@ export default function SeminovosPage() {
                     ))}
                 </div>
 
-                {/* --- [MOVIDO] FAQ AGORA SÓ APARECE AQUI (QUANDO NÃO TEM MARCA) --- */}
+                {/* --- FAQ --- */}
                 <div className="mt-32 max-w-7xl mx-auto">
                     <div className="bg-[#111] rounded-[2.5rem] p-8 md:p-20 shadow-2xl relative overflow-hidden border border-white/5">
                         <div className="absolute top-0 right-0 w-96 h-96 bg-[#f2e14c] blur-[200px] opacity-5 rounded-full pointer-events-none"></div>
@@ -265,12 +281,12 @@ export default function SeminovosPage() {
                         </div>
                     </div>
                 </div>
-
              </div>
         ) : (
-            <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in slide-in-from-bottom-8 duration-700">
+            <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in slide-in-from-bottom-8 duration-700 items-start">
+                
                 {/* COLUNA ESQUERDA: CARRO */}
-                <div className="lg:col-span-7 bg-white p-8 md:p-10 rounded-[2rem] shadow-xl shadow-gray-100/50 border border-gray-100 h-fit">
+                <div className="lg:col-span-7 bg-white p-8 md:p-10 rounded-[2rem] shadow-xl shadow-gray-100/50 border border-gray-100">
                     <div className="flex items-center justify-between mb-8 border-b border-gray-100 pb-6">
                         <div>
                             <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Passo 1 de 2</p>
@@ -300,7 +316,7 @@ export default function SeminovosPage() {
 
                         {/* Input Modelo */}
                         <div className="relative group">
-                            <label className="text-xs font-bold text-gray-500 uppercase mb-2 block tracking-wide ml-1">Selecione o Modelo</label>
+                            <label className="text-xs font-bold text-gray-500 uppercase mb-2 block tracking-wide ml-1">Modelo do Veículo</label>
                             {loadingModelos ? (
                                 <div className="flex items-center gap-3 text-sm font-bold text-gray-400 p-5 bg-gray-50 rounded-2xl animate-pulse border border-transparent">
                                     <Loader2 className="animate-spin" size={18}/> Buscando na Tabela FIPE...
@@ -314,9 +330,8 @@ export default function SeminovosPage() {
                                         onFocus={() => setShowModelList(true)}
                                         className="w-full p-5 pl-14 bg-gray-50 border-2 border-transparent rounded-2xl font-bold text-gray-900 uppercase focus:bg-white focus:border-[#f2e14c] outline-none transition-all shadow-sm placeholder:text-gray-300"
                                     />
-                                    <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#f2e14c] transition-colors" size={20}/>
+                                    <Car className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#f2e14c] transition-colors" size={20}/>
                                     
-                                    {/* Dropdown de Modelos */}
                                     {showModelList && filteredModels.length > 0 && (
                                         <ul className="absolute z-50 w-full bg-white border border-gray-100 rounded-2xl shadow-2xl max-h-80 overflow-y-auto mt-2 custom-scrollbar animate-in fade-in slide-in-from-top-2">
                                             {filteredModels.map((m) => (
@@ -333,23 +348,29 @@ export default function SeminovosPage() {
                         <div className="grid grid-cols-2 gap-6">
                             <div>
                                 <label className="text-xs font-bold text-gray-500 uppercase mb-2 block tracking-wide ml-1">Ano Fab.</label>
-                                <input type="number" placeholder="2022" className="w-full p-5 bg-gray-50 border-2 border-transparent rounded-2xl font-bold focus:bg-white focus:border-[#f2e14c] outline-none transition-all" value={formData.ano} onChange={e => setFormData({...formData, ano: e.target.value})} />
+                                <div className="relative">
+                                     <input type="number" placeholder="2022" className="w-full p-5 pl-12 bg-gray-50 border-2 border-transparent rounded-2xl font-bold focus:bg-white focus:border-[#f2e14c] outline-none transition-all" value={formData.ano} onChange={e => setFormData({...formData, ano: e.target.value})} />
+                                     <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
+                                </div>
                             </div>
                             <div>
-                                <label className="text-xs font-bold text-gray-500 uppercase mb-2 block tracking-wide ml-1">Preço (R$)</label>
-                                <input 
-                                    type="text" 
-                                    placeholder="0,00" 
-                                    className="w-full p-5 bg-gray-50 border-2 border-transparent rounded-2xl font-bold focus:bg-white focus:border-[#f2e14c] outline-none transition-all text-gray-900" 
-                                    value={formData.valor} 
-                                    onChange={e => setFormData({...formData, valor: formatCurrency(e.target.value)})} 
-                                />
+                                <label className="text-xs font-bold text-gray-500 uppercase mb-2 block tracking-wide ml-1">Valor (R$)</label>
+                                <div className="relative">
+                                    <input 
+                                        type="text" 
+                                        placeholder="0,00" 
+                                        className="w-full p-5 pl-12 bg-gray-50 border-2 border-transparent rounded-2xl font-bold focus:bg-white focus:border-[#f2e14c] outline-none transition-all text-gray-900" 
+                                        value={formData.valor} 
+                                        onChange={e => setFormData({...formData, valor: formatCurrency(e.target.value)})} 
+                                    />
+                                    <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                {/* COLUNA DIREITA: DADOS PESSOAIS (PRETO) */}
+                {/* COLUNA DIREITA: DADOS PESSOAIS (LAYOUT MELHORADO) */}
                 <div className="lg:col-span-5 bg-[#111] p-8 md:p-10 rounded-[2rem] shadow-2xl text-white h-fit sticky top-28 border border-white/10">
                     <div className="mb-8 border-b border-white/10 pb-6">
                         <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Passo 2 de 2</p>
@@ -358,45 +379,53 @@ export default function SeminovosPage() {
                         </h2>
                     </div>
 
-                    <div className="space-y-6">
-                        <div>
-                            <label className="text-[10px] font-bold text-gray-500 uppercase mb-2 block tracking-wider">Nome Completo</label>
-                            <input type="text" placeholder="DIGITE SEU NOME" className="w-full p-4 bg-white/5 border border-white/10 rounded-xl text-white font-bold placeholder-gray-600 focus:border-[#f2e14c] focus:bg-black outline-none transition-all uppercase text-sm" value={formData.nome} onChange={e => setFormData({...formData, nome: e.target.value})} />
+                    <div className="space-y-5">
+                        {/* Nome */}
+                        <div className="relative group">
+                            <label className="text-[10px] font-bold text-gray-500 uppercase mb-1.5 block tracking-wider pl-1">Nome Completo</label>
+                            <input type="text" placeholder="DIGITE SEU NOME" className="w-full p-4 pl-12 bg-white/5 border border-white/10 rounded-xl text-white font-bold placeholder-gray-600 focus:border-[#f2e14c] focus:bg-black outline-none transition-all uppercase text-sm" value={formData.nome} onChange={e => setFormData({...formData, nome: e.target.value})} />
+                            <User className="absolute left-4 top-[34px] text-gray-500 group-focus-within:text-[#f2e14c] transition-colors" size={18}/>
                         </div>
                         
-                        <div className="grid grid-cols-1 gap-6">
-                            <div>
-                                <label className="text-[10px] font-bold text-gray-500 uppercase mb-2 block tracking-wider">CPF</label>
-                                <input type="text" placeholder="000.000.000-00" maxLength={14} className="w-full p-4 bg-white/5 border border-white/10 rounded-xl text-white font-bold focus:border-[#f2e14c] focus:bg-black outline-none transition-all text-sm" value={formData.cpf} onChange={e => setFormData({...formData, cpf: maskCpf(e.target.value)})} />
+                        {/* CPF e Telefone */}
+                        <div className="grid grid-cols-1 gap-5">
+                            <div className="relative group">
+                                <label className="text-[10px] font-bold text-gray-500 uppercase mb-1.5 block tracking-wider pl-1">CPF</label>
+                                <input type="text" placeholder="000.000.000-00" maxLength={14} className="w-full p-4 pl-12 bg-white/5 border border-white/10 rounded-xl text-white font-bold focus:border-[#f2e14c] focus:bg-black outline-none transition-all text-sm font-mono" value={formData.cpf} onChange={e => setFormData({...formData, cpf: maskCpf(e.target.value)})} />
+                                <FileText className="absolute left-4 top-[34px] text-gray-500 group-focus-within:text-[#f2e14c] transition-colors" size={18}/>
                             </div>
-                            <div>
-                                <label className="text-[10px] font-bold text-gray-500 uppercase mb-2 block tracking-wider">WhatsApp</label>
-                                <input type="text" placeholder="(00) 00000-0000" maxLength={15} className="w-full p-4 bg-white/5 border border-white/10 rounded-xl text-white font-bold focus:border-[#f2e14c] focus:bg-black outline-none transition-all text-sm" value={formData.telefone} onChange={e => setFormData({...formData, telefone: maskPhone(e.target.value)})} />
+                            <div className="relative group">
+                                <label className="text-[10px] font-bold text-gray-500 uppercase mb-1.5 block tracking-wider pl-1">WhatsApp</label>
+                                <input type="text" placeholder="(00) 00000-0000" maxLength={15} className="w-full p-4 pl-12 bg-white/5 border border-white/10 rounded-xl text-white font-bold focus:border-[#f2e14c] focus:bg-black outline-none transition-all text-sm font-mono" value={formData.telefone} onChange={e => setFormData({...formData, telefone: maskPhone(e.target.value)})} />
+                                <Phone className="absolute left-4 top-[34px] text-gray-500 group-focus-within:text-[#f2e14c] transition-colors" size={18}/>
                             </div>
                         </div>
 
+                        {/* Financeiro */}
                         <div className="pt-6 border-t border-white/10 mt-6">
-                            <h3 className="text-sm font-bold text-white uppercase mb-6 flex items-center gap-2 tracking-wide"><Wallet size={16} className="text-[#f2e14c]"/> Perfil Financeiro <span className="text-[10px] text-gray-500 font-normal ml-auto">(Opcional)</span></h3>
+                            <h3 className="text-xs font-bold text-white uppercase mb-4 flex items-center gap-2 tracking-wide"><Wallet size={14} className="text-[#f2e14c]"/> Perfil Financeiro</h3>
                             <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="text-[10px] font-bold text-gray-500 uppercase mb-2 block">Renda</label>
+                                <div className="relative group">
+                                    <label className="text-[10px] font-bold text-gray-500 uppercase mb-1.5 block pl-1">Renda Mensal</label>
                                     <input 
                                         type="text" 
                                         placeholder="R$ 0,00" 
-                                        className="w-full p-4 bg-white/5 border border-white/10 rounded-xl text-white font-bold focus:border-[#f2e14c] outline-none text-sm" 
+                                        className="w-full p-3.5 pl-10 bg-white/5 border border-white/10 rounded-xl text-white font-bold focus:border-[#f2e14c] outline-none text-sm" 
                                         value={formData.renda} 
                                         onChange={e => setFormData({...formData, renda: formatCurrency(e.target.value)})} 
                                     />
+                                    <span className="absolute left-4 top-[34px] text-gray-500 font-bold text-xs">R$</span>
                                 </div>
-                                <div>
-                                    <label className="text-[10px] font-bold text-gray-500 uppercase mb-2 block">Entrada</label>
+                                <div className="relative group">
+                                    <label className="text-[10px] font-bold text-gray-500 uppercase mb-1.5 block pl-1">Entrada (Opcional)</label>
                                     <input 
                                         type="text" 
                                         placeholder="R$ 0,00" 
-                                        className="w-full p-4 bg-white/5 border border-white/10 rounded-xl text-white font-bold focus:border-[#f2e14c] outline-none text-sm" 
+                                        className="w-full p-3.5 pl-10 bg-white/5 border border-white/10 rounded-xl text-white font-bold focus:border-[#f2e14c] outline-none text-sm" 
                                         value={formData.entrada} 
                                         onChange={e => setFormData({...formData, entrada: formatCurrency(e.target.value)})} 
                                     />
+                                    <span className="absolute left-4 top-[34px] text-gray-500 font-bold text-xs">R$</span>
                                 </div>
                             </div>
                         </div>

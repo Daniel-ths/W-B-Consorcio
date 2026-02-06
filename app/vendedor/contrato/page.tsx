@@ -5,14 +5,19 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase"; 
 import { 
   CheckCircle2, Loader2, ArrowLeft, Printer, CarFront, User, DollarSign, 
-  Briefcase, Send, MapPin, Phone, Calendar, Heart, FileText, Search, RefreshCw 
+  Briefcase, Send, MapPin, Phone, Calendar, Heart, FileText, RefreshCw 
 } from "lucide-react";
+
+// --- SOLUÇÃO GLOBAL PARA O ERRO 429 ---
+// Esta variável fica fora do componente, então ela não zera quando o React atualiza a tela.
+// Armazena: { "12345678900": 17000000000 (timestamp) }
+const cacheConsultasGlobal = new Map<string, number>();
 
 function PedidoContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // --- DADOS DO PEDIDO (Vindos da URL) ---
+  // --- DADOS DO PEDIDO ---
   const dados = {
     tipo: searchParams.get('tipo') || "CONSORCIO",
     cpf: searchParams.get('cpf') || "", 
@@ -25,12 +30,11 @@ function PedidoContent() {
     imagem: searchParams.get('imagem') || "", 
   };
 
-  const [loadingValidacao, setLoadingValidacao] = useState(true); // Load inicial da página
-  const [verificando, setVerificando] = useState(false); // Load do botão específico
+  const [loadingValidacao, setLoadingValidacao] = useState(true);
+  const [verificando, setVerificando] = useState(false);
   const [loadingSalvar, setLoadingSalvar] = useState(false); 
   const [pedidoSalvo, setPedidoSalvo] = useState(false); 
   
-  // DADOS DA API E ESTADOS
   const [apiData, setApiData] = useState<any>(null);
   const [nomeManual, setNomeManual] = useState("");
   const [dataAtual, setDataAtual] = useState("");
@@ -38,21 +42,37 @@ function PedidoContent() {
   useEffect(() => {
     setDataAtual(new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' }));
     
-    // Consulta automática ao carregar, se tiver CPF
+    // --- LÓGICA DE PROTEÇÃO ANTI-DUPLICIDADE ---
     if (dados.cpf) {
-        validarReceita(false); // false = não é clique manual
+        const ultimaConsulta = cacheConsultasGlobal.get(dados.cpf);
+        const agora = Date.now();
+        
+        // Se já consultou esse CPF nos últimos 2 minutos (120000ms), NÃO consulta de novo automaticamente.
+        const recente = ultimaConsulta && (agora - ultimaConsulta < 120000);
+
+        if (!recente) {
+            // Marca que estamos consultando AGORA para bloquear as próximas tentativas automáticas
+            cacheConsultasGlobal.set(dados.cpf, agora);
+            validarReceita(false); // false = automático
+        } else {
+            console.log("Consulta automática bloqueada pelo Cache Global (evitando erro 429).");
+            setLoadingValidacao(false);
+        }
     } else {
         setLoadingValidacao(false);
     }
-  }, []);
+  }, []); // Roda apenas uma vez na montagem
 
   const formatMoney = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   const numeroPedido = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
 
-  // --- 1. CONSULTA API RECEITA ---
-  // isManual define se foi clique no botão (true) ou load de página (false)
+  // --- CONSULTA API ---
   const validarReceita = async (isManual = true) => {
-    if (isManual) setVerificando(true);
+    if (isManual) {
+        setVerificando(true);
+        // Se for manual (clique do usuário), atualizamos o cache para permitir nova tentativa
+        if (dados.cpf) cacheConsultasGlobal.set(dados.cpf, Date.now());
+    }
     
     try {
       const response = await fetch('/api/consultar-cpf', {
@@ -62,38 +82,48 @@ function PedidoContent() {
       });
       const data = await response.json();
 
-      if (data && !data.error) {
+      if (response.ok && data && !data.error) {
         setApiData(data); 
-        // Extrai o nome se disponível
-        const nomeApi = data.response?.content?.nome?.conteudo?.nome || 
-                        data.nome || // Fallback para outras estruturas de API
+        
+        const nomeApi = data.nome || 
+                        data.response?.content?.nome?.conteudo?.nome || 
                         "";
         
         if (nomeApi) setNomeManual(nomeApi);
-        if (isManual) alert("Dados atualizados com sucesso!");
+        if (isManual) alert("✅ Dados atualizados com sucesso!");
+      
       } else {
-        if (isManual) alert("Não foi possível encontrar dados para este CPF.");
+        if (response.status === 429) {
+            console.warn("API bloqueou por excesso de tentativas.");
+            // Só avisa na tela se foi o usuário que clicou
+            if (isManual) alert("⏳ Muitas consultas seguidas. Aguarde alguns segundos.");
+        } else {
+            const msg = data.error || "Erro ao buscar dados";
+            if (isManual) alert(`❌ ${msg}`);
+        }
       }
     } catch (error) {
-      console.error("Erro ao buscar CPF", error);
-      if (isManual) alert("Erro de conexão ao buscar CPF.");
+      console.error("Erro fetch", error);
+      if (isManual) alert("Erro de conexão.");
     } finally {
       setLoadingValidacao(false);
       setVerificando(false);
     }
   };
 
-  // --- ATALHOS PARA OS DADOS ---
-  const content = apiData?.response?.content || {};
-  const pessoa = content?.nome?.conteudo || apiData || {}; // Fallback genérico
-  const endereco = content?.pesquisa_enderecos?.conteudo?.[0] || {};
-  const telefoneAPI = content?.contato_preferencial?.conteudo?.[0]?.valor || 
-                      content?.pesquisa_telefones?.conteudo?.[0]?.numero || "";
-  const situacaoReceita = pessoa.situacao_receita || apiData?.situacao_cadastral || "Não Verificado";
-  const genero = pessoa.genero || apiData?.genero || ""; // Novo campo
-  const anoInscricao = pessoa.ano_obito || ""; // Exemplo de campo extra se existir
+  // --- ATALHOS DE DADOS ---
+  const situacaoReceita = apiData?.situacao || apiData?.response?.content?.nome?.conteudo?.situacao_receita || "Não Verificado";
+  const dataNascimento = apiData?.nascimento || apiData?.data_nascimento || apiData?.response?.content?.nome?.conteudo?.data_nascimento || "---";
+  const nomeMae = apiData?.mae || apiData?.nome_mae || apiData?.response?.content?.nome?.conteudo?.mae || "---";
+  const genero = apiData?.genero || apiData?.response?.content?.nome?.conteudo?.genero || "";
+  
+  const enderecoComplexo = apiData?.response?.content?.pesquisa_enderecos?.conteudo?.[0];
+  const enderecoSimples = apiData?.uf ? { estado: apiData.uf } : null;
+  const endereco = enderecoComplexo || enderecoSimples || {};
 
-  // --- 2. ENVIAR PARA O ADMIN ---
+  const telefoneAPI = apiData?.response?.content?.contato_preferencial?.conteudo?.[0]?.valor || "Não informado";
+
+  // --- ENVIAR PARA O ADMIN ---
   const handleFinalizarSolicitacao = async () => {
     if (!nomeManual) return alert("Aguarde o carregamento ou preencha os dados.");
     setLoadingSalvar(true);
@@ -109,7 +139,7 @@ function PedidoContent() {
             status: "Aguardando Aprovação",
             total_price: dados.valor,
             interest_type: dados.tipo,
-            client_phone: telefoneAPI || "Não informado",
+            client_phone: telefoneAPI,
             created_at: new Date().toISOString()
         };
 
@@ -130,7 +160,7 @@ function PedidoContent() {
       return (
           <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-4">
               <Loader2 className="animate-spin text-blue-600 w-12 h-12"/>
-              <p className="text-slate-500 font-medium animate-pulse">Consultando Receita Federal...</p>
+              <p className="text-slate-500 font-medium animate-pulse">Verificando CPF...</p>
           </div>
       )
   }
@@ -138,7 +168,7 @@ function PedidoContent() {
   return (
     <div className="min-h-screen bg-[#e5e7eb] font-sans text-slate-900 pb-20 print:bg-white print:p-0">
         
-        {/* HEADER / ACTIONS */}
+        {/* HEADER */}
         <header className="px-6 py-4 bg-white border-b border-gray-200 sticky top-0 z-50 print:hidden shadow-sm">
             <div className="max-w-5xl mx-auto flex items-center justify-between">
                 <button onClick={() => router.back()} className="flex items-center gap-2 text-slate-500 hover:text-black transition-colors font-bold text-xs uppercase">
@@ -179,7 +209,7 @@ function PedidoContent() {
                             <div className="w-16 h-16 bg-white text-black flex items-center justify-center rounded-lg font-black text-3xl print:border-2 print:border-black">W</div>
                             <div>
                                 <h1 className="text-2xl font-bold uppercase tracking-tight leading-none mb-1">Ficha Cadastral</h1>
-                                <p className="text-xs font-medium text-slate-400 uppercase tracking-widest print:text-black">W B C Consórcio & Veículos</p>
+                                <p className="text-xs font-medium text-slate-400 uppercase tracking-widest print:text-black">WBCNAC.com</p>
                             </div>
                         </div>
                         <div className="text-right">
@@ -204,7 +234,6 @@ function PedidoContent() {
                                 <h3 className="text-xs font-black uppercase text-slate-800">1. Identificação do Proponente</h3>
                             </div>
                             
-                            {/* --- BOTÃO NOVO DE VERIFICAÇÃO --- */}
                             <button 
                                 onClick={() => validarReceita(true)} 
                                 disabled={verificando}
@@ -217,7 +246,6 @@ function PedidoContent() {
                         
                         <div className="p-5 grid grid-cols-1 md:grid-cols-4 gap-y-5 gap-x-4 print:gap-y-2 print:text-sm">
                             
-                            {/* LINHA 1 */}
                             <div className="md:col-span-3">
                                 <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Nome Completo</label>
                                 <div className="font-bold text-slate-900 uppercase border-b border-gray-100 pb-1 min-h-[24px]">
@@ -232,27 +260,21 @@ function PedidoContent() {
                                 </div>
                             </div>
 
-                            {/* LINHA 2 */}
                             <div>
                                 <label className="flex items-center gap-1 text-[9px] font-bold text-slate-400 uppercase mb-1"><Calendar size={10}/> Data Nasc.</label>
                                 <div className="font-medium text-slate-700">
-                                    {pessoa.data_nascimento || (verificando ? "..." : "---")}
+                                    {dataNascimento}
                                 </div>
                             </div>
                             <div className="md:col-span-2">
                                 <label className="flex items-center gap-1 text-[9px] font-bold text-slate-400 uppercase mb-1"><Heart size={10}/> Nome da Mãe</label>
                                 <div className="font-medium text-slate-700 uppercase">
-                                    {pessoa.mae || pessoa.nome_mae || (verificando ? "..." : "---")}
+                                    {nomeMae}
                                 </div>
                             </div>
                             <div>
-                                <label className="flex items-center gap-1 text-[9px] font-bold text-slate-400 uppercase mb-1"><FileText size={10}/> Situação Cadastral</label>
-                                <div className={`font-bold text-xs uppercase ${situacaoReceita === 'REGULAR' ? 'text-green-700' : 'text-red-600'} print:text-black`}>
-                                    {verificando ? "..." : situacaoReceita}
-                                </div>
                             </div>
 
-                            {/* LINHA DINÂMICA (Aparece só se tiver dados extras) */}
                             {genero && (
                                 <div className="md:col-span-1">
                                     <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Gênero</label>
@@ -260,26 +282,17 @@ function PedidoContent() {
                                 </div>
                             )}
 
-                            {/* LINHA 3 - CONTATO & ENDEREÇO */}
-                            <div className="md:col-span-1">
-                                <label className="flex items-center gap-1 text-[9px] font-bold text-slate-400 uppercase mb-1"><Phone size={10}/> Telefone</label>
-                                <div className="font-medium text-slate-900">
-                                    {telefoneAPI || (verificando ? "..." : "Não informado")}
-                                </div>
-                            </div>
 
                             <div className="md:col-span-3">
-                                <label className="flex items-center gap-1 text-[9px] font-bold text-slate-400 uppercase mb-1"><MapPin size={10}/> Endereço Residencial (Receita Federal)</label>
-                                {verificando ? (
-                                    <div className="animate-pulse bg-gray-100 h-10 w-full rounded"></div>
-                                ) : endereco.logradouro ? (
+                                <label className="flex items-center gap-1 text-[9px] font-bold text-slate-400 uppercase mb-1"><MapPin size={10}/> Endereço Residencial</label>
+                                {endereco.logradouro ? (
                                     <div className="font-medium text-slate-700 uppercase text-xs border p-2 rounded bg-gray-50 print:bg-white print:border-none print:p-0">
                                         {endereco.logradouro}, Nº {endereco.numero} {endereco.complemento} - {endereco.bairro}. <br/>
                                         {endereco.cidade} / {endereco.estado} - CEP: {endereco.cep}
                                     </div>
                                 ) : (
                                     <div className="text-slate-400 text-xs italic border-b border-dotted border-gray-300 w-full h-6 flex items-center">
-                                        Endereço não retornado pela API. Preencher manualmente.
+                                        {endereco.estado ? `Estado: ${endereco.estado} (Preencher endereço completo)` : "Preencher manualmente"}
                                     </div>
                                 )}
                             </div>
@@ -340,7 +353,7 @@ function PedidoContent() {
                         </table>
                     </section>
 
-                    {/* ESPAÇO VAZIO PARA PREENCHIMENTO */}
+                    {/* ESPAÇO VAZIO */}
                     <div className="flex-1 min-h-[100px] border border-gray-200 rounded p-4 print:border-black print:min-h-[150px]">
                         <p className="text-[9px] font-bold text-slate-400 uppercase mb-2">Observações Adicionais / Acessórios / Cor</p>
                         <div className="w-full h-full border-b border-gray-100 print:hidden"></div>
