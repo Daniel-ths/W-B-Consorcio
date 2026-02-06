@@ -13,7 +13,8 @@ const DEFAULT_SLIDE = [{
   id: 0,
   title: "Bem-vindo à Chevrolet",
   subtitle: "Encontre o carro dos seus sonhos.",
-  image_url: "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?q=80&w=2070&auto=format&fit=crop"
+  image_url: "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?q=80&w=2070&auto=format&fit=crop",
+  vehicle_id: null
 }];
 
 export default function Home() {
@@ -21,11 +22,12 @@ export default function Home() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  // REDUZIDO: Tempo de duração de cada slide (4 segundos)
+  // Tempo de duração de cada slide (4 segundos)
   const SLIDE_DURATION = 4000;
 
   useEffect(() => {
     async function fetchSlides() {
+      // Busca os slides e garante que traz o vehicle_id se existir
       const { data } = await supabase.from('hero_slides').select('*').order('created_at', { ascending: false });
       if (data && data.length > 0) {
         setSlides(data);
@@ -84,6 +86,14 @@ export default function Home() {
             <div className="max-w-3xl space-y-8">
               {slides.map((slide, index) => {
                 if (index !== currentSlide) return null;
+
+                // LÓGICA DO LINK INTELIGENTE
+                // Se o banner tem vehicle_id -> Abre o configurador daquele carro
+                // Se não tem -> Abre o catálogo geral de carros
+                const buttonLink = slide.vehicle_id 
+                    ? `/configurador?id=${slide.vehicle_id}` 
+                    : "/CarCatalog";
+
                 return (
                   <div key={slide.id} className="animate-in slide-in-from-bottom-10 fade-in duration-700">
                     <h1 className="text-5xl md:text-8xl font-black text-white uppercase tracking-tighter mb-4 leading-none drop-shadow-lg">
@@ -94,8 +104,9 @@ export default function Home() {
                     </p>
                     
                     <div className="flex flex-col sm:flex-row gap-4">
-                      {/* BOTÃO MONTE O SEU (AGORA BRANCO) */}
+                      {/* BOTÃO MONTE O SEU (BRANCO + LINK DINÂMICO) */}
                       
+                      {/* BOTÃO SEMINOVOS */}
                       <Link 
                         href="/vendedor/seminovos" 
                         className="px-8 py-4 border-2 border-white text-white hover:bg-white hover:text-black font-bold uppercase tracking-widest rounded-full transition-all"

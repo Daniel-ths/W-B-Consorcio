@@ -41,6 +41,14 @@ function ConfiguratorContent() {
 
   useEffect(() => {
     setIsMounted(true);
+    
+    // CORREÇÃO MOBILE: Garante que a altura do app considere as barras do navegador no iOS/Android
+    const setHeight = () => {
+      document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
+    };
+    setHeight();
+    window.addEventListener('resize', setHeight);
+    return () => window.removeEventListener('resize', setHeight);
   }, []);
 
   // 1. Carrega Usuário
@@ -109,7 +117,7 @@ function ConfiguratorContent() {
     return total;
   }, [currentCar, selectedColor, selectedWheel, selectedSeatType, selectedAccs]);
 
-  // 4. Prepara Lista de Acessórios (Envia o objeto completo para o resumo)
+  // 4. Prepara Lista de Acessórios
   const selectedAccessoriesList = useMemo(() => {
     if (!currentCar?.accessories) return [];
     return currentCar.accessories.filter((acc: any) => selectedAccs.includes(acc.id));
@@ -119,10 +127,7 @@ function ConfiguratorContent() {
     setSelectedAccs((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
 
-  // --- BOTÃO VOLTAR (ROTA DIRETA) ---
   const handleBack = () => {
-    // Redireciona direto para a Home ("/") onde tem o Banner e Catálogo
-    // Se quiser ir para o painel de vendedor, mude para router.push("/vendedor")
     router.push("/");
   };
 
@@ -132,56 +137,62 @@ function ConfiguratorContent() {
     return <div className="h-screen flex items-center justify-center">Carro não encontrado.</div>;
 
   return (
+    // Toque Mobile: touch-none no loader para evitar scroll enquanto carrega
     <>
       <div
-        className={`fixed inset-0 z-[9999] bg-white flex items-center justify-center transition-opacity pointer-events-none ${
+        className={`fixed inset-0 z-[9999] bg-white flex items-center justify-center transition-opacity pointer-events-none touch-none ${
           isInitialLoad ? "opacity-100" : "opacity-0"
         }`}
       >
         <Loader2 className="w-8 h-8 text-gray-300 animate-spin" />
       </div>
 
-      <div className="p-4">
-        <button
-          onClick={handleBack}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 transition-colors"
-        >
-          <ChevronLeft size={18} />
-          Voltar ao Catálogo
-        </button>
-      </div>
+      {/* Container Principal Mobile Friendly */}
+      <div className="flex flex-col min-h-screen max-w-full overflow-x-hidden select-none touch-manipulation">
+        <div className="p-4 flex-shrink-0">
+          <button
+            onClick={handleBack}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-200 rounded active:scale-95 hover:bg-gray-300 transition-all text-sm md:text-base"
+          >
+            <ChevronLeft size={18} />
+            Voltar ao Catálogo
+          </button>
+        </div>
 
-      {currentCar &&
-        (showSummary ? (
-          <OrderSummary
-            currentCar={currentCar}
-            selectedColor={selectedColor}
-            selectedWheel={selectedWheel}
-            selectedSeatType={selectedSeatType}
-            selectedAccs={selectedAccs}
-            selectedAccessoriesList={selectedAccessoriesList} // Passando a lista pronta
-            totalPrice={totalPrice}
-            user={user}
-            onEdit={() => setShowSummary(false)}
-          />
-        ) : (
-          <ConfiguratorUI
-            currentCar={currentCar}
-            relatedCars={relatedCars}
-            selectedColor={selectedColor}
-            setSelectedColor={setSelectedColor}
-            selectedWheel={selectedWheel}
-            setSelectedWheel={setSelectedWheel}
-            selectedSeatType={selectedSeatType}
-            setSelectedSeatType={setSelectedSeatType}
-            selectedAccs={selectedAccs}
-            toggleAccessory={toggleAccessory}
-            totalPrice={totalPrice}
-            user={user}
-            onFinish={() => setShowSummary(true)}
-            isSwitchingCar={isSwitchingCar}
-          />
-        ))}
+        <main className="flex-grow">
+          {currentCar &&
+            (showSummary ? (
+              <OrderSummary
+                currentCar={currentCar}
+                selectedColor={selectedColor}
+                selectedWheel={selectedWheel}
+                selectedSeatType={selectedSeatType}
+                selectedAccs={selectedAccs}
+                selectedAccessoriesList={selectedAccessoriesList}
+                totalPrice={totalPrice}
+                user={user}
+                onEdit={() => setShowSummary(false)}
+              />
+            ) : (
+              <ConfiguratorUI
+                currentCar={currentCar}
+                relatedCars={relatedCars}
+                selectedColor={selectedColor}
+                setSelectedColor={setSelectedColor}
+                selectedWheel={selectedWheel}
+                setSelectedWheel={setSelectedWheel}
+                selectedSeatType={selectedSeatType}
+                setSelectedSeatType={setSelectedSeatType}
+                selectedAccs={selectedAccs}
+                toggleAccessory={toggleAccessory}
+                totalPrice={totalPrice}
+                user={user}
+                onFinish={() => setShowSummary(true)}
+                isSwitchingCar={isSwitchingCar}
+              />
+            ))}
+        </main>
+      </div>
     </>
   );
 }

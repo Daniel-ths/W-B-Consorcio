@@ -2,63 +2,48 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { User } from "@supabase/supabase-js";
+import { Loader2 } from "lucide-react";
 
-// Definindo o formato dos dados
-type AuthContextType = {
-  user: any;
+interface AuthContextType {
+  user: User | null;
   loading: boolean;
   signOut: () => Promise<void>;
-};
+}
 
-// Criando o contexto
-const AuthContext = createContext<AuthContextType>({
-  user: null,
-  loading: true,
-  signOut: async () => {},
-});
+const AuthContext = createContext<AuthContextType>({ user: null, loading: true, signOut: async () => {} });
 
-export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [user, setUser] = useState<any>(null);
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let mounted = true;
-
-    // 1. Função que busca o usuário UMA VEZ
+    // 1. Pega a sessão inicial
     const checkUser = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (mounted) {
-          setUser(session?.user ?? null);
-        }
+        setUser(session?.user ?? null);
       } catch (error) {
-        console.error("Erro no Contexto:", error);
+        console.error("Erro ao verificar sessão:", error);
       } finally {
-        if (mounted) setLoading(false);
+        setLoading(false);
       }
     };
 
     checkUser();
 
-    // 2. Ouvinte passivo (Só atualiza os dados, NUNCA redireciona)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (mounted) {
-        setUser(session?.user ?? null);
-        setLoading(false);
-      }
+    // 2. Escuta mudanças na autenticação (Login, Logout, Auto-refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setLoading(false);
     });
 
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, []);
 
-  // Logout simples
   const signOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
-    // NÃO colocamos window.location.href aqui. Deixamos o botão decidir.
   };
 
   return (
@@ -66,6 +51,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       {children}
     </AuthContext.Provider>
   );
-};
+}
 
+// Hook personalizado para usar fácil
 export const useAuth = () => useContext(AuthContext);
