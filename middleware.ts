@@ -1,60 +1,46 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
+import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
-  // 1. Cria a resposta inicial
   let response = NextResponse.next({
     request: {
       headers: request.headers,
     },
   })
 
-  // 2. Configura o cliente Supabase
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) {
-          return request.cookies.get(name)?.value
+        getAll() {
+          return request.cookies.getAll()
         },
-        set(name: string, value: string, options: CookieOptions) {
-          // AQUI ESTAVA O ERRO: Não recrie a resposta, apenas atualize os cookies
-          request.cookies.set({ name, value, ...options })
-          response.cookies.set({ name, value, ...options })
-        },
-        remove(name: string, options: CookieOptions) {
-          // AQUI TAMBÉM: Não recrie a resposta
-          request.cookies.set({ name, value: '', ...options })
-          response.cookies.set({ name, value: '', ...options })
+        setAll(cookiesToSet) {
+          // Apenas define os cookies na resposta e no request para manter a sessão viva
+          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
+          response = NextResponse.next({ request: { headers: request.headers } })
+          cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options))
         },
       },
     }
   )
 
-  // 3. Verifica o usuário (Isso garante que o token seja atualizado se necessário)
+  // Recupera o usuário
   const { data: { user } } = await supabase.auth.getUser()
-  const path = request.nextUrl.pathname
 
-  // --- REGRAS DE ROTEAMENTO ---
+  // --- REGRAS SIMPLES ---
 
-  // REGRA 1: Rotas públicas dentro de /vendedor
-  if (path.startsWith('/vendedor/seminovos') || path.startsWith('/vendedor/analise')) {
-    return response
+  // 1. Se estiver logado e tentar ir pro login, manda pro painel
+  if (user && request.nextUrl.pathname.startsWith('/login')) {
+    return NextResponse.redirect(new URL('/admin', request.url))
   }
 
-  // REGRA 2: Bloqueio de rotas protegidas
-  if ((path.startsWith('/vendedor') || path.startsWith('/admin')) && !user) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/login'
-    return NextResponse.redirect(url)
-  }
-
-  // REGRA 3: Redirecionamento se já estiver logado
-  if (path.startsWith('/login') && user) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/admin'
-    return NextResponse.redirect(url)
+  // 2. Se NÃO estiver logado e tentar acessar área restrita (/admin ou /vendedor)
+  // Exceção: Deixa passar as rotas públicas do vendedor se houver
+  if (!user && (request.nextUrl.pathname.startsWith('/admin') || request.nextUrl.pathname.startsWith('/vendedor'))) {
+     // Se quiser liberar algo especifico dentro de vendedor, adicione && !request.nextUrl.pathname.includes('seminovos')
+     return NextResponse.redirect(new URL('/login', request.url))
   }
 
   return response

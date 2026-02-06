@@ -14,12 +14,6 @@ const CATEGORIES = [
     link: "/eletricos"
   },
   {
-    id: "Spin",
-    label: "Spin", // Nota: Certifique-se que o nome bate com o cadastro no banco para o filtro funcionar
-    carImage: "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/spin.avif", 
-    link: "/suvs"
-  },
-  {
     id: "picapes",
     label: "Picapes",
     carImage: "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/carrocel-card.avif",

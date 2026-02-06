@@ -138,9 +138,6 @@ export default function ConfiguratorUI({
 
   const handleTransmissionSwitch = (type: 'Automático' | 'Manual') => {
       setTransmissionFilter(type);
-      // Opcional: Se quiser que ao trocar o filtro, ele já pule para o primeiro carro da lista
-      // const first = allVersions.find(c => ...);
-      // if(first) router.push(...)
   };
 
   return (
@@ -170,8 +167,21 @@ export default function ConfiguratorUI({
         </div>
 
         <div className={`w-full h-full flex items-center justify-center relative transition-all duration-700 ease-in-out z-10 ${activeTab === 'Interior' ? 'p-0 scale-110' : 'p-8 lg:p-24 scale-100'}`}>
-             <img src={displayedImage} alt="Car View" className={`absolute w-full h-full object-contain z-10 select-none pointer-events-none transition-all duration-700 ease-out ${isImageLoading ? 'opacity-0 scale-105 blur-sm' : 'opacity-100 scale-100 blur-0'}`} />
-             <img src={nextImage} alt="Loading View" onLoad={handleImageLoad} className="absolute w-full h-full object-contain z-0 opacity-0 pointer-events-none" />
+             
+             {/* --- CORREÇÃO AQUI: Adicionado || undefined para evitar src="" --- */}
+             <img 
+                src={displayedImage || undefined} 
+                alt="Car View" 
+                className={`absolute w-full h-full object-contain z-10 select-none pointer-events-none transition-all duration-700 ease-out ${isImageLoading ? 'opacity-0 scale-105 blur-sm' : 'opacity-100 scale-100 blur-0'}`} 
+             />
+             
+             <img 
+                src={nextImage || undefined} 
+                alt="Loading View" 
+                onLoad={handleImageLoad} 
+                className="absolute w-full h-full object-contain z-0 opacity-0 pointer-events-none" 
+             />
+             
              {isImageLoading && <div className="absolute z-20"><Loader2 className="animate-spin text-white/30 w-12 h-12" /></div>}
         </div>
 
