@@ -4,6 +4,8 @@ import { useState, useEffect, useMemo, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Loader2, ChevronLeft } from "lucide-react";
+// 1. IMPORTAR O HOOK DE AUTENTICAÇÃO
+import { useAuth } from "@/contexts/AuthContext";
 
 // Importa os dois "filhos"
 import ConfiguratorUI from "./ConfiguratorUI";
@@ -24,9 +26,11 @@ function ConfiguratorContent() {
   const router = useRouter();
   const idDoUrl = searchParams.get("id");
 
+  // --- 2. USAR O USUÁRIO DO CONTEXTO (CORREÇÃO DO BUG) ---
+  const { user } = useAuth(); // O user vem daqui agora, não do state local
+
   // --- ESTADOS GLOBAIS ---
   const [isMounted, setIsMounted] = useState(false);
-  const [user, setUser] = useState<any>(null);
   const [currentCar, setCurrentCar] = useState<any>(null);
   const [relatedCars, setRelatedCars] = useState<any[]>([]);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
@@ -42,7 +46,7 @@ function ConfiguratorContent() {
   useEffect(() => {
     setIsMounted(true);
     
-    // CORREÇÃO MOBILE: Garante que a altura do app considere as barras do navegador no iOS/Android
+    // CORREÇÃO MOBILE: Altura real do viewport
     const setHeight = () => {
       document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
     };
@@ -51,12 +55,9 @@ function ConfiguratorContent() {
     return () => window.removeEventListener('resize', setHeight);
   }, []);
 
-  // 1. Carrega Usuário
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUser(data.user));
-  }, []);
+  // OBS: O useEffect que buscava o user manualmente foi removido pois o useAuth já cuida disso.
 
-  // 2. Carrega Carro e Relacionados
+  // 3. Carrega Carro e Relacionados
   useEffect(() => {
     async function fetchCarData() {
       if (currentCar) setIsSwitchingCar(true);
@@ -103,7 +104,7 @@ function ConfiguratorContent() {
     }
   }, [idDoUrl, isMounted]);
 
-  // 3. Calcula Preço Total
+  // 4. Calcula Preço Total
   const totalPrice = useMemo(() => {
     if (!currentCar) return 0;
     let total = safePrice(currentCar.price_start);
@@ -117,7 +118,7 @@ function ConfiguratorContent() {
     return total;
   }, [currentCar, selectedColor, selectedWheel, selectedSeatType, selectedAccs]);
 
-  // 4. Prepara Lista de Acessórios
+  // 5. Prepara Lista de Acessórios
   const selectedAccessoriesList = useMemo(() => {
     if (!currentCar?.accessories) return [];
     return currentCar.accessories.filter((acc: any) => selectedAccs.includes(acc.id));
@@ -137,7 +138,6 @@ function ConfiguratorContent() {
     return <div className="h-screen flex items-center justify-center">Carro não encontrado.</div>;
 
   return (
-    // Toque Mobile: touch-none no loader para evitar scroll enquanto carrega
     <>
       <div
         className={`fixed inset-0 z-[9999] bg-white flex items-center justify-center transition-opacity pointer-events-none touch-none ${
@@ -147,7 +147,6 @@ function ConfiguratorContent() {
         <Loader2 className="w-8 h-8 text-gray-300 animate-spin" />
       </div>
 
-      {/* Container Principal Mobile Friendly */}
       <div className="flex flex-col min-h-screen max-w-full overflow-x-hidden select-none touch-manipulation">
         <div className="p-4 flex-shrink-0">
           <button

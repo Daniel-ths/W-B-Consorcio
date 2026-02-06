@@ -3,7 +3,8 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import FooterWrapper from "@/components/FooterWrapper"; 
-// import { AuthProvider } from "@/contexts/AuthContext"; // <--- 1. DESATIVADO
+// 1. IMPORTAR O PROVIDER (Certifique-se de ter criado o arquivo src/contexts/AuthContext.tsx conforme passo anterior)
+import { AuthProvider } from "@/contexts/AuthContext"; 
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -19,14 +20,16 @@ export default function RootLayout({
     <html lang="pt-BR" suppressHydrationWarning={true}>
       <body className={`${inter.className} flex flex-col min-h-screen bg-white text-gray-900`} suppressHydrationWarning={true}>
         
-        {/* SEM AUTHPROVIDER - O site roda "solto" */}
-        <Navbar />
+        {/* 2. ENVOLVER A APLICAÇÃO COM O AUTHPROVIDER */}
+        <AuthProvider>
+            <Navbar />
 
-        <main className="flex-grow">
-          {children}
-        </main>
+            <main className="flex-grow">
+              {children}
+            </main>
 
-        <FooterWrapper />
+            <FooterWrapper />
+        </AuthProvider>
           
       </body>
     </html>
