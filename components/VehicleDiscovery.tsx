@@ -128,13 +128,6 @@ export default function VehicleDiscovery() {
             </div>
 
             <div className="z-30 transition-all duration-700 delay-100 transform translate-y-0 -mt-8 md:-mt-12 lg:-mt-16">
-                 <Link 
-                    href={currentCategory.link}
-                    className="group bg-blue-600 text-white pl-8 pr-6 py-4 rounded-full text-sm font-bold uppercase tracking-widest flex items-center gap-3 hover:bg-blue-700 transition-all shadow-2xl hover:shadow-blue-900/30 hover:-translate-y-1"
-                 >
-                    Ver Ofertas 
-                    <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform stroke-[3]"/>
-                 </Link>
             </div>
 
         </div>
