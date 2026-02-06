@@ -1,3 +1,5 @@
+// app/api/consultar-cpf/route.ts
+
 import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
@@ -5,46 +7,91 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { cpf } = body;
 
-    // --- SEUS TOKENS (Copiados da sua mensagem anterior) ---
-    const BEARE_TOKEN = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwczovL2dhdGV3YXkuYXBpYnJhc2lsLmlvL2FwaS92Mi9zb2NpYWwvZ2l0aHViL2NhbGxiYWNrIiwiaWF0IjoxNzY5MTIxNzI5LCJleHAiOjE4MDA2NTc3MjksIm5iZiI6MTc2OTEyMTcyOSwianRpIjoiaXNKYUVENG94SG5RODlOYSIsInN1YiI6IjIwMzQyIiwicHJ2IjoiMjNiZDVjODk0OWY2MDBhZGIzOWU3MDFjNDAwODcyZGI3YTU5NzZmNyJ9.FiS0iN6_N8hNOhGnBYU2f9zESSPh4wXiFI0RQ4X_F5g"; 
-    const DEVICE_TOKEN = "178bfa7c-fc33-4ef2-aabe-915aa48e89aa"; 
-    // -----------------------------------------------------
-
-    const cpfLimpo = cpf.replace(/\D/g, '');
-
-    // URL Exata da sua imagem (POST)
-    const url = "https://gateway.apibrasil.io/api/v2/dados/cpf";
-
-    console.log(`Consultando API Brasil (POST) para CPF: ${cpfLimpo}`);
-
-    const response = await fetch(url, {
-      method: "POST", // A imagem confirma que é POST
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${BEARE_TOKEN}`,
-        "DeviceToken": DEVICE_TOKEN
-      },
-      body: JSON.stringify({ 
-        cpf: cpfLimpo 
-      })
-    });
-
-    const data = await response.json();
-
-    // Log para debug no terminal
-    console.log("Status:", response.status);
-    
-    if (!response.ok || data.error) {
-      console.error("Erro API:", data);
-      return NextResponse.json({ 
-        error: data.message || data.error || "Erro na consulta." 
-      }, { status: response.status });
+    const cpfLimpo = cpf?.replace(/\D/g, '');
+    if (!cpfLimpo || cpfLimpo.length !== 11) {
+      return NextResponse.json(
+        { error: 'CPF inválido' },
+        { status: 400 }
+      );
     }
 
-    return NextResponse.json(data);
+    console.log(`--- MODO MANUTENÇÃO: RETORNANDO DADOS REALISTAS PARA ${cpfLimpo} ---`);
 
-  } catch (error) {
-    console.error("Erro interno:", error);
-    return NextResponse.json({ error: "Erro interno no servidor" }, { status: 500 });
+    // SIMULAÇÃO DE DELAY (Para ver o loading na tela)
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
+    // --- DADOS MOCK (REALISTAS) ---
+    const dadosMock = {
+      success: true,
+      nome: "MARCOS OLIVEIRA DOS SANTOS", // Fallback simples
+      
+      // Estrutura complexa da APIBrasil
+      response: {
+        content: {
+          nome: {
+            conteudo: {
+              nome: "MARCOS OLIVEIRA DOS SANTOS",
+              cpf: cpfLimpo, // Retorna o mesmo CPF digitado para parecer real
+              data_nascimento: "15/05/1985",
+              mae: "MARIA APARECIDA OLIVEIRA",
+              situacao_receita: "REGULAR",
+              genero: "MASCULINO",
+              ano_obito: null
+            }
+          },
+          pesquisa_enderecos: {
+            conteudo: [
+              {
+                logradouro: "RUA DAS LARANJEIRAS",
+                numero: "450",
+                complemento: "APTO 32 BL A",
+                bairro: "JARDIM FLORESTA",
+                cidade: "SÃO PAULO",
+                estado: "SP",
+                cep: "04567-000"
+              }
+            ]
+          },
+          contato_preferencial: {
+            conteudo: [
+              { valor: "(11) 98765-4321" }
+            ]
+          },
+          pesquisa_telefones: {
+            conteudo: [
+               { numero: "(11) 98765-4321" },
+               { numero: "(11) 3344-5566" }
+            ]
+          }
+        }
+      }
+    };
+
+    return NextResponse.json(dadosMock);
+
+    /* --- CÓDIGO REAL (GUARDADO) ---
+    const token = "SEU_TOKEN".trim();
+    const deviceToken = "SEU_DEVICE".trim();
+    const url = "https://gateway.apibrasil.io/api/v2/dados/cpf";
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
+        "DeviceToken": deviceToken,
+        "User-Agent": "Mozilla/5.0"
+      },
+      body: JSON.stringify({ cpf: cpfLimpo })
+    });
+    // ...resto do código
+    */
+
+  } catch (error: any) {
+    console.error("ERRO SERVIDOR:", error);
+    return NextResponse.json(
+      { error: "Erro interno: " + error.message },
+      { status: 500 }
+    );
   }
 }

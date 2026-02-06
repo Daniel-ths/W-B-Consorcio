@@ -4,7 +4,8 @@ import { useState, Suspense, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase"; 
 import { 
-  CheckCircle2, Loader2, ArrowLeft, Printer, CarFront, User, DollarSign, Briefcase, Send, MapPin, Phone, Calendar, Heart, FileText, AlertCircle
+  CheckCircle2, Loader2, ArrowLeft, Printer, CarFront, User, DollarSign, 
+  Briefcase, Send, MapPin, Phone, Calendar, Heart, FileText, Search, RefreshCw 
 } from "lucide-react";
 
 function PedidoContent() {
@@ -24,7 +25,8 @@ function PedidoContent() {
     imagem: searchParams.get('imagem') || "", 
   };
 
-  const [loadingValidacao, setLoadingValidacao] = useState(true);
+  const [loadingValidacao, setLoadingValidacao] = useState(true); // Load inicial da página
+  const [verificando, setVerificando] = useState(false); // Load do botão específico
   const [loadingSalvar, setLoadingSalvar] = useState(false); 
   const [pedidoSalvo, setPedidoSalvo] = useState(false); 
   
@@ -34,11 +36,11 @@ function PedidoContent() {
   const [dataAtual, setDataAtual] = useState("");
 
   useEffect(() => {
-    // Formata a data atual para o rodapé do contrato
     setDataAtual(new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' }));
     
+    // Consulta automática ao carregar, se tiver CPF
     if (dados.cpf) {
-        validarReceita();
+        validarReceita(false); // false = não é clique manual
     } else {
         setLoadingValidacao(false);
     }
@@ -48,10 +50,13 @@ function PedidoContent() {
   const numeroPedido = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
 
   // --- 1. CONSULTA API RECEITA ---
-  const validarReceita = async () => {
+  // isManual define se foi clique no botão (true) ou load de página (false)
+  const validarReceita = async (isManual = true) => {
+    if (isManual) setVerificando(true);
+    
     try {
       const response = await fetch('/api/consultar-cpf', {
-        method: 'POST', // Usando POST conforme descobrimos ser o correto
+        method: 'POST',
         body: JSON.stringify({ cpf: dados.cpf }),
         headers: { 'Content-Type': 'application/json' }
       });
@@ -59,28 +64,38 @@ function PedidoContent() {
 
       if (data && !data.error) {
         setApiData(data); 
-        // Tenta extrair o nome da estrutura complexa
-        const nomeApi = data.response?.content?.nome?.conteudo?.nome || "";
-        setNomeManual(nomeApi);
+        // Extrai o nome se disponível
+        const nomeApi = data.response?.content?.nome?.conteudo?.nome || 
+                        data.nome || // Fallback para outras estruturas de API
+                        "";
+        
+        if (nomeApi) setNomeManual(nomeApi);
+        if (isManual) alert("Dados atualizados com sucesso!");
+      } else {
+        if (isManual) alert("Não foi possível encontrar dados para este CPF.");
       }
     } catch (error) {
       console.error("Erro ao buscar CPF", error);
+      if (isManual) alert("Erro de conexão ao buscar CPF.");
     } finally {
       setLoadingValidacao(false);
+      setVerificando(false);
     }
   };
 
-  // --- ATALHOS PARA OS DADOS DO JSON COMPLEXO ---
-  // Aqui mapeamos exatamente o JSON que você me mostrou
-  const pessoa = apiData?.response?.content?.nome?.conteudo || {};
-  const endereco = apiData?.response?.content?.pesquisa_enderecos?.conteudo?.[0] || {};
-  const telefoneAPI = apiData?.response?.content?.contato_preferencial?.conteudo?.[0]?.valor || 
-                      apiData?.response?.content?.pesquisa_telefones?.conteudo?.[0]?.numero || "";
-  const situacaoReceita = pessoa.situacao_receita || "Não Verificado";
+  // --- ATALHOS PARA OS DADOS ---
+  const content = apiData?.response?.content || {};
+  const pessoa = content?.nome?.conteudo || apiData || {}; // Fallback genérico
+  const endereco = content?.pesquisa_enderecos?.conteudo?.[0] || {};
+  const telefoneAPI = content?.contato_preferencial?.conteudo?.[0]?.valor || 
+                      content?.pesquisa_telefones?.conteudo?.[0]?.numero || "";
+  const situacaoReceita = pessoa.situacao_receita || apiData?.situacao_cadastral || "Não Verificado";
+  const genero = pessoa.genero || apiData?.genero || ""; // Novo campo
+  const anoInscricao = pessoa.ano_obito || ""; // Exemplo de campo extra se existir
 
   // --- 2. ENVIAR PARA O ADMIN ---
   const handleFinalizarSolicitacao = async () => {
-    if (!nomeManual) return alert("Aguarde o carregamento dos dados.");
+    if (!nomeManual) return alert("Aguarde o carregamento ou preencha os dados.");
     setLoadingSalvar(true);
 
     try {
@@ -123,7 +138,7 @@ function PedidoContent() {
   return (
     <div className="min-h-screen bg-[#e5e7eb] font-sans text-slate-900 pb-20 print:bg-white print:p-0">
         
-        {/* BARRA DE AÇÕES (Não aparece na impressão) */}
+        {/* HEADER / ACTIONS */}
         <header className="px-6 py-4 bg-white border-b border-gray-200 sticky top-0 z-50 print:hidden shadow-sm">
             <div className="max-w-5xl mx-auto flex items-center justify-between">
                 <button onClick={() => router.back()} className="flex items-center gap-2 text-slate-500 hover:text-black transition-colors font-bold text-xs uppercase">
@@ -131,7 +146,7 @@ function PedidoContent() {
                 </button>
                 <div className="flex items-center gap-3">
                     <button onClick={() => window.print()} className="bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg text-xs font-bold uppercase hover:bg-slate-50 flex items-center gap-2 shadow-sm transition-all">
-                        <Printer size={16}/> Imprimir Contrato
+                        <Printer size={16}/> Imprimir
                     </button>
                     
                     {!pedidoSalvo ? (
@@ -145,36 +160,34 @@ function PedidoContent() {
                         </button>
                     ) : (
                         <div className="bg-green-100 text-green-800 px-4 py-2 rounded-lg text-xs font-bold uppercase flex items-center gap-2 border border-green-200">
-                            <CheckCircle2 size={16}/> Salvo no Sistema
+                            <CheckCircle2 size={16}/> Salvo
                         </div>
                     )}
                 </div>
             </div>
         </header>
 
-        {/* ÁREA DA FOLHA A4 */}
+        {/* PAPER AREA */}
         <main className="max-w-5xl mx-auto py-8 md:px-4 print:max-w-full print:p-0">
             
             <div className="bg-white shadow-xl rounded-xl overflow-hidden print:shadow-none print:rounded-none border border-gray-200 print:border-none w-full max-w-[210mm] mx-auto min-h-[297mm] flex flex-col">
                 
-                {/* CABEÇALHO DO DOCUMENTO */}
+                {/* HEADER DOCUMENTO */}
                 <div className="bg-slate-900 text-white p-8 print:bg-white print:text-black print:border-b-2 print:border-black print:p-0 print:mb-6">
                     <div className="flex justify-between items-start">
                         <div className="flex items-center gap-4">
-                            {/* LOGO SIMULADO */}
                             <div className="w-16 h-16 bg-white text-black flex items-center justify-center rounded-lg font-black text-3xl print:border-2 print:border-black">W</div>
                             <div>
                                 <h1 className="text-2xl font-bold uppercase tracking-tight leading-none mb-1">Ficha Cadastral</h1>
                                 <p className="text-xs font-medium text-slate-400 uppercase tracking-widest print:text-black">W B C Consórcio & Veículos</p>
-                                <p className="text-[10px] text-slate-500 mt-2 print:hidden">CNPJ: 00.000.000/0001-00</p>
                             </div>
                         </div>
                         <div className="text-right">
-                            <p className="text-[10px] uppercase text-slate-400 font-bold print:text-black">Número do Protocolo</p>
+                            <p className="text-[10px] uppercase text-slate-400 font-bold print:text-black">Protocolo</p>
                             <p className="text-2xl font-mono font-bold tracking-widest">#{numeroPedido}</p>
                             <div className="mt-2">
                                 <span className="px-3 py-1 bg-[#f2e14c] text-black text-[10px] font-bold uppercase rounded print:border print:border-black print:bg-white">
-                                    Proposta de {dados.tipo}
+                                    {dados.tipo}
                                 </span>
                             </div>
                         </div>
@@ -183,11 +196,23 @@ function PedidoContent() {
 
                 <div className="p-8 space-y-8 flex-1 print:p-0 print:space-y-4">
 
-                    {/* 1. DADOS DO CLIENTE (Completo da API) */}
+                    {/* 1. DADOS DO CLIENTE */}
                     <section className="border border-gray-200 rounded-lg overflow-hidden print:border-black print:rounded-none">
-                        <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 flex items-center gap-2 print:bg-gray-200 print:border-black">
-                            <User size={14} className="text-black"/>
-                            <h3 className="text-xs font-black uppercase text-slate-800">1. Identificação do Proponente</h3>
+                        <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 flex items-center justify-between print:bg-gray-200 print:border-black">
+                            <div className="flex items-center gap-2">
+                                <User size={14} className="text-black"/>
+                                <h3 className="text-xs font-black uppercase text-slate-800">1. Identificação do Proponente</h3>
+                            </div>
+                            
+                            {/* --- BOTÃO NOVO DE VERIFICAÇÃO --- */}
+                            <button 
+                                onClick={() => validarReceita(true)} 
+                                disabled={verificando}
+                                className="print:hidden flex items-center gap-1 text-[10px] bg-blue-50 text-blue-700 px-2 py-1 rounded border border-blue-200 hover:bg-blue-100 transition-colors uppercase font-bold"
+                            >
+                                {verificando ? <Loader2 size={12} className="animate-spin"/> : <RefreshCw size={12}/>}
+                                {verificando ? "Buscando..." : "Buscar na Receita"}
+                            </button>
                         </div>
                         
                         <div className="p-5 grid grid-cols-1 md:grid-cols-4 gap-y-5 gap-x-4 print:gap-y-2 print:text-sm">
@@ -195,44 +220,67 @@ function PedidoContent() {
                             {/* LINHA 1 */}
                             <div className="md:col-span-3">
                                 <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Nome Completo</label>
-                                <div className="font-bold text-slate-900 uppercase border-b border-gray-100 pb-1">{nomeManual || "---"}</div>
+                                <div className="font-bold text-slate-900 uppercase border-b border-gray-100 pb-1 min-h-[24px]">
+                                    {nomeManual || (verificando ? <span className="animate-pulse bg-gray-200 h-4 w-1/2 block rounded"/> : "---")}
+                                </div>
                             </div>
                             <div>
                                 <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">CPF</label>
-                                <div className="font-mono font-bold text-slate-900 border-b border-gray-100 pb-1">{dados.cpf}</div>
+                                <div className="font-mono font-bold text-slate-900 border-b border-gray-100 pb-1 flex items-center justify-between">
+                                    {dados.cpf}
+                                    {situacaoReceita === 'REGULAR' && <CheckCircle2 size={14} className="text-green-500 print:hidden"/>}
+                                </div>
                             </div>
 
                             {/* LINHA 2 */}
                             <div>
                                 <label className="flex items-center gap-1 text-[9px] font-bold text-slate-400 uppercase mb-1"><Calendar size={10}/> Data Nasc.</label>
-                                <div className="font-medium text-slate-700">{pessoa.data_nascimento || "---"}</div>
+                                <div className="font-medium text-slate-700">
+                                    {pessoa.data_nascimento || (verificando ? "..." : "---")}
+                                </div>
                             </div>
                             <div className="md:col-span-2">
                                 <label className="flex items-center gap-1 text-[9px] font-bold text-slate-400 uppercase mb-1"><Heart size={10}/> Nome da Mãe</label>
-                                <div className="font-medium text-slate-700 uppercase">{pessoa.mae || "---"}</div>
+                                <div className="font-medium text-slate-700 uppercase">
+                                    {pessoa.mae || pessoa.nome_mae || (verificando ? "..." : "---")}
+                                </div>
                             </div>
                             <div>
                                 <label className="flex items-center gap-1 text-[9px] font-bold text-slate-400 uppercase mb-1"><FileText size={10}/> Situação Cadastral</label>
                                 <div className={`font-bold text-xs uppercase ${situacaoReceita === 'REGULAR' ? 'text-green-700' : 'text-red-600'} print:text-black`}>
-                                    {situacaoReceita}
+                                    {verificando ? "..." : situacaoReceita}
                                 </div>
                             </div>
 
+                            {/* LINHA DINÂMICA (Aparece só se tiver dados extras) */}
+                            {genero && (
+                                <div className="md:col-span-1">
+                                    <label className="block text-[9px] font-bold text-slate-400 uppercase mb-1">Gênero</label>
+                                    <div className="font-medium text-slate-700 uppercase">{genero}</div>
+                                </div>
+                            )}
+
                             {/* LINHA 3 - CONTATO & ENDEREÇO */}
                             <div className="md:col-span-1">
-                                <label className="flex items-center gap-1 text-[9px] font-bold text-slate-400 uppercase mb-1"><Phone size={10}/> Telefone / Celular</label>
-                                <div className="font-medium text-slate-900">{telefoneAPI || "Não informado"}</div>
+                                <label className="flex items-center gap-1 text-[9px] font-bold text-slate-400 uppercase mb-1"><Phone size={10}/> Telefone</label>
+                                <div className="font-medium text-slate-900">
+                                    {telefoneAPI || (verificando ? "..." : "Não informado")}
+                                </div>
                             </div>
 
                             <div className="md:col-span-3">
                                 <label className="flex items-center gap-1 text-[9px] font-bold text-slate-400 uppercase mb-1"><MapPin size={10}/> Endereço Residencial (Receita Federal)</label>
-                                {endereco.logradouro ? (
+                                {verificando ? (
+                                    <div className="animate-pulse bg-gray-100 h-10 w-full rounded"></div>
+                                ) : endereco.logradouro ? (
                                     <div className="font-medium text-slate-700 uppercase text-xs border p-2 rounded bg-gray-50 print:bg-white print:border-none print:p-0">
                                         {endereco.logradouro}, Nº {endereco.numero} {endereco.complemento} - {endereco.bairro}. <br/>
                                         {endereco.cidade} / {endereco.estado} - CEP: {endereco.cep}
                                     </div>
                                 ) : (
-                                    <div className="text-slate-400 text-xs italic border-b border-dotted border-gray-300 w-full h-6">Preencher manualmente</div>
+                                    <div className="text-slate-400 text-xs italic border-b border-dotted border-gray-300 w-full h-6 flex items-center">
+                                        Endereço não retornado pela API. Preencher manualmente.
+                                    </div>
                                 )}
                             </div>
                         </div>
