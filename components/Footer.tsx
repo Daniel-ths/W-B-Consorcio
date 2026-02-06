@@ -76,17 +76,24 @@ export default function Footer() {
         </div>
       </div>
 
-      {/* Faixa Final */}
+
+{/* Faixa Final */}
       <div className="border-t border-gray-200 bg-[#e5e5e5] py-6">
         <div className="max-w-[1400px] mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4 text-[10px] tracking-wider uppercase text-gray-500 font-bold">
             <p>© {new Date().getFullYear()} W B C Consórcio LTDA: Todos os direitos reservados.</p>
             <div className="flex gap-6 flex-wrap justify-center">
-                <a href="#" className="hover:text-black">Política de Privacidade</a>
-                <a href="#" className="hover:text-black">Termos de Uso</a>
+                {/* AQUI ESTÃO OS LINKS ATUALIZADOS */}
+                <Link href="/politica-de-privacidade" className="hover:text-black">
+                    Política de Privacidade
+                </Link>
+                <Link href="/termos-de-uso" className="hover:text-black">
+                    Termos de Uso
+                </Link>
                 <span>CNPJ: 59.041.030/0001-99</span>
             </div>
         </div>
       </div>
+
     </footer>
   )
 }

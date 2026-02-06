@@ -35,17 +35,11 @@ const getImageUrl = (file: string) => {
 const maskPhone = (v: string) => v.replace(/\D/g, "").replace(/(\d{2})(\d)/, "($1) $2").replace(/(\d{5})(\d)/, "$1-$2").replace(/(-\d{4})\d+?$/, "$1");
 const maskCpf = (v: string) => v.replace(/\D/g, "").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d{1,2})$/, "$1-$2").replace(/(-\d{2})\d+?$/, "$1");
 
-// NOVA FUNÇÃO: Máscara de Moeda (R$)
 const formatCurrency = (value: string) => {
   if (!value) return "";
-  // Remove tudo que não é dígito
   const onlyNums = value.replace(/\D/g, "");
   if (!onlyNums) return "";
-  
-  // Trata como centavos (divide por 100)
   const numberValue = Number(onlyNums) / 100;
-  
-  // Formata para BRL
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL'
@@ -116,7 +110,6 @@ export default function SeminovosPage() {
   };
 
   const handleSubmit = () => {
-    // Remove formatação de moeda antes de enviar se necessário, ou envia formatado mesmo
     const query = new URLSearchParams({ ...formData, marca: selectedBrand?.name || "" }).toString();
     router.push(`/vendedor/analise?${query}`);
   };
@@ -144,46 +137,56 @@ export default function SeminovosPage() {
                     priority 
                  />
             </div>
+            
+            {/* INPUT DE BUSCA - SÓ APARECE SE NENHUMA MARCA ESTIVER SELECIONADA */}
             {!selectedBrand && (
-                <div className="relative w-full max-w-md group animate-in fade-in slide-in-from-right-4">
+                <div className="relative w-full max-w-md group animate-in fade-in slide-in-from-right-4 duration-500">
                     <input 
                         type="text" placeholder="Qual marca você procura?" 
                         value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-4 pr-10 py-2.5 bg-white border-none text-sm font-bold uppercase rounded-lg shadow-sm focus:ring-2 focus:ring-black outline-none transition-all"
+                        className="w-full pl-4 pr-10 py-3.5 bg-white border-none text-base font-bold uppercase rounded-lg shadow-sm focus:ring-2 focus:ring-black outline-none transition-all"
                     />
-                    <Search className="absolute right-3 top-2.5 text-black" size={20} />
+                    <Search className="absolute right-3 top-3.5 text-black" size={20} />
                 </div>
             )}
          </div>
       </div>
 
-      <main className="max-w-6xl mx-auto px-6 py-12 flex-grow">
+      <main className="max-w-7xl mx-auto px-6 py-12 flex-grow w-full">
         
         {!selectedBrand ? (
              <div className="animate-in fade-in duration-700">
-                <div className="text-center mb-10">
-                    <h2 className="text-xl font-bold text-gray-800 uppercase inline-block border-b-4 border-[#f2e14c] pb-1 tracking-wide">
-                        Selecione a Marca para Iniciar
+                <div className="text-center mb-12">
+                    <h2 className="text-2xl md:text-3xl font-black text-gray-800 uppercase inline-block border-b-4 border-[#f2e14c] pb-2 tracking-wide">
+                        Selecione a Marca
                     </h2>
                 </div>
                 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                {/* GRID DE MARCAS - AUMENTADO PARA DAR DESTAQUE */}
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-8">
                     {filteredBrands.map((brand) => (
                         <button 
                             key={brand.id} onClick={() => handleBrandSelect(brand)}
-                            className="h-44 bg-white border border-gray-100 rounded-3xl relative group flex flex-col items-center justify-center p-6 transition-all hover:border-[#f2e14c] hover:-translate-y-2 shadow-sm hover:shadow-2xl"
+                            className="h-60 md:h-72 bg-white border-2 border-transparent rounded-[2rem] relative group flex flex-col items-center justify-center p-8 transition-all hover:border-[#f2e14c] hover:scale-105 shadow-md hover:shadow-2xl overflow-hidden"
                         >
-                            <Image 
-                                src={getImageUrl(brand.file)} alt={brand.name} 
-                                width={0} height={0} sizes="100vw"
-                                className="h-20 w-auto object-contain mb-4 transition-transform duration-500 group-hover:scale-110"
-                            />
-                            <span className="font-black text-gray-300 transition-colors group-hover:text-black uppercase text-xs tracking-widest">{brand.name}</span>
+                            <div className="flex-1 flex items-center justify-center w-full">
+                                <div className="relative w-full h-28 md:h-40 transition-transform duration-500 group-hover:scale-110">
+                                    <Image 
+                                        src={getImageUrl(brand.file)} alt={brand.name} 
+                                        fill
+                                        className="object-contain"
+                                    />
+                                </div>
+                            </div>
+                            <span className="font-black text-gray-400 group-hover:text-black uppercase text-sm md:text-lg tracking-widest mt-6 transition-colors">
+                                {brand.name}
+                            </span>
                         </button>
                     ))}
                 </div>
              </div>
         ) : (
+            // FORMULÁRIO (APARECE QUANDO SELECIONA A MARCA)
             <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 animate-in slide-in-from-right-20 duration-500 pb-10">
                 <div className="bg-white p-8 rounded-3xl shadow-xl border border-gray-100">
                     <div className="flex items-center justify-between mb-8 border-b border-gray-50 pb-6">
@@ -194,15 +197,17 @@ export default function SeminovosPage() {
                     </div>
 
                     <div className="space-y-6">
-                        <div className="p-4 bg-gray-50 rounded-2xl flex items-center gap-4 border border-gray-100 animate-in fade-in">
-                            <Image 
-                                src={getImageUrl(selectedBrand.file)} alt={selectedBrand.name} 
-                                width={0} height={0} sizes="100vw"
-                                className="h-12 w-auto object-contain"
-                            />
+                        <div className="p-6 bg-gray-50 rounded-2xl flex items-center gap-6 border border-gray-100 animate-in fade-in">
+                            <div className="relative h-16 w-24">
+                                <Image 
+                                    src={getImageUrl(selectedBrand.file)} alt={selectedBrand.name} 
+                                    fill
+                                    className="object-contain"
+                                />
+                            </div>
                             <div>
                                 <p className="text-[10px] font-bold text-gray-400 uppercase">Marca Escolhida</p>
-                                <p className="font-black text-xl uppercase leading-none">{selectedBrand.name}</p>
+                                <p className="font-black text-2xl uppercase leading-none">{selectedBrand.name}</p>
                             </div>
                         </div>
 
@@ -242,7 +247,6 @@ export default function SeminovosPage() {
                             </div>
                             <div>
                                 <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">Preço (R$)</label>
-                                {/* Aqui aplicamos a máscara de moeda também para o preço do carro */}
                                 <input 
                                     type="text" 
                                     placeholder="R$ 0,00" 
@@ -270,7 +274,6 @@ export default function SeminovosPage() {
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="text-[10px] font-bold text-gray-400 uppercase mb-1 block">Renda Mensal</label>
-                                    {/* MÁSCARA DE MOEDA APLICADA AQUI */}
                                     <input 
                                         type="text" 
                                         placeholder="R$ 0,00" 
@@ -281,7 +284,6 @@ export default function SeminovosPage() {
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-bold text-gray-400 uppercase mb-1 block">Entrada</label>
-                                    {/* MÁSCARA DE MOEDA APLICADA AQUI */}
                                     <input 
                                         type="text" 
                                         placeholder="R$ 0,00" 

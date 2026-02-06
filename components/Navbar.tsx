@@ -31,7 +31,7 @@ export default function Navbar() {
   const [menuAberto, setMenuAberto] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Estados de Usuário (Apenas para exibir Nome/Avatar, não para bloquear acesso)
+  // Estados de Usuário
   const [user, setUser] = useState<any>(null);
   const [userRole, setUserRole] = useState<string | null>(null); 
   const [loading, setLoading] = useState(true);
@@ -48,7 +48,7 @@ export default function Navbar() {
         .from('profiles')
         .select('full_name, avatar_url, role')
         .eq('id', userId)
-        .maybeSingle(); // maybeSingle evita erro 406 se não existir perfil
+        .maybeSingle(); 
       
       if (profile) {
         setFullName(profile.full_name || "");
@@ -56,8 +56,7 @@ export default function Navbar() {
         setUserRole(profile.role || "user");
       }
     } catch (error) {
-      // Erros silenciosos de perfil não precisam travar a tela
-      // console.error("Erro silencioso perfil:", error);
+      // Ignorar erros silenciosos
     }
   };
 
@@ -66,7 +65,6 @@ export default function Navbar() {
 
     const checkAuth = async () => {
       try {
-        // getSession é mais rápido que getUser pois usa cache local
         const { data: { session } } = await supabase.auth.getSession();
         
         if (mounted && session?.user) {
@@ -74,8 +72,6 @@ export default function Navbar() {
           await fetchProfile(session.user.id);
         }
       } catch (error: any) {
-        // --- 🟢 FIX DO ERRO AbortError ---
-        // Se o erro for de abortamento (comum em dev), a gente ignora.
         if (error.name === 'AbortError' || error.message?.includes('aborted')) {
             return; 
         }
@@ -87,13 +83,11 @@ export default function Navbar() {
 
     checkAuth();
 
-    // Listener para mudanças de estado (Login/Logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
       
       setUser(session?.user ?? null);
       if (session?.user) {
-         // Só busca perfil se realmente mudou o usuário
          if (session.user.id !== user?.id) {
             await fetchProfile(session.user.id);
          }
@@ -110,19 +104,18 @@ export default function Navbar() {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, []); // Array vazio garante execução única na montagem
+  }, []);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.refresh();
-    window.location.reload(); // Reload para limpar estados globais
+    window.location.reload(); 
   };
 
   const toggleMenu = (menu: string) => {
     setMenuAberto(menuAberto === menu ? null : menu);
   };
 
-  // Definições visuais baseadas no usuário (sem bloquear a UI)
   const isAdmin = userRole === 'admin' || user?.email?.toLowerCase().includes("admin");
   const dashboardLink = isAdmin ? "/admin" : "/vendedor/dashboard";
   const dashboardLabel = isAdmin ? "Painel Gerencial" : "Painel do Vendedor";
@@ -143,14 +136,13 @@ export default function Navbar() {
 
           <div className="hidden md:flex gap-6 items-center">
             
-            {/* BOTÃO VEÍCULOS (Sempre Visível) */}
+            {/* BOTÃO VEÍCULOS */}
             <button 
                 onClick={() => toggleMenu('veiculos')}
                 className={`text-xs font-bold uppercase tracking-wide flex items-center gap-1 transition-colors ${menuAberto === 'veiculos' ? 'text-black' : 'text-gray-600 hover:text-black'}`}
             >
                 {menuAberto === 'veiculos' ? <X size={16}/> : null} Veículos
             </button>
-
 
           </div>
         </div>
@@ -193,7 +185,6 @@ export default function Navbar() {
                 </div>
 
                 <div className="p-2 space-y-1">
-                  {/* LINK DO PAINEL (Sempre visível se logado) */}
                   <Link href={dashboardLink} className={`flex items-center gap-3 px-4 py-3 text-sm font-bold rounded-lg transition-colors ${isAdmin ? 'text-gray-800 hover:bg-black hover:text-yellow-400' : 'text-gray-700 hover:bg-yellow-50 hover:text-yellow-700'}`}>
                     {isAdmin ? <ShieldCheck size={18} /> : <LayoutDashboard size={18} />}
                     {dashboardLabel}
@@ -217,11 +208,13 @@ export default function Navbar() {
               <User size={18} /> Entrar
             </Link>
           )}
-          <button className="hover:text-black transition-colors hidden sm:block"><MapPin size={20} /></button>
+          
+          {/* REMOVIDO: Botão MapPin (Localização) */}
+          
         </div>
       </nav>
 
-      {/* MEGA MENU (Liberado para todos) */}
+      {/* MEGA MENU */}
       <div className={`fixed top-[0px] left-0 w-full bg-white shadow-2xl border-t border-gray-100 z-[1000] menu-dropdown ${menuAberto === 'veiculos' ? 'menu-dropdown-ativo' : ''}`}>
           <VehiclesMenu onClose={() => setMenuAberto(null)} />
       </div>
@@ -244,16 +237,12 @@ export default function Navbar() {
           <div className="space-y-6">
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Menu</p>
             
-            {/* LINKS SEMPRE VISÍVEIS (Segurança removida) */}
             <Link href="/vendedor/seminovos" onClick={() => setSidebarOpen(false)} className="flex items-center gap-4 text-gray-800 font-bold text-sm uppercase tracking-wide hover:text-[#CD9834] group transition-colors">
               <CarFront size={18} className="text-gray-400 group-hover:text-[#CD9834]"/> Catálogo Seminovos
             </Link>
 
             <Link href="#" className="flex items-center gap-4 text-gray-800 font-bold text-sm uppercase tracking-wide hover:text-[#CD9834] group transition-colors">
               <Phone size={18} className="text-gray-400 group-hover:text-[#CD9834]"/> Fale Conosco
-            </Link>
-            <Link href="#" className="flex items-center gap-4 text-gray-800 font-bold text-sm uppercase tracking-wide hover:text-[#CD9834] group transition-colors">
-              <MapPin size={18} className="text-gray-400 group-hover:text-[#CD9834]"/> Localizar Concessionária
             </Link>
           </div>
         </div>
