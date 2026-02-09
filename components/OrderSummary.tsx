@@ -181,17 +181,9 @@ export default function OrderSummary({
           <h1 className="text-3xl font-light tracking-tight">Sua 2026 {currentCar.model_name || currentCar.name}</h1>
           <div className="flex items-center gap-6">
             <div className="flex gap-4 text-gray-600">
-               <button className="hover:text-black"><Download size={20} /></button>
-               <button className="hover:text-black"><LinkIcon size={20} /></button>
             </div>
             {user && (
               <>
-                <button className="hidden md:block px-6 py-2 bg-gray-100 text-gray-900 font-medium rounded hover:bg-gray-200 transition-colors text-sm">
-                  Inventário
-                </button>
-                <button onClick={handleFinishOrder} className="px-6 py-2 bg-black text-white font-medium rounded hover:bg-gray-800 transition-colors text-sm">
-                  Escolher Crédito
-                </button>
               </>
             )}
           </div>

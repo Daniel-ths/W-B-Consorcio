@@ -4,12 +4,18 @@ import { useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image"; 
 import { 
-  Search, ArrowRight, User, Wallet, Phone, Car, Loader2, MapPin, Facebook, Instagram
+  Search, ArrowRight, User, Wallet, Phone, Car, Loader2, MapPin, Facebook, Instagram, Plus, Minus, CheckCircle2, DollarSign, Calendar, FileText, ChevronRight, Filter
 } from "lucide-react";
 
-// --- DADOS E FUNÇÕES ESTÁTICAS ---
+// --- DADOS E FUNÇÕES (Mantidos) ---
 const BASE_URL_IMG = "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/logo/";
 const LOGO_FILE = "seminovos.png"; 
+
+const FAQ_ITEMS = [
+  { question: "Como funciona a avaliação?", answer: "A avaliação é feita com base na tabela FIPE e no estado de conservação do veículo." },
+  { question: "O pagamento é à vista?", answer: "Sim, ou usado como entrada na troca por outro veículo." },
+  { question: "Aceitam carro financiado?", answer: "Sim, quitamos o financiamento e pagamos a diferença." },
+];
 
 const BRANDS = [
   { name: 'CHEVROLET', id: 23, file: 'https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/chevrolet-logo.svg' }, 
@@ -26,63 +32,46 @@ const BRANDS = [
   { name: 'PEUGEOT', id: 41, file: 'https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/logo/images%20(2).jfif' },
 ];
 
-const getImageUrl = (file: string) => {
-  if (file.startsWith('http')) return file;
-  return `${BASE_URL_IMG}${file}`;
-};
-
-// MÁSCARAS
+const getImageUrl = (file: string) => file.startsWith('http') ? file : `${BASE_URL_IMG}${file}`;
 const maskPhone = (v: string) => v.replace(/\D/g, "").replace(/(\d{2})(\d)/, "($1) $2").replace(/(\d{5})(\d)/, "$1-$2").replace(/(-\d{4})\d+?$/, "$1");
 const maskCpf = (v: string) => v.replace(/\D/g, "").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d{1,2})$/, "$1-$2").replace(/(-\d{2})\d+?$/, "$1");
-
 const formatCurrency = (value: string) => {
-  if (!value) return "";
   const onlyNums = value.replace(/\D/g, "");
   if (!onlyNums) return "";
-  const numberValue = Number(onlyNums) / 100;
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL'
-  }).format(numberValue);
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(onlyNums) / 100);
 };
+const cleanCurrency = (value: string) => (!value ? "0" : value.replace(/\D/g, "").replace(/(\d{2})$/, ".$1"));
 
 export default function SeminovosPage() {
   const router = useRouter();
   
-  // Estados
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedBrand, setSelectedBrand] = useState<any>(null);
   const [modelos, setModelos] = useState<any[]>([]);
   const [loadingModelos, setLoadingModelos] = useState(false);
   const [modelSearch, setModelSearch] = useState("");
   const [showModelList, setShowModelList] = useState(false);
+  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
 
-  // Cache
   const modelsCache = useRef<Record<number, any[]>>({});
 
   const [formData, setFormData] = useState({
     modelo: "", ano: "", valor: "", nome: "", cpf: "", telefone: "", renda: "", entrada: ""
   });
 
-  // Filtros Memoizados
-  const filteredBrands = useMemo(() => {
-    return BRANDS.filter((brand) =>
-      brand.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [searchTerm]);
-
-  const filteredModels = useMemo(() => {
-    return modelos.filter((m) => 
-      m.nome.toLowerCase().includes(modelSearch.toLowerCase())
-    );
-  }, [modelos, modelSearch]);
+  const filteredBrands = useMemo(() => BRANDS.filter((b) => b.name.toLowerCase().includes(searchTerm.toLowerCase())), [searchTerm]);
+  const filteredModels = useMemo(() => modelos.filter((m) => m.nome.toLowerCase().includes(modelSearch.toLowerCase())), [modelos, modelSearch]);
 
   const handleBrandSelect = async (brand: any) => {
     setSelectedBrand(brand);
     setFormData(prev => ({ ...prev, modelo: "" }));
     setModelSearch("");
     setShowModelList(false);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    
+    // Rolagem suave no mobile
+    setTimeout(() => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 100);
 
     if (modelsCache.current[brand.id]) {
       setModelos(modelsCache.current[brand.id]);
@@ -97,243 +86,230 @@ export default function SeminovosPage() {
       modelsCache.current[brand.id] = listaModelos;
       setModelos(listaModelos);
     } catch (error) {
-      console.error("Erro ao buscar modelos", error);
+      console.error("Erro FIPE", error);
     } finally {
       setLoadingModelos(false);
     }
   };
 
-  const handleSelectModel = (nomeModelo: string) => {
-    setFormData(prev => ({ ...prev, modelo: nomeModelo }));
-    setModelSearch(nomeModelo);
-    setShowModelList(false);
-  };
-
   const handleSubmit = () => {
-    const query = new URLSearchParams({ ...formData, marca: selectedBrand?.name || "" }).toString();
+    const payload = {
+        ...formData,
+        marca: selectedBrand?.name || "",
+        valor: cleanCurrency(formData.valor),
+        renda: cleanCurrency(formData.renda),
+        entrada: cleanCurrency(formData.entrada),
+        imagem: selectedBrand?.file || "" 
+    };
+    const query = new URLSearchParams(payload).toString();
     router.push(`/vendedor/analise?${query}`);
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 font-sans flex flex-col">
+    <div className="min-h-screen bg-gray-50 font-sans flex flex-col selection:bg-[#f2e14c] selection:text-black">
       
-      <style jsx global>{`
-        footer:not(.page-exclusive-footer), 
-        .main-footer, 
-        #main-footer {
-          display: none !important;
-        }
-      `}</style>
+      <style jsx global>{`footer:not(.page-exclusive-footer), .main-footer, #main-footer { display: none !important; }`}</style>
       
-      {/* HEADER AMARELO */}
-      <div className="bg-[#f2e14c] w-full py-6 px-6 shadow-md pt-20 sticky top-0 z-40 transition-all">
-         <div className="max-w-6xl mx-auto flex items-center justify-between">
-            <div className="flex items-center gap-4 animate-in fade-in slide-in-from-left-4">
-                 <Image 
-                    src={getImageUrl(LOGO_FILE)} 
-                    alt="Logo Seminovos" 
-                    width={0} height={0} sizes="100vw"
-                    className="h-10 w-auto object-contain"
-                    priority 
-                 />
+      {/* HEADER MOBILE OTIMIZADO */}
+      <div className="bg-[#f2e14c] w-full px-6 pt-12 pb-6 shadow-lg shadow-yellow-400/20 sticky top-0 z-50 rounded-b-[2rem] md:rounded-none">
+         <div className="max-w-7xl mx-auto flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+                 <div className="flex items-center gap-3">
+                     {selectedBrand && (
+                         <button onClick={() => setSelectedBrand(null)} className="bg-black/10 p-2 rounded-full hover:bg-black hover:text-white transition-colors">
+                             <ArrowLeft size={20}/>
+                         </button>
+                     )}
+                     <Image 
+                        src={getImageUrl(LOGO_FILE)} 
+                        alt="Logo" width={0} height={0} sizes="100vw"
+                        className="h-10 w-auto object-contain" priority 
+                     />
+                 </div>
+                 {!selectedBrand && <div className="text-[10px] font-bold uppercase tracking-widest text-black/60">Avaliação 100% Online</div>}
             </div>
-            
-            {/* INPUT DE BUSCA - SÓ APARECE SE NENHUMA MARCA ESTIVER SELECIONADA */}
+
+            {/* BARRA DE BUSCA (Aparece apenas na home) */}
             {!selectedBrand && (
-                <div className="relative w-full max-w-md group animate-in fade-in slide-in-from-right-4 duration-500">
+                <div className="relative w-full group mt-2">
                     <input 
-                        type="text" placeholder="Qual marca você procura?" 
+                        type="text" placeholder="Buscar marca do carro..." 
                         value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-4 pr-10 py-3.5 bg-white border-none text-base font-bold uppercase rounded-lg shadow-sm focus:ring-2 focus:ring-black outline-none transition-all"
+                        className="w-full pl-12 pr-4 py-4 bg-white/90 backdrop-blur-sm border-0 text-base font-bold uppercase rounded-xl shadow-sm focus:bg-white outline-none transition-all placeholder:text-gray-400 text-black"
                     />
-                    <Search className="absolute right-3 top-3.5 text-black" size={20} />
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+                        <Search size={20} />
+                    </div>
                 </div>
             )}
          </div>
       </div>
 
-      <main className="max-w-7xl mx-auto px-6 py-12 flex-grow w-full">
+      <main className="max-w-7xl mx-auto px-4 md:px-6 py-8 flex-grow w-full">
         
+        {/* --- TELA 1: LISTA DE MARCAS (GRID MOBILE) --- */}
         {!selectedBrand ? (
-             <div className="animate-in fade-in duration-700">
-                <div className="text-center mb-12">
-                    <h2 className="text-2xl md:text-3xl font-black text-gray-800 uppercase inline-block border-b-4 border-[#f2e14c] pb-2 tracking-wide">
-                        Selecione a Marca
-                    </h2>
+             <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
+                <div className="flex items-center justify-between mb-6 px-2">
+                    <h2 className="text-xl font-black text-gray-900 uppercase tracking-tight">Marcas Disponíveis</h2>
+                    <span className="text-xs font-bold text-gray-400">{filteredBrands.length} opções</span>
                 </div>
                 
-                {/* GRID DE MARCAS - AUMENTADO PARA DAR DESTAQUE */}
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-8">
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                     {filteredBrands.map((brand) => (
                         <button 
                             key={brand.id} onClick={() => handleBrandSelect(brand)}
-                            className="h-60 md:h-72 bg-white border-2 border-transparent rounded-[2rem] relative group flex flex-col items-center justify-center p-8 transition-all hover:border-[#f2e14c] hover:scale-105 shadow-md hover:shadow-2xl overflow-hidden"
+                            className="group bg-white rounded-2xl p-4 flex flex-col items-center justify-center gap-4 shadow-sm border border-gray-100 transition-all active:scale-95 hover:border-[#f2e14c] hover:shadow-lg min-h-[120px]"
                         >
-                            <div className="flex-1 flex items-center justify-center w-full">
-                                <div className="relative w-full h-28 md:h-40 transition-transform duration-500 group-hover:scale-110">
-                                    <Image 
-                                        src={getImageUrl(brand.file)} alt={brand.name} 
-                                        fill
-                                        className="object-contain"
-                                    />
-                                </div>
+                            <div className="relative w-full h-12 flex items-center justify-center">
+                                <Image 
+                                    src={getImageUrl(brand.file)} alt={brand.name} 
+                                    width={0} height={0} sizes="100vw"
+                                    className="h-full w-auto object-contain transition-transform duration-300 group-hover:scale-110"
+                                />
                             </div>
-                            <span className="font-black text-gray-400 group-hover:text-black uppercase text-sm md:text-lg tracking-widest mt-6 transition-colors">
-                                {brand.name}
-                            </span>
+                            <span className="font-bold text-gray-900 text-[10px] uppercase tracking-widest bg-gray-50 px-2 py-1 rounded-md group-hover:bg-[#f2e14c] transition-colors">{brand.name}</span>
                         </button>
                     ))}
                 </div>
+
+                {/* FAQ ACCORDION MOBILE */}
+                <div className="mt-12 bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
+                    <h3 className="font-black text-lg uppercase mb-4 flex items-center gap-2">
+                        <span className="bg-[#f2e14c] w-8 h-8 flex items-center justify-center rounded-full text-black">?</span>
+                        Dúvidas Comuns
+                    </h3>
+                    <div className="space-y-2">
+                        {FAQ_ITEMS.map((item, i) => (
+                            <div key={i} className="border-b border-gray-100 last:border-0">
+                                <button onClick={() => setOpenFaqIndex(openFaqIndex === i ? null : i)} className="w-full py-4 text-left font-bold text-sm text-gray-700 flex justify-between items-center">
+                                    {item.question}
+                                    {openFaqIndex === i ? <Minus size={16}/> : <Plus size={16}/>}
+                                </button>
+                                <div className={`overflow-hidden transition-all duration-300 ${openFaqIndex === i ? 'max-h-40 pb-4' : 'max-h-0'}`}>
+                                    <p className="text-xs text-gray-500 leading-relaxed">{item.answer}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
              </div>
         ) : (
-            // FORMULÁRIO (APARECE QUANDO SELECIONA A MARCA)
-            <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 animate-in slide-in-from-right-20 duration-500 pb-10">
-                <div className="bg-white p-8 rounded-3xl shadow-xl border border-gray-100">
-                    <div className="flex items-center justify-between mb-8 border-b border-gray-50 pb-6">
-                        <h2 className="text-xl font-black text-black uppercase flex items-center gap-3">
-                            <Car className="text-[#f2e14c]"/> Dados do Veículo
-                        </h2>
-                        <button onClick={() => setSelectedBrand(null)} className="text-xs font-bold bg-gray-100 px-3 py-1.5 rounded-full hover:bg-black hover:text-white transition-all">Alterar Marca</button>
+            
+            /* --- TELA 2: FORMULÁRIO (MOBILE FIRST) --- */
+            <div className="animate-in slide-in-from-right-8 duration-500">
+                
+                {/* Cabeçalho Marca Selecionada */}
+                <div className="bg-white rounded-2xl p-4 flex items-center gap-4 shadow-sm border border-gray-100 mb-6">
+                    <div className="w-16 h-16 bg-gray-50 rounded-xl flex items-center justify-center p-2 shrink-0">
+                        <Image src={getImageUrl(selectedBrand.file)} alt={selectedBrand.name} width={0} height={0} sizes="100vw" className="w-full h-full object-contain" />
                     </div>
-
-                    <div className="space-y-6">
-                        <div className="p-6 bg-gray-50 rounded-2xl flex items-center gap-6 border border-gray-100 animate-in fade-in">
-                            <div className="relative h-16 w-24">
-                                <Image 
-                                    src={getImageUrl(selectedBrand.file)} alt={selectedBrand.name} 
-                                    fill
-                                    className="object-contain"
-                                />
-                            </div>
-                            <div>
-                                <p className="text-[10px] font-bold text-gray-400 uppercase">Marca Escolhida</p>
-                                <p className="font-black text-2xl uppercase leading-none">{selectedBrand.name}</p>
-                            </div>
-                        </div>
-
-                        <div className="relative z-20">
-                            <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">Selecione o Modelo</label>
-                            {loadingModelos ? (
-                                <div className="flex items-center gap-3 text-sm font-bold text-gray-400 p-4 bg-gray-50 rounded-xl animate-pulse">
-                                    <Loader2 className="animate-spin" size={18}/> Consultando Tabela FIPE...
-                                </div>
-                            ) : (
-                                <div className="relative">
-                                    <input 
-                                        type="text" placeholder="Qual o modelo?"
-                                        value={modelSearch}
-                                        onChange={(e) => { setModelSearch(e.target.value); setShowModelList(true); setFormData(prev => ({...prev, modelo: ""})); }}
-                                        onFocus={() => setShowModelList(true)}
-                                        className="w-full p-4 pl-12 border-2 border-gray-100 rounded-2xl font-bold text-black uppercase focus:border-[#f2e14c] outline-none transition-all shadow-sm"
-                                    />
-                                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={20}/>
-                                    {showModelList && filteredModels.length > 0 && (
-                                        <ul className="absolute z-50 w-full bg-white border border-gray-100 rounded-2xl shadow-2xl max-h-60 overflow-y-auto mt-2 overflow-hidden border-t-0 animate-in fade-in slide-in-from-top-2">
-                                            {filteredModels.map((m) => (
-                                                <li key={m.codigo} onClick={() => handleSelectModel(m.nome)} className="px-5 py-4 hover:bg-[#f2e14c] cursor-pointer text-sm font-black text-black border-b border-gray-50 last:border-0 uppercase transition-colors">
-                                                    {m.nome}
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">Ano</label>
-                                <input type="number" placeholder="Ex: 2022" className="w-full p-4 bg-gray-50 border-2 border-gray-50 rounded-2xl font-bold focus:bg-white focus:border-[#f2e14c] outline-none transition-all" value={formData.ano} onChange={e => setFormData({...formData, ano: e.target.value})} />
-                            </div>
-                            <div>
-                                <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">Preço (R$)</label>
-                                <input 
-                                    type="text" 
-                                    placeholder="R$ 0,00" 
-                                    className="w-full p-4 bg-gray-50 border-2 border-gray-50 rounded-2xl font-bold focus:bg-white focus:border-[#f2e14c] outline-none transition-all" 
-                                    value={formData.valor} 
-                                    onChange={e => setFormData({...formData, valor: formatCurrency(e.target.value)})} 
-                                />
-                            </div>
-                        </div>
+                    <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Avaliando</p>
+                        <p className="font-black text-2xl uppercase text-gray-900">{selectedBrand.name}</p>
                     </div>
                 </div>
 
-                <div className="bg-black p-8 rounded-3xl shadow-xl text-white h-fit sticky top-28">
-                    <h2 className="text-xl font-black text-[#f2e14c] uppercase mb-8 flex items-center gap-3 border-b border-white/10 pb-6">
-                        <User /> Dados Pessoais
-                    </h2>
-                    <div className="space-y-5">
-                        <input type="text" placeholder="NOME COMPLETO" className="w-full p-4 bg-white/5 border border-white/10 rounded-2xl text-white font-bold placeholder-gray-500 focus:border-[#f2e14c] outline-none transition-all uppercase" value={formData.nome} onChange={e => setFormData({...formData, nome: e.target.value})} />
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <input type="text" placeholder="CPF" maxLength={14} className="w-full p-4 bg-white/5 border border-white/10 rounded-2xl text-white font-bold focus:border-[#f2e14c] outline-none transition-all" value={formData.cpf} onChange={e => setFormData({...formData, cpf: maskCpf(e.target.value)})} />
-                            <input type="text" placeholder="WHATSAPP" maxLength={15} className="w-full p-4 bg-white/5 border border-white/10 rounded-2xl text-white font-bold focus:border-[#f2e14c] outline-none transition-all" value={formData.telefone} onChange={e => setFormData({...formData, telefone: maskPhone(e.target.value)})} />
-                        </div>
-                        <div className="pt-6 border-t border-white/10 mt-6">
-                            <h3 className="text-sm font-bold text-[#f2e14c] uppercase mb-4 flex items-center gap-2"><Wallet size={18}/> Perfil Financeiro</h3>
+                <div className="bg-white rounded-[2rem] p-6 shadow-xl border border-gray-100">
+                    
+                    {/* SEÇÃO 1: CARRO */}
+                    <div className="mb-8">
+                        <h3 className="text-xs font-black text-gray-400 uppercase mb-4 flex items-center gap-2">
+                            <Car size={16} className="text-[#f2e14c]"/> 1. Dados do Veículo
+                        </h3>
+                        
+                        <div className="space-y-4">
+                            {/* Input com Dropdown Inteligente */}
+                            <div className="relative">
+                                {loadingModelos && <div className="absolute right-4 top-4"><Loader2 className="animate-spin text-[#f2e14c]" size={20}/></div>}
+                                <input 
+                                    type="text" placeholder="Qual o modelo? (Ex: Onix)"
+                                    value={modelSearch}
+                                    onChange={(e) => { setModelSearch(e.target.value); setShowModelList(true); setFormData(prev => ({...prev, modelo: ""})); }}
+                                    onFocus={() => setShowModelList(true)}
+                                    className="w-full p-4 bg-gray-50 rounded-xl border-2 border-transparent focus:bg-white focus:border-[#f2e14c] outline-none font-bold text-gray-900 text-sm transition-all"
+                                />
+                                {showModelList && filteredModels.length > 0 && (
+                                    <ul className="absolute z-20 w-full bg-white border border-gray-200 rounded-xl shadow-2xl max-h-60 overflow-y-auto mt-2 custom-scrollbar">
+                                        {filteredModels.map((m) => (
+                                            <li key={m.codigo} onClick={() => { setFormData(prev => ({ ...prev, modelo: m.nome })); setModelSearch(m.nome); setShowModelList(false); }} className="px-4 py-3 border-b border-gray-50 last:border-0 text-xs font-bold uppercase hover:bg-gray-50 cursor-pointer">
+                                                {m.nome}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+                            </div>
+
                             <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="text-[10px] font-bold text-gray-400 uppercase mb-1 block">Renda Mensal</label>
-                                    <input 
-                                        type="text" 
-                                        placeholder="R$ 0,00" 
-                                        className="w-full p-4 bg-white/5 border border-white/10 rounded-2xl text-white font-bold focus:border-[#f2e14c] outline-none" 
-                                        value={formData.renda} 
-                                        onChange={e => setFormData({...formData, renda: formatCurrency(e.target.value)})} 
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] font-bold text-gray-400 uppercase mb-1 block">Entrada</label>
-                                    <input 
-                                        type="text" 
-                                        placeholder="R$ 0,00" 
-                                        className="w-full p-4 bg-white/5 border border-white/10 rounded-2xl text-white font-bold focus:border-[#f2e14c] outline-none" 
-                                        value={formData.entrada} 
-                                        onChange={e => setFormData({...formData, entrada: formatCurrency(e.target.value)})} 
-                                    />
-                                </div>
+                                <input type="number" placeholder="Ano (Ex: 2022)" className="w-full p-4 bg-gray-50 rounded-xl border-2 border-transparent focus:bg-white focus:border-[#f2e14c] outline-none font-bold text-gray-900 text-sm" value={formData.ano} onChange={e => setFormData({...formData, ano: e.target.value})} />
+                                <input type="text" placeholder="Valor (FIPE)" className="w-full p-4 bg-gray-50 rounded-xl border-2 border-transparent focus:bg-white focus:border-[#f2e14c] outline-none font-bold text-gray-900 text-sm" value={formData.valor} onChange={e => setFormData({...formData, valor: formatCurrency(e.target.value)})} />
                             </div>
                         </div>
-                        <button 
-                            onClick={handleSubmit}
-                            disabled={!formData.modelo || !formData.valor || !formData.nome || !formData.renda}
-                            className="w-full mt-8 bg-[#f2e14c] hover:bg-white text-black font-black py-5 rounded-2xl uppercase tracking-widest flex items-center justify-center gap-3 transition-all disabled:opacity-30 shadow-lg shadow-yellow-400/10 active:scale-95"
-                        >
-                            Verificar Crédito <ArrowRight size={22}/>
-                        </button>
                     </div>
+
+                    <div className="w-full h-px bg-gray-100 mb-8"></div>
+
+                    {/* SEÇÃO 2: PESSOAL */}
+                    <div className="mb-8">
+                        <h3 className="text-xs font-black text-gray-400 uppercase mb-4 flex items-center gap-2">
+                            <User size={16} className="text-[#f2e14c]"/> 2. Seus Dados
+                        </h3>
+                        
+                        <div className="space-y-4">
+                            <input type="text" placeholder="Nome Completo" className="w-full p-4 bg-gray-50 rounded-xl border-2 border-transparent focus:bg-white focus:border-[#f2e14c] outline-none font-bold text-gray-900 text-sm uppercase" value={formData.nome} onChange={e => setFormData({...formData, nome: e.target.value})} />
+                            
+                            <div className="grid grid-cols-1 gap-4">
+                                <input type="text" placeholder="CPF" maxLength={14} className="w-full p-4 bg-gray-50 rounded-xl border-2 border-transparent focus:bg-white focus:border-[#f2e14c] outline-none font-bold text-gray-900 text-sm font-mono" value={formData.cpf} onChange={e => setFormData({...formData, cpf: maskCpf(e.target.value)})} />
+                                <input type="text" placeholder="WhatsApp" maxLength={15} className="w-full p-4 bg-gray-50 rounded-xl border-2 border-transparent focus:bg-white focus:border-[#f2e14c] outline-none font-bold text-gray-900 text-sm font-mono" value={formData.telefone} onChange={e => setFormData({...formData, telefone: maskPhone(e.target.value)})} />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="w-full h-px bg-gray-100 mb-8"></div>
+
+                    {/* SEÇÃO 3: FINANCEIRO (OPCIONAL) */}
+                    <div>
+                        <h3 className="text-xs font-black text-gray-400 uppercase mb-4 flex items-center gap-2">
+                            <Wallet size={16} className="text-[#f2e14c]"/> 3. Financeiro <span className="text-[10px] bg-gray-100 px-2 py-0.5 rounded text-gray-400 font-normal">Opcional</span>
+                        </h3>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="text-[10px] font-bold text-gray-400 uppercase mb-1 block">Renda</label>
+                                <input type="text" placeholder="R$ 0,00" className="w-full p-3 bg-gray-50 rounded-xl border-2 border-transparent focus:bg-white focus:border-[#f2e14c] outline-none font-bold text-gray-900 text-sm" value={formData.renda} onChange={e => setFormData({...formData, renda: formatCurrency(e.target.value)})} />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold text-gray-400 uppercase mb-1 block">Entrada</label>
+                                <input type="text" placeholder="R$ 0,00" className="w-full p-3 bg-gray-50 rounded-xl border-2 border-transparent focus:bg-white focus:border-[#f2e14c] outline-none font-bold text-gray-900 text-sm" value={formData.entrada} onChange={e => setFormData({...formData, entrada: formatCurrency(e.target.value)})} />
+                            </div>
+                        </div>
+                    </div>
+
+                    <button 
+                        onClick={handleSubmit}
+                        disabled={!formData.modelo || !formData.valor || !formData.nome || !formData.renda}
+                        className="w-full mt-8 bg-black hover:bg-zinc-800 text-[#f2e14c] font-black py-5 rounded-2xl uppercase tracking-widest flex items-center justify-center gap-3 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-xl active:scale-95 text-sm"
+                    >
+                        Solicitar Análise <ArrowRight size={20}/>
+                    </button>
                 </div>
             </div>
         )}
+
       </main>
 
-      <footer className="page-exclusive-footer bg-white border-t border-gray-100 py-12">
-          <div className="max-w-6xl mx-auto px-6 grid grid-cols-1 md:grid-cols-4 gap-12">
-              <div className="col-span-2">
-                  <div className="relative h-8 w-32 mb-6 opacity-40 grayscale">
-                    <Image src={getImageUrl(LOGO_FILE)} alt="Logo" fill className="object-contain" />
-                  </div>
-                  <p className="text-sm text-gray-400 max-w-sm font-medium">
-                      Plataforma de simulação de financiamento automotivo. Consultas integradas à Tabela FIPE e instituições financeiras parceiras.
-                  </p>
+      <footer className="page-exclusive-footer bg-white border-t border-gray-200 py-12 px-6">
+          <div className="max-w-7xl mx-auto flex flex-col items-center text-center gap-6">
+              <Image src={getImageUrl(LOGO_FILE)} alt="Logo" width={100} height={30} className="opacity-50 grayscale" />
+              <p className="text-[10px] text-gray-400 max-w-xs leading-relaxed">
+                  A WBCNAC garante a segurança dos seus dados. Simulação sujeita a análise de crédito.
+              </p>
+              <div className="flex gap-4">
+                  <Instagram size={20} className="text-gray-300"/>
+                  <Facebook size={20} className="text-gray-300"/>
               </div>
-              <div>
-                  <h4 className="font-bold uppercase text-xs mb-4 text-gray-900 tracking-wider">Suporte</h4>
-                  <ul className="text-sm text-gray-500 space-y-2 font-semibold">
-                      <li className="flex items-center gap-2 hover:text-black transition-colors"><Phone size={14}/> (91) 98765-4321</li>
-                      <li className="flex items-center gap-2 hover:text-black transition-colors"><MapPin size={14}/> Belém, Pará</li>
-                  </ul>
+              <div className="text-[10px] text-gray-300 uppercase tracking-widest font-bold pt-4 border-t border-gray-100 w-full">
+                  © 2026 WBCNAC Digital
               </div>
-              <div>
-                  <h4 className="font-bold uppercase text-xs mb-4 text-gray-900 tracking-wider">Siga-nos</h4>
-                  <div className="flex gap-4">
-                      <Instagram className="text-gray-400 hover:text-pink-500 cursor-pointer transition-all hover:scale-110" size={20}/>
-                      <Facebook className="text-gray-400 hover:text-blue-600 cursor-pointer transition-all hover:scale-110" size={20}/>
-                  </div>
-              </div>
-          </div>
-          <div className="text-center mt-12 text-[10px] text-gray-300 uppercase tracking-widest font-bold border-t border-gray-50 pt-8">
-              © 2026 Seminovos Digital - Todos os direitos reservados.
           </div>
       </footer>
     </div>
