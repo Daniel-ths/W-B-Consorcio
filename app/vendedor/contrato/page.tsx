@@ -77,7 +77,7 @@ function PedidoContent() {
 
   // ✅ mensagem do SMS (mantida)
   const SMS_TESTE = (nome: string, protocolo: string) =>
-    `Parabéns ${nome}! Seu CPF foi aprovado para a compra do seu carro novo. Seja bem-vindo. Nossa equipe segue com você nos próximos passos.`;
+    `Parabéns ${nome}! Seu CPF foi aprovado para a compra do seu carro novo. Seja bem vindo. Nossa equipe segue com você nos próximos passos.`;
 
   useEffect(() => {
     setDataAtual(
