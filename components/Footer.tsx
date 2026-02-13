@@ -11,7 +11,7 @@ export default function Footer() {
         <div className="space-y-6">
             <Link href="/" className="flex items-center gap-4 group">
                 <img 
-                    src="https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/parceirologo.jpg" 
+                    src="https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/parceirologo.png"
                     alt="WB Auto" 
                     className="h-32 w-auto object-contain mix-blend-multiply" 
                 />
