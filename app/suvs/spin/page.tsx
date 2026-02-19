@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 import {
   ArrowLeft,
   ArrowRight,
@@ -17,17 +18,19 @@ import {
   ChevronRight as ChevronRightIcon,
   Expand,
   Tag,
+  Loader2,
+  AlertCircle,
+  Lock,
+  Wallet,
+  Banknote,
+  CheckCircle2,
 } from "lucide-react";
 
 /**
- * TEMPLATE — Landing no MODELO DOS ELÉTRICOS (Equinox EV/Blazer EV)
- * ✅ Hero + faixa preta (stats)
- * ✅ Seção imagem + texto (dark)
- * ✅ Galeria mosaico (white)
- * ✅ Configurador Exterior/Interior com cores e animação suave (white)
- * ✅ Lightbox
- * ✅ CTA fixo embaixo
- * ✅ "Antes do footer" branco (para combinar com footer cinza)
+ * SPIN 2026 — com FINALIZAÇÃO no final (igual Camaro)
+ * ✅ Todos CTAs rolam pro final (não abre /vendedor/analise direto)
+ * ✅ Se logado: preenche dados, salva em sales e abre /vendedor/analise com query preenchida
+ * ✅ Se não logado: bloqueia e mostra botão login
  */
 
 // =========================
@@ -38,13 +41,11 @@ const CONFIG = {
   titulo: "Spin",
   subtitulo: "7 lugares • Espaço para toda família",
 
-  // preço visível na página
   priceStart: 119990,
 
   ctaHero: "Simular agora",
   ctaSecondary: "Solicitar contato",
 
-  // faixa preta (4 destaques)
   stats: [
     { value: "1.8", unit: "Flex", label: "Motorização", icon: <Gauge size={18} /> },
     { value: "7", unit: "lugares", label: "Capacidade", icon: <CarFront size={18} /> },
@@ -52,28 +53,24 @@ const CONFIG = {
     { value: "6", unit: "Airbags", label: "Segurança", icon: <ShieldCheck size={18} /> },
   ],
 
-  // HERO
   heroImage:
     "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/suv/spin/header-performance.avif",
 
-  // seção imagem + texto (dark)
   sectionImage:
     "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/suv/spin/header-2.avif",
   sectionTitle: "Espaço e versatilidade para o dia a dia.",
   sectionText:
     "O Chevrolet Spin é ideal para famílias e quem precisa de espaço. Com até 7 lugares, amplo porta-malas e tecnologia embarcada, ele entrega conforto e praticidade.",
 
-  // Galeria mosaico (6 imagens)
   gallery: [
     "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/suv/spin/header-01.avif",
-    "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/suv/spin/header-performance.avif    ",
-    "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/suv/spin/header-2.avif              ",
-    "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/suv/spin/header-03.avif              ", 
-    "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/suv/spin/thumb-02.avif          ",  
-    "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/suv/spin/thumb-04.avif          ",  
+    "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/suv/spin/header-performance.avif",
+    "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/suv/spin/header-2.avif",
+    "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/suv/spin/header-03.avif",
+    "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/suv/spin/thumb-02.avif",
+    "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/suv/spin/thumb-04.avif",
   ],
 
-  // ======= EXTERIOR (cores + imagem por cor) =======
   exterior: {
     trimLabel: "Chevrolet",
     headline: "Escolha o exterior e visualize em tempo real",
@@ -81,12 +78,12 @@ const CONFIG = {
       {
         name: "Branco Summit",
         hex: "#ffffff",
-        img: "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/suv/spin/Branco%20Summit.png", 
+        img: "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/suv/spin/Branco%20Summit.png",
       },
       {
         name: "Prata Shark",
         hex: "#bfbfbf",
-        img: "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/suv/spin/Prata%20Shark.png",   
+        img: "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/suv/spin/Prata%20Shark.png",
       },
       {
         name: "Preto Ouro Negro",
@@ -96,7 +93,6 @@ const CONFIG = {
     ],
   },
 
-  // ======= INTERIOR (cores + imagens em carousel por cor) =======
   interior: {
     trimLabel: "Interior",
     colors: [
@@ -104,13 +100,12 @@ const CONFIG = {
         name: "Preto Premium",
         hex: "#111111",
         images: [
-          "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/suv/spin/header-tecnologia.avif", 
+          "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/suv/spin/header-tecnologia.avif",
         ],
       },
     ],
   },
 
-  // bloco inferior (benefícios)
   benefits: [
     { icon: <CarFront size={18} />, title: "7 lugares", desc: "espaço para toda a família" },
     { icon: <ShieldCheck size={18} />, title: "Segurança", desc: "6 airbags (conforme configuração)" },
@@ -125,21 +120,194 @@ const CONFIG = {
 const formatBRL0 = (val: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(val);
 
-function buildAnaliseUrl() {
-  const params = new URLSearchParams({
-    modelo: CONFIG.titulo,
-    valor: String(CONFIG.priceStart || 0),
-    entrada: "0",
-    imagem: CONFIG.heroImage,
-  });
-  return `/vendedor/analise?${params.toString()}`;
-}
-
 type TabKey = "exterior" | "interior";
+
+// --- MÁSCARAS / HELPERS (OrderSummary) ---
+const maskCPF = (value: string) =>
+  value
+    .replace(/\D/g, "")
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d{1,2})/, "$1-$2")
+    .replace(/(-\d{2})\d+?$/, "$1");
+
+const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+// --- TELEFONE FIXO +55 (91) ---
+const PHONE_PREFIX_DISPLAY = "+55 (91) ";
+const PHONE_PREFIX_E164 = "+5591";
+
+const maskPhoneAfterPrefix = (value: string) => {
+  const digits = value.replace(/\D/g, "").slice(0, 9);
+  if (!digits) return "";
+  if (digits.length <= 1) return digits;
+  if (digits.length <= 5) return `${digits.slice(0, 1)}${digits.slice(1)}`;
+  return `${digits.slice(0, 1)}${digits.slice(1, 5)}-${digits.slice(5)}`;
+};
+
+const getPhoneDigitsAfterPrefix = (fullValue: string) => {
+  const digits = fullValue.replace(/\D/g, "");
+  if (digits.startsWith("5591")) return digits.slice(4).slice(0, 9);
+  return digits.slice(0, 9);
+};
 
 export default function SpinElectricStylePage() {
   const router = useRouter();
 
+  // ===== FINALIZAÇÃO NO FINAL =====
+  const orderSectionId = "order-summary";
+
+  const [authLoading, setAuthLoading] = useState(true);
+  const [user, setUser] = useState<any>(null);
+
+  const [clientName, setClientName] = useState("");
+  const [clientCpf, setClientCpf] = useState("");
+  const [clientEmail, setClientEmail] = useState("");
+  const [clientPhone, setClientPhone] = useState(PHONE_PREFIX_DISPLAY);
+
+  const [loading, setLoading] = useState(false);
+
+  const [errors, setErrors] = useState({
+    clientName: "",
+    clientCpf: "",
+    clientEmail: "",
+    clientPhone: "",
+  });
+
+  const scrollToId = (id: string) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  // ✅ pega usuário logado
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadSession() {
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (!mounted) return;
+        setUser(data.session?.user ?? null);
+      } finally {
+        if (mounted) setAuthLoading(false);
+      }
+    }
+
+    loadSession();
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setAuthLoading(false);
+    });
+
+    return () => {
+      mounted = false;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
+
+  const handleCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setClientCpf(maskCPF(e.target.value));
+    if (errors.clientCpf) setErrors({ ...errors, clientCpf: "" });
+  };
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const typed = e.target.value;
+
+    let after = typed.startsWith(PHONE_PREFIX_DISPLAY)
+      ? typed.slice(PHONE_PREFIX_DISPLAY.length)
+      : typed.replace(PHONE_PREFIX_DISPLAY, "");
+
+    const maskedAfter = maskPhoneAfterPrefix(after);
+    setClientPhone(PHONE_PREFIX_DISPLAY + maskedAfter);
+
+    if (errors.clientPhone) setErrors({ ...errors, clientPhone: "" });
+  };
+
+  // ✅ todos CTAs chamam isso (não navega mais pro analise direto)
+  const goPrimary = () => scrollToId(orderSectionId);
+
+  const handleFinishOrder = async () => {
+    let newErrors = { clientName: "", clientCpf: "", clientEmail: "", clientPhone: "" };
+    let hasError = false;
+
+    if (authLoading) return;
+
+    if (!user) {
+      scrollToId(orderSectionId);
+      return;
+    }
+
+    if (clientName.trim().length < 3) {
+      newErrors.clientName = "Nome completo é obrigatório.";
+      hasError = true;
+    }
+
+    if (clientCpf.length < 14) {
+      newErrors.clientCpf = "CPF inválido ou incompleto.";
+      hasError = true;
+    }
+
+    if (!clientEmail || !validateEmail(clientEmail)) {
+      newErrors.clientEmail = "Insira um e-mail válido.";
+      hasError = true;
+    }
+
+    const phoneDigits = getPhoneDigitsAfterPrefix(clientPhone);
+    if (phoneDigits.length < 9) {
+      newErrors.clientPhone = "Telefone obrigatório (digite os 9 dígitos após o 9).";
+      hasError = true;
+    }
+
+    setErrors(newErrors);
+    if (hasError) return;
+
+    setLoading(true);
+
+    try {
+      const telefoneE164 = `${PHONE_PREFIX_E164}${getPhoneDigitsAfterPrefix(clientPhone)}`;
+
+      const saleData = {
+        car_id: `landing-${CONFIG.titulo.toLowerCase().replace(/\s+/g, "-")}`,
+        car_name: CONFIG.titulo,
+        seller_id: user.id,
+        client_name: clientName,
+        client_cpf: clientCpf,
+        client_email: clientEmail,
+        client_phone: telefoneE164,
+        total_price: CONFIG.priceStart || 0,
+        status: "Enviado para Análise",
+        interest_type: "Pendente (Aba Análise)",
+        details: {
+          exterior_color: CONFIG.exterior.colors[selectedExterior]?.name || "Padrão",
+          interior_color: CONFIG.interior.colors[selectedInterior]?.name || "Padrão",
+        },
+        created_at: new Date().toISOString(),
+      };
+
+      await supabase.from("sales").insert([saleData]);
+
+      const query = new URLSearchParams({
+        nome: clientName,
+        cpf: clientCpf,
+        telefone: telefoneE164,
+        modelo: CONFIG.titulo,
+        valor: String(CONFIG.priceStart || 0),
+        entrada: "0",
+        renda: "0",
+        imagem: CONFIG.heroImage,
+      }).toString();
+
+      router.push(`/vendedor/analise?${query}`);
+    } catch (error: any) {
+      console.error("Erro ao processar:", error);
+      alert("Erro ao processar pedido: " + (error?.message || "erro desconhecido"));
+      setLoading(false);
+    }
+  };
+
+  // ===== PAGE STATE (original) =====
   const [tab, setTab] = useState<TabKey>("exterior");
 
   const [selectedExterior, setSelectedExterior] = useState(0);
@@ -148,23 +316,20 @@ export default function SpinElectricStylePage() {
 
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
-  // ---- animação de troca de imagem (fade + leve zoom) ----
   const [isImgSwitching, setIsImgSwitching] = useState(false);
-  const [displayedSrc, setDisplayedSrc] = useState(CONFIG.exterior.colors[0]?.img || CONFIG.heroImage);
+  const [displayedSrc, setDisplayedSrc] = useState(CONFIG.exterior.colors[0]?.img?.trim() || CONFIG.heroImage);
   const animTimer = useRef<number | null>(null);
 
   const mosaic = useMemo(() => {
-    const g = (CONFIG.gallery ?? []).filter(Boolean);
-    while (g.length < 6) g.push(CONFIG.gallery?.[0] || CONFIG.heroImage);
+    const g = (CONFIG.gallery ?? []).map((x) => (typeof x === "string" ? x.trim() : x)).filter(Boolean);
+    while (g.length < 6) g.push((CONFIG.gallery?.[0] || CONFIG.heroImage).trim());
     return g.slice(0, 6);
   }, []);
-
-  const goPrimary = () => router.push(buildAnaliseUrl());
 
   const exteriorCurrent = CONFIG.exterior.colors[selectedExterior]?.img?.trim() || CONFIG.heroImage;
 
   const interiorColor = CONFIG.interior.colors[selectedInterior];
-  const interiorImages = (interiorColor?.images ?? []).filter(Boolean);
+  const interiorImages = (interiorColor?.images ?? []).map((x) => x.trim()).filter(Boolean);
   const interiorCurrent = interiorImages[interiorIndex] || interiorImages[0] || CONFIG.heroImage;
 
   const switchImageTo = (nextSrc: string) => {
@@ -186,7 +351,7 @@ export default function SpinElectricStylePage() {
     setInteriorIndex(0);
 
     const nextColor = CONFIG.interior.colors[idx];
-    const imgs = (nextColor?.images ?? []).filter(Boolean);
+    const imgs = (nextColor?.images ?? []).map((x) => x.trim()).filter(Boolean);
     const next = imgs[0] || CONFIG.heroImage;
 
     if (tab === "interior") switchImageTo(next);
@@ -275,27 +440,21 @@ export default function SpinElectricStylePage() {
                 <div key={idx} className="text-center">
                   <div className="flex items-center justify-center gap-2 text-white/80 mb-2">
                     <span className="opacity-80">{s.icon}</span>
-                    <span className="text-[11px] font-extrabold uppercase tracking-widest opacity-70">
-                      Destaque
-                    </span>
+                    <span className="text-[11px] font-extrabold uppercase tracking-widest opacity-70">Destaque</span>
                   </div>
 
                   <div className="flex items-end justify-center gap-2">
                     <span className="text-4xl md:text-5xl font-black tracking-tight">{s.value}</span>
-                    {s.unit ? (
-                      <span className="text-lg md:text-xl font-black opacity-90 mb-1">{s.unit}</span>
-                    ) : null}
+                    {s.unit ? <span className="text-lg md:text-xl font-black opacity-90 mb-1">{s.unit}</span> : null}
                   </div>
                   <p className="mt-2 text-xs opacity-70">{s.label}</p>
                 </div>
               ))}
             </div>
 
-            {CONFIG.priceStart > 0 ? (
-              <div className="mt-8 text-center text-xs text-white/60 font-bold uppercase tracking-widest">
-                *Preço “a partir de” {formatBRL0(CONFIG.priceStart)}
-              </div>
-            ) : null}
+            <div className="mt-8 text-center text-xs text-white/60 font-bold uppercase tracking-widest">
+              *Preço “a partir de” {formatBRL0(CONFIG.priceStart)}
+            </div>
           </div>
         </div>
       </section>
@@ -360,7 +519,7 @@ export default function SpinElectricStylePage() {
         </div>
       </section>
 
-      {/* CONFIGURADOR (EXTERIOR / INTERIOR) */}
+      {/* CONFIGURADOR */}
       <section className="bg-white border-t border-gray-200">
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-16">
           <p className="text-center text-sm text-gray-500">{CONFIG.titulo}</p>
@@ -369,7 +528,7 @@ export default function SpinElectricStylePage() {
           </h3>
 
           <div className="mt-10 grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
-            {/* ESQUERDA: IMAGEM */}
+            {/* ESQUERDA */}
             <div className="flex justify-center">
               <div className="relative w-full max-w-[780px]">
                 <div className="relative rounded-2xl overflow-hidden bg-white border border-gray-200">
@@ -379,9 +538,7 @@ export default function SpinElectricStylePage() {
                     className={[
                       "w-full transition-all duration-300 ease-out will-change-transform",
                       isImgSwitching ? "opacity-0 scale-[0.985]" : "opacity-100 scale-100",
-                      tab === "exterior"
-                        ? "h-[360px] md:h-[420px] object-contain p-6"
-                        : "h-[360px] md:h-[420px] object-cover",
+                      tab === "exterior" ? "h-[360px] md:h-[420px] object-contain p-6" : "h-[360px] md:h-[420px] object-cover",
                     ].join(" ")}
                   />
 
@@ -416,7 +573,7 @@ export default function SpinElectricStylePage() {
               </div>
             </div>
 
-            {/* DIREITA: CONTROLES */}
+            {/* DIREITA */}
             <div className="max-w-md">
               <div className="flex items-center gap-5 border-b border-gray-200 pb-3">
                 <button
@@ -427,9 +584,7 @@ export default function SpinElectricStylePage() {
                   }}
                   className={[
                     "text-sm font-black pb-2 transition-colors",
-                    tab === "exterior"
-                      ? "text-[#0b4b9a] border-b-2 border-[#0b4b9a]"
-                      : "text-gray-600 hover:text-gray-900",
+                    tab === "exterior" ? "text-[#0b4b9a] border-b-2 border-[#0b4b9a]" : "text-gray-600 hover:text-gray-900",
                   ].join(" ")}
                 >
                   Exterior
@@ -443,9 +598,7 @@ export default function SpinElectricStylePage() {
                   }}
                   className={[
                     "text-sm font-black pb-2 transition-colors",
-                    tab === "interior"
-                      ? "text-[#0b4b9a] border-b-2 border-[#0b4b9a]"
-                      : "text-gray-600 hover:text-gray-900",
+                    tab === "interior" ? "text-[#0b4b9a] border-b-2 border-[#0b4b9a]" : "text-gray-600 hover:text-gray-900",
                   ].join(" ")}
                 >
                   Interior
@@ -454,9 +607,7 @@ export default function SpinElectricStylePage() {
 
               {tab === "exterior" ? (
                 <div className="mt-5">
-                  <p className="text-xs font-black uppercase tracking-widest text-gray-500">
-                    {CONFIG.exterior.trimLabel}
-                  </p>
+                  <p className="text-xs font-black uppercase tracking-widest text-gray-500">{CONFIG.exterior.trimLabel}</p>
 
                   <p className="mt-2 text-sm font-black text-gray-900">
                     {CONFIG.exterior.colors[selectedExterior]?.name ?? "Cor"}
@@ -469,9 +620,7 @@ export default function SpinElectricStylePage() {
                         onClick={() => handleSelectExterior(idx)}
                         className={[
                           "w-10 h-10 rounded-full border transition-all p-1",
-                          idx === selectedExterior
-                            ? "border-[#0b4b9a] ring-2 ring-[#0b4b9a]/20"
-                            : "border-gray-200 hover:border-gray-300",
+                          idx === selectedExterior ? "border-[#0b4b9a] ring-2 ring-[#0b4b9a]/20" : "border-gray-200 hover:border-gray-300",
                         ].join(" ")}
                         title={c.name}
                         aria-label={c.name}
@@ -491,16 +640,13 @@ export default function SpinElectricStylePage() {
                   <div className="mt-6 flex items-start gap-3 text-sm text-gray-600">
                     <ChevronDown size={18} className="mt-0.5 text-gray-400" />
                     <p>
-                      Clique em <span className="font-black">Solicitar contato</span> para iniciar a
-                      simulação de consórcio/financiamento.
+                      Clique em <span className="font-black">Solicitar contato</span> para iniciar a simulação de consórcio/financiamento.
                     </p>
                   </div>
                 </div>
               ) : (
                 <div className="mt-5">
-                  <p className="text-xs font-black uppercase tracking-widest text-gray-500">
-                    {CONFIG.interior.trimLabel}
-                  </p>
+                  <p className="text-xs font-black uppercase tracking-widest text-gray-500">{CONFIG.interior.trimLabel}</p>
 
                   <p className="mt-2 text-sm font-black text-gray-900">
                     {CONFIG.interior.colors[selectedInterior]?.name ?? "Interior"}
@@ -513,9 +659,7 @@ export default function SpinElectricStylePage() {
                         onClick={() => handleSelectInterior(idx)}
                         className={[
                           "w-10 h-10 rounded-full border transition-all p-1",
-                          idx === selectedInterior
-                            ? "border-[#0b4b9a] ring-2 ring-[#0b4b9a]/20"
-                            : "border-gray-200 hover:border-gray-300",
+                          idx === selectedInterior ? "border-[#0b4b9a] ring-2 ring-[#0b4b9a]/20" : "border-gray-200 hover:border-gray-300",
                         ].join(" ")}
                         title={c.name}
                         aria-label={c.name}
@@ -549,15 +693,13 @@ export default function SpinElectricStylePage() {
         </div>
       </section>
 
-      {/* ANTES DO FOOTER: branco */}
+      {/* ANTES DO FOOTER */}
       <section className="bg-white text-gray-900 border-t border-gray-200">
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-14">
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
             <div>
               <p className="text-sm font-black">Chevrolet {CONFIG.titulo}</p>
-              <p className="text-gray-500 text-sm mt-1">
-                Consórcio ou financiamento • atendimento rápido
-              </p>
+              <p className="text-gray-500 text-sm mt-1">Consórcio ou financiamento • atendimento rápido</p>
             </div>
 
             <button
@@ -582,10 +724,189 @@ export default function SpinElectricStylePage() {
 
           <div className="mt-10 text-xs text-gray-400">
             <p>
-              <span className="font-black text-gray-600">Aviso:</span> informações e imagens podem
-              variar por versão/ano-modelo. Sujeito a análise.
+              <span className="font-black text-gray-600">Aviso:</span> informações e imagens podem variar por versão/ano-modelo. Sujeito a análise.
             </p>
           </div>
+        </div>
+      </section>
+
+      {/* ================= FINALIZAÇÃO NO FINAL ================= */}
+      <section id={orderSectionId} className="py-20 px-4 md:px-10 bg-white border-t border-gray-200">
+        <div className="max-w-[1400px] mx-auto">
+          <div className="mb-10">
+            <p className="text-[10px] font-black uppercase tracking-[0.35em] text-black/70 mb-3">Finalização</p>
+            <h2 className="text-3xl md:text-5xl font-black tracking-tight text-black">
+              Iniciar proposta com <span className="text-black/60">dados do cliente</span>
+            </h2>
+            <p className="text-sm text-black/60 mt-3 max-w-3xl">
+              Preencha os dados do cliente para enviar para o módulo de <strong>Análise de Crédito</strong>. *Somente vendedores logados conseguem avançar.
+            </p>
+          </div>
+
+          {!user ? (
+            <div className="bg-gray-50 border border-gray-200 rounded-2xl p-10 flex flex-col items-center justify-center text-center">
+              <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mb-4">
+                <Lock className="text-gray-500" size={32} />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Funcionalidade Restrita</h3>
+              <p className="text-gray-500 mb-6 max-w-md">A finalização de propostas é exclusiva para vendedores logados.</p>
+              <Link href="/login" className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors">
+                Fazer Login de Vendedor
+              </Link>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* FORM */}
+              <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-6">
+                <h4 className="text-lg font-semibold text-gray-900 mb-6 pb-3 border-b border-gray-200">
+                  Informações do Cliente
+                </h4>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                      Nome Completo <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      value={clientName}
+                      onChange={(e) => {
+                        setClientName(e.target.value);
+                        if (errors.clientName) setErrors({ ...errors, clientName: "" });
+                      }}
+                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
+                        ${errors.clientName ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
+                      `}
+                      placeholder="Digite o nome completo"
+                    />
+                    {errors.clientName && (
+                      <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                        <AlertCircle size={10} /> {errors.clientName}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                      CPF <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      value={clientCpf}
+                      onChange={handleCpfChange}
+                      maxLength={14}
+                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
+                        ${errors.clientCpf ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
+                      `}
+                      placeholder="000.000.000-00"
+                    />
+                    {errors.clientCpf && (
+                      <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                        <AlertCircle size={10} /> {errors.clientCpf}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                      Email <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      value={clientEmail}
+                      onChange={(e) => {
+                        setClientEmail(e.target.value);
+                        if (errors.clientEmail) setErrors({ ...errors, clientEmail: "" });
+                      }}
+                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
+                        ${errors.clientEmail ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
+                      `}
+                      placeholder="exemplo@email.com"
+                    />
+                    {errors.clientEmail && (
+                      <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                        <AlertCircle size={10} /> {errors.clientEmail}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                      Telefone <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      value={clientPhone}
+                      onChange={handlePhoneChange}
+                      maxLength={PHONE_PREFIX_DISPLAY.length + 10}
+                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
+                        ${errors.clientPhone ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
+                      `}
+                      placeholder="+55 (91) 9XXXX-XXXX"
+                    />
+                    {errors.clientPhone && (
+                      <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                        <AlertCircle size={10} /> {errors.clientPhone}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-8 flex justify-end">
+                  <button
+                    onClick={handleFinishOrder}
+                    disabled={loading}
+                    className="bg-[#1c1c1c] text-white font-bold py-4 px-10 rounded-xl hover:bg-black transition-all flex items-center gap-3 shadow-lg disabled:opacity-70 text-xs uppercase tracking-widest group"
+                  >
+                    {loading ? (
+                      <Loader2 className="animate-spin" size={18} />
+                    ) : (
+                      <>
+                        Avançar para Análise{" "}
+                        <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* INFO */}
+              <div className="bg-gray-50 rounded-2xl p-6 border border-gray-200">
+                <h4 className="text-sm font-bold text-gray-700 uppercase mb-4 flex items-center gap-2">
+                  <CheckCircle2 size={16} className="text-green-600" /> Próxima Etapa: Crédito
+                </h4>
+
+                <div className="grid grid-cols-1 gap-4 opacity-80">
+                  <div className="bg-white p-4 rounded-xl border border-gray-200 flex items-center gap-3">
+                    <Banknote className="text-blue-600" size={24} />
+                    <div>
+                      <p className="text-sm font-bold text-gray-900 leading-none">Financiamento</p>
+                      <p className="text-[11px] text-gray-500 mt-1 uppercase">Aprovação em minutos</p>
+                    </div>
+                  </div>
+                  <div className="bg-white p-4 rounded-xl border border-gray-200 flex items-center gap-3">
+                    <Wallet className="text-purple-600" size={24} />
+                    <div>
+                      <p className="text-sm font-bold text-gray-900 leading-none">Consórcio</p>
+                      <p className="text-[11px] text-gray-500 mt-1 uppercase">Cartas de crédito</p>
+                    </div>
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-gray-400 mt-4 italic">
+                  * As taxas e coeficientes serão aplicados na próxima aba após a validação dos dados acima.
+                </p>
+
+                <div className="mt-6 p-4 rounded-xl border border-gray-200 bg-white">
+                  <p className="text-[11px] text-gray-500 uppercase font-bold mb-2">Veículo</p>
+                  <p className="text-sm font-semibold text-gray-900">{CONFIG.titulo}</p>
+                  <p className="text-sm text-gray-600 mt-1">A partir de {formatBRL0(CONFIG.priceStart)}</p>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Exterior: <span className="font-bold">{CONFIG.exterior.colors[selectedExterior]?.name || "Padrão"}</span>
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Interior: <span className="font-bold">{CONFIG.interior.colors[selectedInterior]?.name || "Padrão"}</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
@@ -595,9 +916,7 @@ export default function SpinElectricStylePage() {
           <div className="min-w-0">
             <p className="text-xs font-black text-gray-900 truncate">{CONFIG.titulo}</p>
             <p className="text-[11px] text-gray-500 truncate">
-              {CONFIG.priceStart > 0
-                ? `A partir de ${formatBRL0(CONFIG.priceStart)}`
-                : "Simule consórcio/financiamento agora"}
+              {`A partir de ${formatBRL0(CONFIG.priceStart)}`}
             </p>
           </div>
 

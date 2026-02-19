@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 import {
   ArrowLeft,
   ArrowRight,
@@ -18,21 +19,19 @@ import {
   ChevronLeft,
   ChevronRight as ChevronRightIcon,
   Expand,
+  Loader2,
+  AlertCircle,
+  Lock,
+  Wallet,
+  Banknote,
+  CheckCircle2,
 } from "lucide-react";
 
 /**
- * Blazer EV RS — Landing (estilo do print)
- * ✅ Exterior/Interior com cores + troca de imagem
- * ✅ Interior com setas (carousel) — só linkar as imagens
- * ✅ Sem "aluguel/assinatura" (consórcio/financiamento)
- * ✅ Config central pra reaproveitar em outros veículos
- * ✅ Animação suave ao trocar: cor, tab e carousel
- * ✅ Fundo BRANCO no configurador (no lugar do cinza)
- * ✅ Seção antes do footer: agora BRANCA (mais agradável com footer cinza)
- *
- * ONDE COLOCAR:
- * - Crie a rota: app/eletricos/blazer-ev-rs/page.tsx (ou onde você preferir)
- * - Cole este arquivo inteiro como page.tsx
+ * Blazer EV RS — Landing + FINALIZAÇÃO NO FINAL (mesma lógica que você usou na Captiva)
+ * ✅ Todos CTAs rolam pro final
+ * ✅ Se logado: salva em sales e abre /vendedor/analise com query
+ * ✅ Se não logado: bloqueia e mostra botão login
  */
 
 // =========================
@@ -108,7 +107,6 @@ const CONFIG = {
   },
 
   // ======= INTERIOR (cores + imagens em carousel por cor) =======
-  // Você só coloca os links. Cada cor pode ter 1+ imagens (carousel).
   interior: {
     trimLabel: "RS",
     colors: [
@@ -116,7 +114,6 @@ const CONFIG = {
         name: "Jet Black",
         hex: "#111318",
         images: [
-          // coloque aqui suas imagens internas (pode ser 1 ou várias)
           "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/eletricos/22/galeria-01.avif",
           "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/eletricos/22/galeria-02.avif",
         ],
@@ -131,10 +128,44 @@ const CONFIG = {
     { icon: <FileText size={18} />, title: "Documentação orientada", desc: "do início ao fim" },
     { icon: <ShieldCheck size={18} />, title: "Transparência", desc: "condições claras" },
   ],
+
+  // (opcional) se quiser preço real pra gravar no sale + entrada 30%
+  // preco: 0,
 };
 
 // =========================
-// helpers
+// FINALIZAÇÃO helpers
+// =========================
+const maskCPF = (value: string) =>
+  value
+    .replace(/\D/g, "")
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d{1,2})/, "$1-$2")
+    .replace(/(-\d{2})\d+?$/, "$1");
+
+const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+// telefone fixo +55 (91)
+const PHONE_PREFIX_DISPLAY = "+55 (91) ";
+const PHONE_PREFIX_E164 = "+5591";
+
+const maskPhoneAfterPrefix = (value: string) => {
+  const digits = value.replace(/\D/g, "").slice(0, 9);
+  if (!digits) return "";
+  if (digits.length <= 1) return digits;
+  if (digits.length <= 5) return `${digits.slice(0, 1)}${digits.slice(1)}`;
+  return `${digits.slice(0, 1)}${digits.slice(1, 5)}-${digits.slice(5)}`;
+};
+
+const getPhoneDigitsAfterPrefix = (fullValue: string) => {
+  const digits = fullValue.replace(/\D/g, "");
+  if (digits.startsWith("5591")) return digits.slice(4).slice(0, 9);
+  return digits.slice(0, 9);
+};
+
+// =========================
+// helpers (análise)
 // =========================
 function buildAnaliseUrl() {
   const params = new URLSearchParams({
@@ -151,6 +182,82 @@ type TabKey = "exterior" | "interior";
 export default function BlazerEVRSPage() {
   const router = useRouter();
 
+  // ===== FINALIZAÇÃO NO FINAL =====
+  const orderSectionId = "order-summary";
+
+  const [authLoading, setAuthLoading] = useState(true);
+  const [user, setUser] = useState<any>(null);
+
+  const [clientName, setClientName] = useState("");
+  const [clientCpf, setClientCpf] = useState("");
+  const [clientEmail, setClientEmail] = useState("");
+  const [clientPhone, setClientPhone] = useState(PHONE_PREFIX_DISPLAY);
+
+  const [loading, setLoading] = useState(false);
+
+  const [errors, setErrors] = useState({
+    clientName: "",
+    clientCpf: "",
+    clientEmail: "",
+    clientPhone: "",
+  });
+
+  const scrollToId = (id: string) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadSession() {
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (!mounted) return;
+        setUser(data.session?.user ?? null);
+      } finally {
+        if (mounted) setAuthLoading(false);
+      }
+    }
+
+    loadSession();
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setAuthLoading(false);
+    });
+
+    return () => {
+      mounted = false;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
+
+  const handleCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setClientCpf(maskCPF(e.target.value));
+    if (errors.clientCpf) setErrors({ ...errors, clientCpf: "" });
+  };
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const typed = e.target.value;
+
+    let after = typed.startsWith(PHONE_PREFIX_DISPLAY)
+      ? typed.slice(PHONE_PREFIX_DISPLAY.length)
+      : typed.replace(PHONE_PREFIX_DISPLAY, "");
+
+    const maskedAfter = maskPhoneAfterPrefix(after);
+    setClientPhone(PHONE_PREFIX_DISPLAY + maskedAfter);
+
+    if (errors.clientPhone) setErrors({ ...errors, clientPhone: "" });
+  };
+
+  // ✅ CTAs rolam pro final (igual sua Captiva)
+  const goPrimary = () => scrollToId(orderSectionId);
+
+  // =========================
+  // PÁGINA (UI)
+  // =========================
   const [tab, setTab] = useState<TabKey>("exterior");
 
   const [selectedExterior, setSelectedExterior] = useState(0);
@@ -159,53 +266,38 @@ export default function BlazerEVRSPage() {
 
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
-  // ---- animação de troca de imagem (fade + leve zoom) ----
   const [isImgSwitching, setIsImgSwitching] = useState(false);
   const [displayedSrc, setDisplayedSrc] = useState(CONFIG.exterior.colors[0]?.img || CONFIG.heroImage);
   const animTimer = useRef<number | null>(null);
 
   const mosaic = useMemo(() => {
-    const g = (CONFIG.gallery ?? []).filter(Boolean);
-    while (g.length < 6) g.push(CONFIG.gallery?.[0] || CONFIG.heroImage);
+    const g = (CONFIG.gallery ?? [])
+      .map((x) => (typeof x === "string" ? x.trim() : x))
+      .filter(Boolean);
+    while (g.length < 6) g.push((CONFIG.gallery?.[0] || CONFIG.heroImage).trim());
     return g.slice(0, 6);
   }, []);
 
-  const goPrimary = () => router.push(buildAnaliseUrl());
-
-  // exterior atual
   const exteriorCurrent = CONFIG.exterior.colors[selectedExterior]?.img?.trim() || CONFIG.heroImage;
 
-  // interior atual (cor + carousel)
   const interiorColor = CONFIG.interior.colors[selectedInterior];
-  const interiorImages = (interiorColor?.images ?? []).filter(Boolean);
+  const interiorImages = (interiorColor?.images ?? []).map((x) => x.trim()).filter(Boolean);
   const interiorCurrent = interiorImages[interiorIndex] || interiorImages[0] || CONFIG.heroImage;
 
-  // "fonte atual" dependendo da tab
-  const actualSrc = tab === "exterior" ? exteriorCurrent : interiorCurrent;
-
-  // função central: anima e troca imagem
   const switchImageTo = (nextSrc: string) => {
-    // evita flicker se clicar rápido
     if (animTimer.current) window.clearTimeout(animTimer.current);
 
-    // inicia fade-out
     setIsImgSwitching(true);
 
-    // troca src no meio da animação
     animTimer.current = window.setTimeout(() => {
       setDisplayedSrc(nextSrc);
 
-      // volta fade-in
       animTimer.current = window.setTimeout(() => {
         setIsImgSwitching(false);
       }, 90);
     }, 160);
   };
 
-  // sempre que a imagem "real" mudar por estado, anima
-  // (chamamos manualmente nos handlers abaixo pra manter controle)
-
-  // quando trocar cor interior, volta pro primeiro slide (e anima)
   const handleSelectInterior = (idx: number) => {
     setSelectedInterior(idx);
     setInteriorIndex(0);
@@ -221,7 +313,6 @@ export default function BlazerEVRSPage() {
     if (interiorImages.length <= 1) return;
     const nextIndex = (interiorIndex - 1 + interiorImages.length) % interiorImages.length;
     setInteriorIndex(nextIndex);
-
     if (tab === "interior") switchImageTo(interiorImages[nextIndex]);
   };
 
@@ -229,39 +320,108 @@ export default function BlazerEVRSPage() {
     if (interiorImages.length <= 1) return;
     const nextIndex = (interiorIndex + 1) % interiorImages.length;
     setInteriorIndex(nextIndex);
-
     if (tab === "interior") switchImageTo(interiorImages[nextIndex]);
   };
 
-  // trocar tab com animação
   const handleTab = (nextTab: TabKey) => {
     if (nextTab === tab) return;
 
     setTab(nextTab);
-
     const nextSrc = nextTab === "exterior" ? exteriorCurrent : interiorCurrent;
     switchImageTo(nextSrc);
   };
 
-  // trocar exterior com animação
   const handleSelectExterior = (idx: number) => {
     setSelectedExterior(idx);
     const next = CONFIG.exterior.colors[idx]?.img?.trim() || CONFIG.heroImage;
     if (tab === "exterior") switchImageTo(next);
   };
 
-  // lightbox simples
   const openLightbox = () => setLightboxOpen(true);
   const closeLightbox = () => setLightboxOpen(false);
 
-  // garante que o displayedSrc esteja sincronizado no primeiro render / fallback
-  // (se o usuário entrar já em interior por alguma alteração futura, ainda fica ok)
-  if (!displayedSrc) {
-    // (nunca deve acontecer, mas evita tela em branco)
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    // @ts-ignore
-    setDisplayedSrc(actualSrc);
-  }
+  const handleFinishOrder = async () => {
+    let newErrors = { clientName: "", clientCpf: "", clientEmail: "", clientPhone: "" };
+    let hasError = false;
+
+    if (authLoading) return;
+
+    if (!user) {
+      scrollToId(orderSectionId);
+      return;
+    }
+
+    if (clientName.trim().length < 3) {
+      newErrors.clientName = "Nome completo é obrigatório.";
+      hasError = true;
+    }
+
+    if (clientCpf.length < 14) {
+      newErrors.clientCpf = "CPF inválido ou incompleto.";
+      hasError = true;
+    }
+
+    if (!clientEmail || !validateEmail(clientEmail)) {
+      newErrors.clientEmail = "Insira um e-mail válido.";
+      hasError = true;
+    }
+
+    const phoneDigits = getPhoneDigitsAfterPrefix(clientPhone);
+    if (phoneDigits.length < 9) {
+      newErrors.clientPhone = "Telefone obrigatório (digite os 9 dígitos após o 9).";
+      hasError = true;
+    }
+
+    setErrors(newErrors);
+    if (hasError) return;
+
+    setLoading(true);
+
+    try {
+      const telefoneE164 = `${PHONE_PREFIX_E164}${getPhoneDigitsAfterPrefix(clientPhone)}`;
+
+      // aqui não tem preço definido, então vai 0 (igual seu buildAnaliseUrl)
+      const valor = 0;
+      const entrada = 0;
+
+      const saleData = {
+        car_id: `landing-${CONFIG.titulo.toLowerCase().replace(/\s+/g, "-")}`,
+        car_name: CONFIG.titulo,
+        seller_id: user.id,
+        client_name: clientName,
+        client_cpf: clientCpf,
+        client_email: clientEmail,
+        client_phone: telefoneE164,
+        total_price: valor,
+        status: "Enviado para Análise",
+        interest_type: "Pendente (Aba Análise)",
+        details: {
+          exterior_color: CONFIG.exterior.colors[selectedExterior]?.name || "Padrão",
+          interior_color: CONFIG.interior.colors[selectedInterior]?.name || "Padrão",
+        },
+        created_at: new Date().toISOString(),
+      };
+
+      await supabase.from("sales").insert([saleData]);
+
+      const query = new URLSearchParams({
+        nome: clientName,
+        cpf: clientCpf,
+        telefone: telefoneE164,
+        modelo: CONFIG.titulo,
+        valor: String(valor),
+        entrada: String(entrada),
+        renda: "0",
+        imagem: CONFIG.heroImage,
+      }).toString();
+
+      router.push(`/vendedor/analise?${query}`);
+    } catch (error: any) {
+      console.error("Erro ao processar:", error);
+      alert("Erro ao processar pedido: " + (error?.message || "erro desconhecido"));
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-white text-gray-900">
@@ -336,18 +496,12 @@ export default function BlazerEVRSPage() {
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-14">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
             <div className="rounded-none overflow-hidden bg-black/30">
-              <img
-                src={CONFIG.sectionImage}
-                alt="Detalhe"
-                className="w-full h-[320px] md:h-[420px] object-cover"
-              />
+              <img src={CONFIG.sectionImage} alt="Detalhe" className="w-full h-[320px] md:h-[420px] object-cover" />
             </div>
 
             <div className="max-w-xl">
               <h2 className="text-2xl md:text-3xl font-black leading-tight">{CONFIG.sectionTitle}</h2>
-              <p className="mt-4 text-sm md:text-base text-white/75 leading-relaxed">
-                {CONFIG.sectionText}
-              </p>
+              <p className="mt-4 text-sm md:text-base text-white/75 leading-relaxed">{CONFIG.sectionText}</p>
             </div>
           </div>
         </div>
@@ -363,11 +517,7 @@ export default function BlazerEVRSPage() {
 
           <div className="mt-8 grid grid-cols-12 gap-3">
             <div className="col-span-12 lg:col-span-6 rounded-none overflow-hidden bg-gray-100">
-              <img
-                src={mosaic[0]}
-                alt="Galeria 1"
-                className="w-full h-[340px] md:h-[460px] object-cover"
-              />
+              <img src={mosaic[0]} alt="Galeria 1" className="w-full h-[340px] md:h-[460px] object-cover" />
             </div>
 
             <div className="col-span-12 lg:col-span-6 grid grid-cols-12 gap-3">
@@ -401,19 +551,15 @@ export default function BlazerEVRSPage() {
         </div>
       </section>
 
-      {/* ========= CONFIGURADOR (EXTERIOR / INTERIOR) ========= */}
+      {/* CONFIGURADOR */}
       <section className="bg-white border-t border-gray-200">
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-16">
           <p className="text-center text-sm text-gray-500">{CONFIG.titulo}</p>
-          <h3 className="text-center text-3xl md:text-4xl font-black tracking-tight mt-2">
-            {CONFIG.exterior.headline}
-          </h3>
+          <h3 className="text-center text-3xl md:text-4xl font-black tracking-tight mt-2">{CONFIG.exterior.headline}</h3>
 
           <div className="mt-10 grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
-            {/* ESQUERDA: IMAGEM */}
             <div className="flex justify-center">
               <div className="relative w-full max-w-[780px]">
-                {/* Fundo BRANCO (ajuste pedido) + borda leve */}
                 <div className="relative rounded-2xl overflow-hidden bg-white border border-gray-200">
                   <img
                     src={displayedSrc}
@@ -421,13 +567,10 @@ export default function BlazerEVRSPage() {
                     className={[
                       "w-full transition-all duration-300 ease-out will-change-transform",
                       isImgSwitching ? "opacity-0 scale-[0.985]" : "opacity-100 scale-100",
-                      tab === "exterior"
-                        ? "h-[360px] md:h-[420px] object-contain p-6"
-                        : "h-[360px] md:h-[420px] object-cover",
+                      tab === "exterior" ? "h-[360px] md:h-[420px] object-contain p-6" : "h-[360px] md:h-[420px] object-cover",
                     ].join(" ")}
                   />
 
-                  {/* Botão expand (como print) */}
                   <button
                     onClick={openLightbox}
                     className="absolute top-4 right-4 w-10 h-10 rounded-xl bg-white/95 border border-gray-200 flex items-center justify-center hover:bg-white transition-colors"
@@ -437,7 +580,6 @@ export default function BlazerEVRSPage() {
                     <Expand size={18} className="text-[#0b4b9a]" />
                   </button>
 
-                  {/* Setas só no interior (carousel) */}
                   {tab === "interior" && interiorImages.length > 1 ? (
                     <>
                       <button
@@ -460,17 +602,13 @@ export default function BlazerEVRSPage() {
               </div>
             </div>
 
-            {/* DIREITA: CONTROLES */}
             <div className="max-w-md">
-              {/* Tabs */}
               <div className="flex items-center gap-5 border-b border-gray-200 pb-3">
                 <button
                   onClick={() => handleTab("exterior")}
                   className={[
                     "text-sm font-black pb-2 transition-colors",
-                    tab === "exterior"
-                      ? "text-[#0b4b9a] border-b-2 border-[#0b4b9a]"
-                      : "text-gray-600 hover:text-gray-900",
+                    tab === "exterior" ? "text-[#0b4b9a] border-b-2 border-[#0b4b9a]" : "text-gray-600 hover:text-gray-900",
                   ].join(" ")}
                 >
                   Exterior
@@ -480,27 +618,19 @@ export default function BlazerEVRSPage() {
                   onClick={() => handleTab("interior")}
                   className={[
                     "text-sm font-black pb-2 transition-colors",
-                    tab === "interior"
-                      ? "text-[#0b4b9a] border-b-2 border-[#0b4b9a]"
-                      : "text-gray-600 hover:text-gray-900",
+                    tab === "interior" ? "text-[#0b4b9a] border-b-2 border-[#0b4b9a]" : "text-gray-600 hover:text-gray-900",
                   ].join(" ")}
                 >
                   Interior
                 </button>
               </div>
 
-              {/* Conteúdo dinâmico */}
               {tab === "exterior" ? (
                 <div className="mt-5">
-                  <p className="text-xs font-black uppercase tracking-widest text-gray-500">
-                    {CONFIG.exterior.trimLabel}
-                  </p>
+                  <p className="text-xs font-black uppercase tracking-widest text-gray-500">{CONFIG.exterior.trimLabel}</p>
 
-                  <p className="mt-2 text-sm font-black text-gray-900">
-                    {CONFIG.exterior.colors[selectedExterior]?.name ?? "Cor"}
-                  </p>
+                  <p className="mt-2 text-sm font-black text-gray-900">{CONFIG.exterior.colors[selectedExterior]?.name ?? "Cor"}</p>
 
-                  {/* Bolinhas Exterior */}
                   <div className="mt-4 flex items-center gap-3">
                     {CONFIG.exterior.colors.map((c, idx) => (
                       <button
@@ -508,17 +638,12 @@ export default function BlazerEVRSPage() {
                         onClick={() => handleSelectExterior(idx)}
                         className={[
                           "w-10 h-10 rounded-full border transition-all p-1",
-                          idx === selectedExterior
-                            ? "border-[#0b4b9a] ring-2 ring-[#0b4b9a]/20"
-                            : "border-gray-200 hover:border-gray-300",
+                          idx === selectedExterior ? "border-[#0b4b9a] ring-2 ring-[#0b4b9a]/20" : "border-gray-200 hover:border-gray-300",
                         ].join(" ")}
                         title={c.name}
                         aria-label={c.name}
                       >
-                        <span
-                          className="block w-full h-full rounded-full"
-                          style={{ backgroundColor: c.hex }}
-                        />
+                        <span className="block w-full h-full rounded-full" style={{ backgroundColor: c.hex }} />
                       </button>
                     ))}
                   </div>
@@ -533,22 +658,16 @@ export default function BlazerEVRSPage() {
                   <div className="mt-6 flex items-start gap-3 text-sm text-gray-600">
                     <ChevronDown size={18} className="mt-0.5 text-gray-400" />
                     <p>
-                      Clique em <span className="font-black">Solicitar contato</span> para iniciar a
-                      simulação de consórcio/financiamento.
+                      Clique em <span className="font-black">Solicitar contato</span> para iniciar a simulação de consórcio/financiamento.
                     </p>
                   </div>
                 </div>
               ) : (
                 <div className="mt-5">
-                  <p className="text-xs font-black uppercase tracking-widest text-gray-500">
-                    {CONFIG.interior.trimLabel}
-                  </p>
+                  <p className="text-xs font-black uppercase tracking-widest text-gray-500">{CONFIG.interior.trimLabel}</p>
 
-                  <p className="mt-2 text-sm font-black text-gray-900">
-                    {CONFIG.interior.colors[selectedInterior]?.name ?? "Interior"}
-                  </p>
+                  <p className="mt-2 text-sm font-black text-gray-900">{CONFIG.interior.colors[selectedInterior]?.name ?? "Interior"}</p>
 
-                  {/* Bolinhas Interior */}
                   <div className="mt-4 flex items-center gap-3">
                     {CONFIG.interior.colors.map((c, idx) => (
                       <button
@@ -556,22 +675,16 @@ export default function BlazerEVRSPage() {
                         onClick={() => handleSelectInterior(idx)}
                         className={[
                           "w-10 h-10 rounded-full border transition-all p-1",
-                          idx === selectedInterior
-                            ? "border-[#0b4b9a] ring-2 ring-[#0b4b9a]/20"
-                            : "border-gray-200 hover:border-gray-300",
+                          idx === selectedInterior ? "border-[#0b4b9a] ring-2 ring-[#0b4b9a]/20" : "border-gray-200 hover:border-gray-300",
                         ].join(" ")}
                         title={c.name}
                         aria-label={c.name}
                       >
-                        <span
-                          className="block w-full h-full rounded-full"
-                          style={{ backgroundColor: c.hex }}
-                        />
+                        <span className="block w-full h-full rounded-full" style={{ backgroundColor: c.hex }} />
                       </button>
                     ))}
                   </div>
 
-                  {/* Indicador de slide (opcional) */}
                   {interiorImages.length > 1 ? (
                     <p className="mt-3 text-xs text-gray-500">
                       Foto {interiorIndex + 1} de {interiorImages.length}
@@ -587,10 +700,7 @@ export default function BlazerEVRSPage() {
 
                   <div className="mt-6 flex items-start gap-3 text-sm text-gray-600">
                     <ChevronDown size={18} className="mt-0.5 text-gray-400" />
-                    <p>
-                      Você pode trocar o interior e navegar nas fotos pelas setas (quando houver mais
-                      de uma imagem).
-                    </p>
+                    <p>Você pode trocar o interior e navegar nas fotos pelas setas (quando houver mais de uma imagem).</p>
                   </div>
                 </div>
               )}
@@ -599,15 +709,13 @@ export default function BlazerEVRSPage() {
         </div>
       </section>
 
-      {/* ✅ ANTES DO FOOTER: agora BRANCO (ajuste pedido) */}
+      {/* ANTES DO FOOTER */}
       <section className="bg-white text-gray-900 border-t border-gray-200">
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-14">
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
             <div>
               <p className="text-sm font-black">Chevrolet {CONFIG.titulo}</p>
-              <p className="text-gray-500 text-sm mt-1">
-                Consórcio ou financiamento • atendimento rápido
-              </p>
+              <p className="text-gray-500 text-sm mt-1">Consórcio ou financiamento • atendimento rápido</p>
             </div>
 
             <button
@@ -632,10 +740,183 @@ export default function BlazerEVRSPage() {
 
           <div className="mt-10 text-xs text-gray-400">
             <p>
-              <span className="font-black text-gray-600">Aviso:</span> informações e imagens podem
-              variar por versão/ano-modelo. Sujeito a análise.
+              <span className="font-black text-gray-600">Aviso:</span> informações e imagens podem variar por versão/ano-modelo. Sujeito a análise.
             </p>
           </div>
+        </div>
+      </section>
+
+      {/* ================= FINALIZAÇÃO NO FINAL ================= */}
+      <section id={orderSectionId} className="py-20 px-4 md:px-10 bg-white border-t border-gray-200">
+        <div className="max-w-[1400px] mx-auto">
+          <div className="mb-10">
+            <p className="text-[10px] font-black uppercase tracking-[0.35em] text-black/70 mb-3">Finalização</p>
+            <h2 className="text-3xl md:text-5xl font-black tracking-tight text-black">
+              Iniciar proposta com <span className="text-black/60">dados do cliente</span>
+            </h2>
+            <p className="text-sm text-black/60 mt-3 max-w-3xl">
+              Preencha os dados do cliente para enviar para o módulo de <strong>Análise de Crédito</strong>. *Somente vendedores logados conseguem avançar.
+            </p>
+          </div>
+
+          {!user ? (
+            <div className="bg-gray-50 border border-gray-200 rounded-2xl p-10 flex flex-col items-center justify-center text-center">
+              <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mb-4">
+                <Lock className="text-gray-500" size={32} />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Funcionalidade Restrita</h3>
+              <p className="text-gray-500 mb-6 max-w-md">A finalização de propostas é exclusiva para vendedores logados.</p>
+              <Link href="/login" className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors">
+                Fazer Login de Vendedor
+              </Link>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-6">
+                <h4 className="text-lg font-semibold text-gray-900 mb-6 pb-3 border-b border-gray-200">Informações do Cliente</h4>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                      Nome Completo <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      value={clientName}
+                      onChange={(e) => {
+                        setClientName(e.target.value);
+                        if (errors.clientName) setErrors({ ...errors, clientName: "" });
+                      }}
+                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
+                        ${errors.clientName ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
+                      `}
+                      placeholder="Digite o nome completo"
+                    />
+                    {errors.clientName && (
+                      <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                        <AlertCircle size={10} /> {errors.clientName}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                      CPF <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      value={clientCpf}
+                      onChange={(e) => handleCpfChange(e as any)}
+                      maxLength={14}
+                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
+                        ${errors.clientCpf ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
+                      `}
+                      placeholder="000.000.000-00"
+                    />
+                    {errors.clientCpf && (
+                      <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                        <AlertCircle size={10} /> {errors.clientCpf}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                      Email <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      value={clientEmail}
+                      onChange={(e) => {
+                        setClientEmail(e.target.value);
+                        if (errors.clientEmail) setErrors({ ...errors, clientEmail: "" });
+                      }}
+                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
+                        ${errors.clientEmail ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
+                      `}
+                      placeholder="exemplo@email.com"
+                    />
+                    {errors.clientEmail && (
+                      <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                        <AlertCircle size={10} /> {errors.clientEmail}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                      Telefone <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      value={clientPhone}
+                      onChange={handlePhoneChange}
+                      maxLength={PHONE_PREFIX_DISPLAY.length + 10}
+                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
+                        ${errors.clientPhone ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
+                      `}
+                      placeholder="+55 (91) 9XXXX-XXXX"
+                    />
+                    {errors.clientPhone && (
+                      <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                        <AlertCircle size={10} /> {errors.clientPhone}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-8 flex justify-end">
+                  <button
+                    onClick={handleFinishOrder}
+                    disabled={loading}
+                    className="bg-[#1c1c1c] text-white font-bold py-4 px-10 rounded-xl hover:bg-black transition-all flex items-center gap-3 shadow-lg disabled:opacity-70 text-xs uppercase tracking-widest group"
+                  >
+                    {loading ? (
+                      <Loader2 className="animate-spin" size={18} />
+                    ) : (
+                      <>
+                        Avançar para Análise <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 rounded-2xl p-6 border border-gray-200">
+                <h4 className="text-sm font-bold text-gray-700 uppercase mb-4 flex items-center gap-2">
+                  <CheckCircle2 size={16} className="text-green-600" /> Próxima Etapa: Crédito
+                </h4>
+
+                <div className="grid grid-cols-1 gap-4 opacity-80">
+                  <div className="bg-white p-4 rounded-xl border border-gray-200 flex items-center gap-3">
+                    <Banknote className="text-blue-600" size={24} />
+                    <div>
+                      <p className="text-sm font-bold text-gray-900 leading-none">Financiamento</p>
+                      <p className="text-[11px] text-gray-500 mt-1 uppercase">Aprovação em minutos</p>
+                    </div>
+                  </div>
+                  <div className="bg-white p-4 rounded-xl border border-gray-200 flex items-center gap-3">
+                    <Wallet className="text-purple-600" size={24} />
+                    <div>
+                      <p className="text-sm font-bold text-gray-900 leading-none">Consórcio</p>
+                      <p className="text-[11px] text-gray-500 mt-1 uppercase">Cartas de crédito</p>
+                    </div>
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-gray-400 mt-4 italic">
+                  * As taxas e coeficientes serão aplicados na próxima aba após a validação dos dados acima.
+                </p>
+
+                <div className="mt-6 p-4 rounded-xl border border-gray-200 bg-white">
+                  <p className="text-[11px] text-gray-500 uppercase font-bold mb-2">Veículo</p>
+                  <p className="text-sm font-semibold text-gray-900">{CONFIG.titulo}</p>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Exterior: <span className="font-bold">{CONFIG.exterior.colors[selectedExterior]?.name || "Padrão"}</span>
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Interior: <span className="font-bold">{CONFIG.interior.colors[selectedInterior]?.name || "Padrão"}</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
@@ -644,9 +925,7 @@ export default function BlazerEVRSPage() {
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-3 flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs font-black text-gray-900 truncate">{CONFIG.titulo}</p>
-            <p className="text-[11px] text-gray-500 truncate">
-              Simule consórcio/financiamento agora
-            </p>
+            <p className="text-[11px] text-gray-500 truncate">Simule consórcio/financiamento agora</p>
           </div>
 
           <button
@@ -658,37 +937,23 @@ export default function BlazerEVRSPage() {
         </div>
       </div>
 
-      {/* espaçador */}
       <div className="h-16" />
 
-      {/* LIGHTBOX simples */}
+      {/* LIGHTBOX */}
       {lightboxOpen ? (
-        <div
-          className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-center justify-center p-6"
-          onClick={closeLightbox}
-        >
-          <div
-            className="max-w-5xl w-full bg-white rounded-2xl overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-center justify-center p-6" onClick={closeLightbox}>
+          <div className="max-w-5xl w-full bg-white rounded-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
               <p className="text-sm font-black text-gray-900">
                 {CONFIG.titulo} • {tab === "exterior" ? "Exterior" : "Interior"}
               </p>
-              <button
-                onClick={closeLightbox}
-                className="text-xs font-black uppercase tracking-widest text-[#0b4b9a] hover:opacity-80"
-              >
+              <button onClick={closeLightbox} className="text-xs font-black uppercase tracking-widest text-[#0b4b9a] hover:opacity-80">
                 Fechar
               </button>
             </div>
 
             <div className="bg-white">
-              <img
-                src={tab === "exterior" ? exteriorCurrent : interiorCurrent}
-                alt="Imagem ampliada"
-                className="w-full max-h-[75vh] object-contain"
-              />
+              <img src={tab === "exterior" ? exteriorCurrent : interiorCurrent} alt="Imagem ampliada" className="w-full max-h-[75vh] object-contain" />
             </div>
           </div>
         </div>

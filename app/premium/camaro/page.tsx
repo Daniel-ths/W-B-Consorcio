@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 import {
   ArrowLeft,
   ArrowRight,
@@ -20,43 +22,46 @@ import {
   Radio,
   RotateCw,
   Layers,
+  Loader2,
+  AlertCircle,
+  Lock,
+  Wallet,
+  Banknote,
+  CheckCircle2,
 } from "lucide-react";
 
-// --- DADOS REAIS: CHEVROLET CAMARO SS COLLECTION 2024 ---
-const CAMARO_DATA = {
-  nome: "Camaro SS Collection",
-  subtitulo: "A Despedida da Lenda. Edição Limitada.",
-  preco: 555900,
-  motor: "6.2L V8 LT1",
-  potencia: "461 CV",
-  torque: "62.9 kgfm",
-  aceleracao: "4.2s (0-100 km/h)",
-  velocidade_max: "290 km/h",
-
-  imagem_hero:
-    "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/2018-Camaro-ZL1-1LE-13.jpg",
-  imagem_lateral:
-    "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/Chevrolet-Camaro-Collection-2025.jpg",
-  imagem_interior_full:
-    "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/2024-chevrolet-camaro-ss-collectors-edition-1200x720.jpg",
-  imagem_volante:
-    "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/galeria-3%20(1).avif",
-  imagem_bancos:
-    "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/galeria-4.avif",
-  imagem_motor:
-    "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/pbx_9188-tif.webp",
-
-  // ✅ ÁUDIO DO SUPABASE (NÃO REPETE)
-  som_motor:
-    "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/esportivos/audio%20motor%20camaro.mp4",
+// --- MÁSCARAS E HELPERS (do OrderSummary) ---
+const maskCPF = (value: string) => {
+  return value
+    .replace(/\D/g, "")
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d{1,2})/, "$1-$2")
+    .replace(/(-\d{2})\d+?$/, "$1");
 };
 
-// --- IMAGENS PARA ROTAÇÃO 360 ---
-const ROTATION_IMAGES = [
-  "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/esportivos/camaro-ss/cor-preto_global-front/1769189515548_25jz4n.avif",
-  "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/esportivos/camaro-ss/cor-preto_global-side/1769189515793_7xi1ud.avif",
-  "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/esportivos/camaro-ss/cor-preto_global-rear_angle/1769189516087_tj1mii.avif",
-];
+const validateEmail = (email: string) => {
+  const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return re.test(email);
+};
+
+// --- TELEFONE FIXO +55 (91) ---
+const PHONE_PREFIX_DISPLAY = "+55 (91) ";
+const PHONE_PREFIX_E164 = "+5591";
+
+const maskPhoneAfterPrefix = (value: string) => {
+  const digits = value.replace(/\D/g, "").slice(0, 9);
+  if (!digits) return "";
+  if (digits.length <= 1) return digits;
+  if (digits.length <= 5) return `${digits.slice(0, 1)}${digits.slice(1)}`;
+  return `${digits.slice(0, 1)}${digits.slice(1, 5)}-${digits.slice(5)}`;
+};
+
+const getPhoneDigitsAfterPrefix = (fullValue: string) => {
+  const digits = fullValue.replace(/\D/g, "");
+  if (digits.startsWith("5591")) return digits.slice(4).slice(0, 9);
+  return digits.slice(0, 9);
+};
 
 const moneyBRL = (value: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
@@ -84,9 +89,9 @@ function SectionTitle({
   icon,
 }: {
   eyebrow?: string;
-  title: React.ReactNode;
-  subtitle?: React.ReactNode;
-  icon?: React.ReactNode;
+  title: ReactNode;
+  subtitle?: ReactNode;
+  icon?: ReactNode;
 }) {
   return (
     <div className="text-center mb-14">
@@ -112,7 +117,7 @@ function SpecCard({
   value,
   hint,
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   label: string;
   value: string;
   hint: string;
@@ -137,14 +142,43 @@ function SpecCard({
   );
 }
 
+// --- DADOS DO CAMARO ---
+const CAMARO_DATA = {
+  nome: "Camaro SS Collection",
+  subtitulo: "A Despedida da Lenda. Edição Limitada.",
+  preco: 555900,
+
+  motor: "6.2L V8 LT1",
+  potencia: "461 CV",
+  torque: "62.9 kgfm",
+  velocidade_max: "290 km/h",
+
+  imagem_hero:
+    "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/2018-Camaro-ZL1-1LE-13.jpg",
+  imagem_interior_full:
+    "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/2024-chevrolet-camaro-ss-collectors-edition-1200x720.jpg",
+  imagem_volante:
+    "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/galeria-3%20(1).avif",
+  imagem_bancos:
+    "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/galeria-4.avif",
+  imagem_motor:
+    "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/pbx_9188-tif.webp",
+
+  som_motor:
+    "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/esportivos/audio%20motor%20camaro.mp4",
+};
+
+const ROTATION_IMAGES = [
+  "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/esportivos/camaro-ss/cor-preto_global-front/1769189515548_25jz4n.avif",
+  "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/esportivos/camaro-ss/cor-preto_global-side/1769189515793_7xi1ud.avif",
+  "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/esportivos/camaro-ss/cor-preto_global-rear_angle/1769189516087_tj1mii.avif",
+];
+
 export default function CamaroPage() {
   const router = useRouter();
-
   const prefersReducedMotion = usePrefersReducedMotion();
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  // ✅ stop imediato + fade rápido
   const fadeRafRef = useRef<number | null>(null);
   const [isFadingOut, setIsFadingOut] = useState(false);
 
@@ -152,8 +186,28 @@ export default function CamaroPage() {
   const [showStickyNav, setShowStickyNav] = useState(false);
   const [showMobileCTA, setShowMobileCTA] = useState(false);
 
-  // Rotação (0..2)
   const [rotationIndex, setRotationIndex] = useState(0);
+
+  // ✅ auth + user
+  const [authLoading, setAuthLoading] = useState(true);
+  const [user, setUser] = useState<any>(null);
+
+  // ✅ scroll para o final (form)
+  const orderSectionId = "order-summary";
+
+  // ✅ form (igual OrderSummary)
+  const [clientName, setClientName] = useState("");
+  const [clientCpf, setClientCpf] = useState("");
+  const [clientEmail, setClientEmail] = useState("");
+  const [clientPhone, setClientPhone] = useState(PHONE_PREFIX_DISPLAY);
+
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({
+    clientName: "",
+    clientCpf: "",
+    clientEmail: "",
+    clientPhone: "",
+  });
 
   // Section refs (scroll suave)
   const sectionRefs = useMemo(
@@ -163,6 +217,7 @@ export default function CamaroPage() {
       engine: "motor",
       interior: "interior",
       cta: "cta",
+      order: orderSectionId,
     }),
     []
   );
@@ -173,20 +228,19 @@ export default function CamaroPage() {
     el.scrollIntoView({ behavior: prefersReducedMotion ? "auto" : "smooth", block: "start" });
   };
 
+  // --- áudio ---
   const stopImmediatelyAndResetSoft = () => {
     const a = audioRef.current;
     if (!a) return;
 
-    // ✅ para na hora
     try {
       a.pause();
     } catch {}
 
-    // ✅ fade curtinho no volume (pra não dar estalo)
     setIsFadingOut(true);
     const start = performance.now();
     const startVol = typeof a.volume === "number" ? a.volume : 0.6;
-    const DURATION = 220; // ms
+    const DURATION = 220;
 
     const tick = (t: number) => {
       const p = Math.min(1, (t - start) / DURATION);
@@ -197,7 +251,6 @@ export default function CamaroPage() {
         return;
       }
 
-      // ✅ zera e deixa pronto pra próxima
       try {
         a.currentTime = 0;
       } catch {}
@@ -216,7 +269,7 @@ export default function CamaroPage() {
     if (fadeRafRef.current) cancelAnimationFrame(fadeRafRef.current);
     setIsFadingOut(false);
 
-    a.loop = false; // ✅ não repete
+    a.loop = false;
     try {
       a.currentTime = 0;
     } catch {}
@@ -230,7 +283,6 @@ export default function CamaroPage() {
     }
   };
 
-  // Som do motor (toggle)
   const toggleEngine = () => {
     const a = audioRef.current;
     if (!a || isFadingOut) return;
@@ -242,6 +294,33 @@ export default function CamaroPage() {
       playFromStartNoLoop();
     }
   };
+
+  // ✅ auth session
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadSession() {
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (!mounted) return;
+        setUser(data.session?.user ?? null);
+      } finally {
+        if (mounted) setAuthLoading(false);
+      }
+    }
+
+    loadSession();
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setAuthLoading(false);
+    });
+
+    return () => {
+      mounted = false;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
 
   // Scroll effects
   useEffect(() => {
@@ -265,7 +344,7 @@ export default function CamaroPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // ✅ Cleanup ao sair da página
+  // Cleanup
   useEffect(() => {
     return () => {
       const a = audioRef.current;
@@ -279,22 +358,117 @@ export default function CamaroPage() {
     };
   }, []);
 
-  // Checkout
+  // ✅ "Garanta o seu": vai pro final da página (form)
   const handleFazerPedido = () => {
-    const params = new URLSearchParams({
-      modelo: CAMARO_DATA.nome,
-      valor: CAMARO_DATA.preco.toString(),
-      entrada: (CAMARO_DATA.preco * 0.3).toString(),
-      imagem: CAMARO_DATA.imagem_hero,
-    });
-    router.push(`/vendedor/analise?${params.toString()}`);
+    scrollToId(sectionRefs.order);
+  };
+
+  // --- Handlers do form (do OrderSummary) ---
+  const handleCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setClientCpf(maskCPF(e.target.value));
+    if (errors.clientCpf) setErrors({ ...errors, clientCpf: "" });
+  };
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const typed = e.target.value;
+
+    let after = typed.startsWith(PHONE_PREFIX_DISPLAY)
+      ? typed.slice(PHONE_PREFIX_DISPLAY.length)
+      : typed.replace(PHONE_PREFIX_DISPLAY, "");
+
+    const maskedAfter = maskPhoneAfterPrefix(after);
+    setClientPhone(PHONE_PREFIX_DISPLAY + maskedAfter);
+
+    if (errors.clientPhone) setErrors({ ...errors, clientPhone: "" });
+  };
+
+  // ✅ finalizar: salva em sales e envia para /vendedor/analise com query preenchida
+  const handleFinishOrder = async () => {
+    let newErrors = { clientName: "", clientCpf: "", clientEmail: "", clientPhone: "" };
+    let hasError = false;
+
+    if (authLoading) return;
+
+    if (!user) {
+      // mantém seu padrão: exige login para consultar/analisar
+      scrollToId(sectionRefs.order);
+      return;
+    }
+
+    if (clientName.trim().length < 3) {
+      newErrors.clientName = "Nome completo é obrigatório.";
+      hasError = true;
+    }
+
+    if (clientCpf.length < 14) {
+      newErrors.clientCpf = "CPF inválido ou incompleto.";
+      hasError = true;
+    }
+
+    if (!clientEmail || !validateEmail(clientEmail)) {
+      newErrors.clientEmail = "Insira um e-mail válido.";
+      hasError = true;
+    }
+
+    const phoneDigits = getPhoneDigitsAfterPrefix(clientPhone);
+    if (phoneDigits.length < 9) {
+      newErrors.clientPhone = "Telefone obrigatório (digite os 9 dígitos após o 9).";
+      hasError = true;
+    }
+
+    setErrors(newErrors);
+    if (hasError) return;
+
+    setLoading(true);
+
+    try {
+      const telefoneE164 = `${PHONE_PREFIX_E164}${getPhoneDigitsAfterPrefix(clientPhone)}`;
+
+      const saleData = {
+        car_id: "camaro-ss-collection", // ✅ estático pra esta página
+        car_name: CAMARO_DATA.nome,
+        seller_id: user.id,
+        client_name: clientName,
+        client_cpf: clientCpf,
+        client_email: clientEmail,
+        client_phone: telefoneE164,
+        total_price: CAMARO_DATA.preco,
+        status: "Enviado para Análise",
+        interest_type: "Pendente (Aba Análise)",
+        details: {
+          color: "Padrão",
+          wheels: "Padrão",
+          seats: "Padrão",
+          accessories: [],
+        },
+        created_at: new Date().toISOString(),
+      };
+
+      await supabase.from("sales").insert([saleData]);
+
+      const query = new URLSearchParams({
+        nome: clientName,
+        cpf: clientCpf,
+        telefone: telefoneE164,
+        modelo: CAMARO_DATA.nome,
+        valor: CAMARO_DATA.preco.toString(),
+        entrada: "0",
+        renda: "0",
+        imagem: CAMARO_DATA.imagem_hero,
+      }).toString();
+
+      router.push(`/vendedor/analise?${query}`);
+    } catch (error: any) {
+      console.error("Erro ao processar:", error);
+      alert("Erro ao processar pedido: " + (error?.message || "erro desconhecido"));
+      setLoading(false);
+    }
   };
 
   const rotPct = (rotationIndex / (ROTATION_IMAGES.length - 1)) * 100;
 
   return (
     <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-[#f2e14c] selection:text-black pb-24 overflow-x-hidden">
-      {/* ✅ áudio: não repete + reseta ao finalizar */}
       <audio
         ref={audioRef}
         src={CAMARO_DATA.som_motor}
@@ -312,7 +486,6 @@ export default function CamaroPage() {
         }}
       />
 
-      {/* Background noise + vignette (bem sutil) */}
       <div className="pointer-events-none fixed inset-0 z-0">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(242,225,76,0.08)_0%,rgba(5,5,5,0)_55%)] opacity-60" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(0,0,0,0)_0%,rgba(0,0,0,0.65)_70%)]" />
@@ -336,7 +509,6 @@ export default function CamaroPage() {
             Voltar
           </Link>
 
-          {/* Mini nav (desktop) */}
           <nav
             className={[
               "hidden lg:flex items-center gap-5 text-[10px] font-black uppercase tracking-widest transition-all duration-500",
@@ -367,6 +539,12 @@ export default function CamaroPage() {
             >
               Interior
             </button>
+            <button
+              onClick={() => scrollToId(sectionRefs.order)}
+              className="text-white/55 hover:text-white transition-colors"
+            >
+              Finalizar
+            </button>
             <span className="mx-1 w-[1px] h-4 bg-white/10" />
             <span className="text-white/85 tracking-tight">{CAMARO_DATA.nome}</span>
           </nav>
@@ -393,7 +571,7 @@ export default function CamaroPage() {
               onClick={handleFazerPedido}
               className="bg-[#f2e14c] hover:bg-white text-black text-[10px] font-black uppercase px-5 py-2.5 rounded-full transition-all shadow-[0_0_18px_rgba(242,225,76,0.25)] hover:shadow-[0_0_28px_rgba(242,225,76,0.55)]"
             >
-              Comprar
+              Garanta o seu
             </button>
           </div>
         </div>
@@ -401,7 +579,6 @@ export default function CamaroPage() {
 
       {/* --- HERO --- */}
       <section className="relative min-h-[100svh] w-full flex items-center justify-center overflow-hidden z-10">
-        {/* BG */}
         <div className="absolute inset-0">
           <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/25 to-[#050505] z-10" />
           <div className="absolute inset-0 bg-black/35 z-10" />
@@ -415,7 +592,6 @@ export default function CamaroPage() {
           />
         </div>
 
-        {/* Content */}
         <div className="relative z-20 text-center px-6 max-w-5xl mx-auto pt-24 md:pt-28">
           <div className="inline-flex items-center gap-3 border border-white/15 bg-black/35 backdrop-blur-md px-5 py-2 rounded-full mb-8 shadow-lg">
             <Award size={16} className="text-[#f2e14c] fill-[#f2e14c]" />
@@ -436,7 +612,6 @@ export default function CamaroPage() {
             <span className="text-white/55">O último suspiro do V8 aspirado puro sangue.</span>
           </p>
 
-          {/* CTA Row */}
           <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-6">
             <button
               onClick={handleFazerPedido}
@@ -472,7 +647,6 @@ export default function CamaroPage() {
             </button>
           </div>
 
-          {/* Quick chips */}
           <div className="mt-12 flex flex-wrap items-center justify-center gap-2">
             {[
               { label: "Motor", value: CAMARO_DATA.motor },
@@ -488,16 +662,6 @@ export default function CamaroPage() {
                 <span className="text-white/90 font-black">{x.value}</span>
               </div>
             ))}
-          </div>
-
-          <div className="mt-12 flex justify-center">
-            <button
-              onClick={() => scrollToId(sectionRefs.specs)}
-              className="opacity-70 hover:opacity-100 transition-opacity flex flex-col items-center gap-2"
-            >
-              <span className="text-[9px] uppercase tracking-widest text-white">Detalhes</span>
-              <div className="w-[1px] h-12 bg-gradient-to-b from-white to-transparent" />
-            </button>
           </div>
         </div>
       </section>
@@ -538,11 +702,7 @@ export default function CamaroPage() {
                 Explore cada <span className="text-[#f2e14c]">ângulo</span>
               </>
             }
-            subtitle={
-              <>
-                Use o slider (ou ← → no teclado) para alternar os ângulos.
-              </>
-            }
+            subtitle={<>Use o slider (ou ← → no teclado) para alternar os ângulos.</>}
             icon={<RotateCw size={18} className={prefersReducedMotion ? "" : "animate-spin-slow"} />}
           />
 
@@ -559,21 +719,9 @@ export default function CamaroPage() {
                   ].join(" ")}
                 />
               ))}
-
               <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-black/55 via-transparent to-transparent z-20" />
-
-              {/* Label overlay */}
-              <div className="absolute top-5 left-5 z-30 flex items-center gap-2">
-                <div className="px-3 py-2 rounded-full border border-white/10 bg-black/35 backdrop-blur text-[10px] uppercase tracking-widest text-white/75">
-                  Visualização 360º
-                </div>
-                <div className="px-3 py-2 rounded-full border border-white/10 bg-black/35 backdrop-blur text-[10px] uppercase tracking-widest text-white/75">
-                  {rotationIndex === 0 ? "Frente" : rotationIndex === 1 ? "Lateral" : "Traseira"}
-                </div>
-              </div>
             </div>
 
-            {/* Controls */}
             <div className="mt-8 max-w-2xl mx-auto">
               <div className="flex items-center justify-between gap-3 mb-4">
                 <button
@@ -614,12 +762,6 @@ export default function CamaroPage() {
                 />
               </div>
 
-              <div className="flex justify-between mt-3 text-[9px] font-black text-white/35 uppercase tracking-widest">
-                <span>Frente</span>
-                <span>Lateral</span>
-                <span>Traseira</span>
-              </div>
-
               <p className="mt-4 text-xs text-white/55 flex items-center justify-center gap-2">
                 <MousePointer2 size={12} /> Arraste para girar (ou ← →)
               </p>
@@ -640,25 +782,16 @@ export default function CamaroPage() {
         </div>
 
         <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-14 items-center relative">
-          <div className="relative group">
-            <div className="absolute -inset-1 bg-gradient-to-r from-[#f2e14c] to-yellow-600 rounded-3xl blur opacity-20 group-hover:opacity-45 transition duration-700" />
-            <div className="relative rounded-3xl overflow-hidden border border-white/10 aspect-square lg:aspect-[4/3] bg-white/5">
-              <img
-                src={CAMARO_DATA.imagem_motor}
-                alt="Motor V8"
-                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-              />
-              <div className="absolute bottom-0 left-0 w-full p-6 bg-gradient-to-t from-black via-black/80 to-transparent">
-                <p className="text-white font-black text-2xl uppercase">6.2L LT1 V8</p>
-                <p className="text-white/55 text-xs">Small Block Chevy • Injeção Direta</p>
-              </div>
+          <div className="relative rounded-3xl overflow-hidden border border-white/10 aspect-square lg:aspect-[4/3] bg-white/5">
+            <img src={CAMARO_DATA.imagem_motor} alt="Motor V8" className="w-full h-full object-cover" />
+            <div className="absolute bottom-0 left-0 w-full p-6 bg-gradient-to-t from-black via-black/80 to-transparent">
+              <p className="text-white font-black text-2xl uppercase">6.2L LT1 V8</p>
+              <p className="text-white/55 text-xs">Small Block Chevy • Injeção Direta</p>
             </div>
           </div>
 
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.35em] text-[#f2e14c]/90 mb-4">
-              Mecânica
-            </p>
+            <p className="text-[10px] font-black uppercase tracking-[0.35em] text-[#f2e14c]/90 mb-4">Mecânica</p>
             <h2 className="text-4xl md:text-6xl font-black uppercase italic mb-6 leading-[0.95]">
               O Coração <br />
               <span className="text-[#f2e14c]">Da Besta.</span>
@@ -668,42 +801,6 @@ export default function CamaroPage() {
               Sob o capô, respira o lendário motor V8 Small Block da GM. Sem turbos, sem assistência elétrica.
               Apenas admissão atmosférica pura, entregando torque instantâneo e uma sinfonia mecânica a 6.000 RPM.
             </p>
-
-            <div className="space-y-4">
-              <div className="flex items-center gap-4 p-4 bg-white/[0.04] rounded-2xl border border-white/8 hover:border-[#f2e14c]/25 transition-colors">
-                <div className="bg-[#f2e14c]/15 p-2.5 rounded-xl text-[#f2e14c] border border-[#f2e14c]/15">
-                  <Award size={20} />
-                </div>
-                <div>
-                  <p className="font-black text-white text-sm uppercase tracking-tight">Transmissão de 10 Marchas</p>
-                  <p className="text-[10px] text-white/40 uppercase tracking-widest mt-1">Trocas em milissegundos.</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4 p-4 bg-white/[0.04] rounded-2xl border border-white/8 hover:border-[#f2e14c]/25 transition-colors">
-                <div className="bg-[#f2e14c]/15 p-2.5 rounded-xl text-[#f2e14c] border border-[#f2e14c]/15">
-                  <MousePointer2 size={20} />
-                </div>
-                <div>
-                  <p className="font-black text-white text-sm uppercase tracking-tight">4 Modos de Condução</p>
-                  <p className="text-[10px] text-white/40 uppercase tracking-widest mt-1">
-                    Tour, Sport, Track e Snow/Ice.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4 p-4 bg-white/[0.04] rounded-2xl border border-white/8 hover:border-[#f2e14c]/25 transition-colors">
-                <div className="bg-[#f2e14c]/15 p-2.5 rounded-xl text-[#f2e14c] border border-[#f2e14c]/15">
-                  <Zap size={20} />
-                </div>
-                <div>
-                  <p className="font-black text-white text-sm uppercase tracking-tight">Resposta imediata</p>
-                  <p className="text-[10px] text-white/40 uppercase tracking-widest mt-1">
-                    Aceleração sem “delay” de turbo.
-                  </p>
-                </div>
-              </div>
-            </div>
 
             <div className="mt-10 flex flex-wrap gap-3">
               <button
@@ -721,10 +818,10 @@ export default function CamaroPage() {
               </button>
 
               <button
-                onClick={() => scrollToId(sectionRefs.cta)}
+                onClick={() => scrollToId(sectionRefs.order)}
                 className="px-5 py-3 rounded-full border border-[#f2e14c]/35 bg-[#f2e14c]/10 text-[#f2e14c] text-[10px] font-black uppercase tracking-widest hover:bg-[#f2e14c]/15 transition-all"
               >
-                Ir para preço
+                Ir para finalização
               </button>
             </div>
           </div>
@@ -753,16 +850,6 @@ export default function CamaroPage() {
                 className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
-              <div className="absolute bottom-8 left-8">
-                <div className="flex items-center gap-2 mb-2 text-[#f2e14c]">
-                  <Layers size={18} />
-                  <span className="text-[10px] font-black uppercase tracking-widest text-white/85">
-                    Acabamento Exclusivo
-                  </span>
-                </div>
-                <p className="text-2xl font-black uppercase text-white">Couro Premium & Alcantara</p>
-                <p className="text-xs text-white/55 mt-1">Detalhes esportivos e cockpit envolvente.</p>
-              </div>
             </div>
 
             <div className="relative h-[40vh] rounded-3xl overflow-hidden group border border-white/10 bg-white/5">
@@ -772,16 +859,6 @@ export default function CamaroPage() {
                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
               />
               <div className="absolute inset-0 bg-black/45 group-hover:bg-black/25 transition-all" />
-              <div className="absolute bottom-6 left-6">
-                <div className="flex items-center gap-2 mb-1 text-[#f2e14c]">
-                  <Armchair size={18} />
-                  <span className="text-[10px] font-black uppercase tracking-widest text-white/85">
-                    Recaro Performance
-                  </span>
-                </div>
-                <p className="text-lg font-black uppercase text-white leading-tight">Bancos com Ventilação</p>
-                <p className="text-xs text-white/65 mt-1">Aquecimento e resfriamento para máximo conforto.</p>
-              </div>
             </div>
 
             <div className="relative h-[40vh] rounded-3xl overflow-hidden group border border-white/10 bg-white/5">
@@ -791,79 +868,180 @@ export default function CamaroPage() {
                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
               />
               <div className="absolute inset-0 bg-black/45 group-hover:bg-black/25 transition-all" />
-              <div className="absolute bottom-6 left-6">
-                <div className="flex items-center gap-2 mb-1 text-[#f2e14c]">
-                  <Radio size={18} />
-                  <span className="text-[10px] font-black uppercase tracking-widest text-white/85">
-                    Bose Premium
-                  </span>
-                </div>
-                <p className="text-lg font-black uppercase text-white leading-tight">Audio System</p>
-                <p className="text-xs text-white/65 mt-1">9 alto-falantes de alta fidelidade.</p>
-              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* --- PREÇO E CTA FINAL --- */}
-      <section id={sectionRefs.cta} className="py-32 px-6 text-center relative z-10 overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[520px] h-[520px] bg-[#f2e14c]/10 rounded-full blur-[130px]" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(242,225,76,0.08)_0%,rgba(5,5,5,0)_55%)] opacity-60" />
-        </div>
+      {/* --- FINALIZAÇÃO (FORM EM FUNDO BRANCO) --- */}
+      <section id={orderSectionId} className="py-24 px-6 relative z-10 border-t border-white/5 bg-white">
+        <div className="max-w-6xl mx-auto">
+          <div className="mb-10">
+            <p className="text-[10px] font-black uppercase tracking-[0.35em] text-black/70 mb-3">Finalização</p>
+            <h2 className="text-3xl md:text-5xl font-black uppercase tracking-tight text-black">
+              Garanta o Seu <span className="text-black/60">com segurança</span>
+            </h2>
+            <p className="text-sm text-black/60 mt-3 max-w-3xl">
+              Preencha os dados do cliente para enviar para o módulo de <strong>Análise de Crédito</strong>.
+              *Somente vendedores logados conseguem avançar.
+            </p>
+          </div>
 
-        <div className="relative max-w-3xl mx-auto">
-          <p className="text-[10px] font-black text-[#f2e14c] uppercase tracking-[0.45em] mb-6">
-            Últimas Unidades no Brasil
-          </p>
-
-          <h2 className="text-5xl md:text-8xl font-black uppercase italic mb-8 text-white">Domine as ruas.</h2>
-
-          <div className="bg-white/5 border border-white/10 p-10 rounded-[2rem] backdrop-blur-md inline-block w-full max-w-xl relative overflow-hidden group hover:border-[#f2e14c]/30 transition-colors">
-            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-              <ShieldCheck size={110} className="text-white" />
+          {!user ? (
+            <div className="bg-gray-50 border border-gray-200 rounded-2xl p-10 flex flex-col items-center justify-center text-center">
+              <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mb-4">
+                <Lock className="text-gray-500" size={32} />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Funcionalidade Restrita</h3>
+              <p className="text-gray-500 mb-6 max-w-md">A finalização de propostas é exclusiva para vendedores logados.</p>
+              <Link href="/login" className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors">
+                Fazer Login de Vendedor
+              </Link>
             </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* FORM */}
+              <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-6">
+                <h4 className="text-lg font-semibold text-gray-900 mb-6 pb-3 border-b border-gray-200">Informações do Cliente</h4>
 
-            <p className="text-white/45 text-[10px] font-black uppercase tracking-widest mb-4">
-              Valor de Investimento
-            </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                      Nome Completo <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      value={clientName}
+                      onChange={(e) => {
+                        setClientName(e.target.value);
+                        if (errors.clientName) setErrors({ ...errors, clientName: "" });
+                      }}
+                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
+                        ${errors.clientName ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
+                      `}
+                      placeholder="Digite o nome completo"
+                    />
+                    {errors.clientName && (
+                      <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                        <AlertCircle size={10} /> {errors.clientName}
+                      </p>
+                    )}
+                  </div>
 
-            <p className="text-5xl font-mono font-black text-white mb-8 tracking-tight">
-              {moneyBRL(CAMARO_DATA.preco)}
-            </p>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                      CPF <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      value={clientCpf}
+                      onChange={handleCpfChange}
+                      maxLength={14}
+                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
+                        ${errors.clientCpf ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
+                      `}
+                      placeholder="000.000.000-00"
+                    />
+                    {errors.clientCpf && (
+                      <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                        <AlertCircle size={10} /> {errors.clientCpf}
+                      </p>
+                    )}
+                  </div>
 
-            <button
-              onClick={handleFazerPedido}
-              className="group w-full bg-gradient-to-r from-[#f2e14c] to-[#d4c025] hover:from-[#fff] hover:to-[#f2e14c] text-black font-black uppercase py-6 rounded-xl tracking-widest transition-all duration-300 shadow-[0_10px_40px_-10px_rgba(242,225,76,0.3)] hover:shadow-[0_20px_60px_-10px_rgba(242,225,76,0.5)] hover:-translate-y-1 active:translate-y-0 active:scale-[0.98] flex items-center justify-center gap-3 relative overflow-hidden"
-            >
-              <span className="relative z-10 flex items-center gap-2">
-                Iniciar Negociação{" "}
-                <ArrowRight size={18} className="group-hover:translate-x-2 transition-transform duration-300" />
-              </span>
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 ease-in-out" />
-            </button>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                      Email <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      value={clientEmail}
+                      onChange={(e) => {
+                        setClientEmail(e.target.value);
+                        if (errors.clientEmail) setErrors({ ...errors, clientEmail: "" });
+                      }}
+                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
+                        ${errors.clientEmail ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
+                      `}
+                      placeholder="exemplo@email.com"
+                    />
+                    {errors.clientEmail && (
+                      <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                        <AlertCircle size={10} /> {errors.clientEmail}
+                      </p>
+                    )}
+                  </div>
 
-            <p className="text-[9px] text-white/35 mt-6 uppercase tracking-widest">
-              *Sujeito a análise de crédito • Estoque limitado
-            </p>
-          </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                      Telefone <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      value={clientPhone}
+                      onChange={handlePhoneChange}
+                      maxLength={PHONE_PREFIX_DISPLAY.length + 10}
+                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
+                        ${errors.clientPhone ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
+                      `}
+                      placeholder="+55 (91) 9XXXX-XXXX"
+                    />
+                    {errors.clientPhone && (
+                      <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                        <AlertCircle size={10} /> {errors.clientPhone}
+                      </p>
+                    )}
+                  </div>
+                </div>
 
-          {/* Secondary CTA */}
-          <div className="mt-10 flex items-center justify-center gap-3">
-            <button
-              onClick={() => scrollToId(sectionRefs.rot)}
-              className="px-5 py-3 rounded-full border border-white/10 bg-white/[0.03] hover:bg-white/[0.05] text-white/70 hover:text-white transition-all text-[10px] font-black uppercase tracking-widest"
-            >
-              Ver 360º
-            </button>
-            <button
-              onClick={() => scrollToId(sectionRefs.engine)}
-              className="px-5 py-3 rounded-full border border-white/10 bg-white/[0.03] hover:bg-white/[0.05] text-white/70 hover:text-white transition-all text-[10px] font-black uppercase tracking-widest"
-            >
-              Ver motor
-            </button>
-          </div>
+                <div className="mt-8 flex justify-end">
+                  <button
+                    onClick={handleFinishOrder}
+                    disabled={loading}
+                    className="bg-[#1c1c1c] text-white font-bold py-4 px-10 rounded-xl hover:bg-black transition-all flex items-center gap-3 shadow-lg disabled:opacity-70 text-xs uppercase tracking-widest group"
+                  >
+                    {loading ? (
+                      <Loader2 className="animate-spin" size={18} />
+                    ) : (
+                      <>
+                        Avançar para Análise <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* INFO */}
+              <div className="bg-gray-50 rounded-2xl p-6 border border-gray-200">
+                <h4 className="text-sm font-bold text-gray-700 uppercase mb-4 flex items-center gap-2">
+                  <CheckCircle2 size={16} className="text-green-600" /> Próxima Etapa: Crédito
+                </h4>
+
+                <div className="grid grid-cols-1 gap-4 opacity-80">
+                  <div className="bg-white p-4 rounded-xl border border-gray-200 flex items-center gap-3">
+                    <Banknote className="text-blue-600" size={24} />
+                    <div>
+                      <p className="text-sm font-bold text-gray-900 leading-none">Financiamento</p>
+                      <p className="text-[11px] text-gray-500 mt-1 uppercase">Aprovação em minutos</p>
+                    </div>
+                  </div>
+                  <div className="bg-white p-4 rounded-xl border border-gray-200 flex items-center gap-3">
+                    <Wallet className="text-purple-600" size={24} />
+                    <div>
+                      <p className="text-sm font-bold text-gray-900 leading-none">Consórcio</p>
+                      <p className="text-[11px] text-gray-500 mt-1 uppercase">Cartas de crédito</p>
+                    </div>
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-gray-400 mt-4 italic">
+                  * As taxas e coeficientes serão aplicados na próxima aba após a validação dos dados acima.
+                </p>
+
+                <div className="mt-6 p-4 rounded-xl border border-gray-200 bg-white">
+                  <p className="text-[11px] text-gray-500 uppercase font-bold mb-2">Veículo</p>
+                  <p className="text-sm font-semibold text-gray-900">{CAMARO_DATA.nome}</p>
+                  <p className="text-sm text-gray-600 mt-1">{moneyBRL(CAMARO_DATA.preco)}</p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
@@ -884,7 +1062,7 @@ export default function CamaroPage() {
               onClick={handleFazerPedido}
               className="shrink-0 bg-[#f2e14c] hover:bg-white text-black text-[10px] font-black uppercase px-4 py-3 rounded-xl transition-all shadow-[0_0_18px_rgba(242,225,76,0.25)]"
             >
-              Comprar agora
+              Garanta o seu
             </button>
           </div>
         </div>
