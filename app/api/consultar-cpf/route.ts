@@ -1,86 +1,114 @@
-import { NextResponse } from 'next/server';
+import { NextResponse } from "next/server";
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function onlyDigits(v: any) {
+  return String(v || "").replace(/\D/g, "");
+}
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { cpf } = body;
-    
-    // 1. Limpa o CPF
-    const cpfLimpo = cpf?.replace(/\D/g, '') || '';
+    const body = await request.json().catch(() => ({}));
+    const cpfLimpo = onlyDigits(body?.cpf);
 
     if (!cpfLimpo || cpfLimpo.length !== 11) {
-      return NextResponse.json({ error: 'CPF inválido' }, { status: 400 });
+      return NextResponse.json({ error: true, message: "CPF inválido" }, { status: 400 });
     }
 
-    // --- CONFIGURAÇÃO CPFCNPJ.COM.BR ---
-    // 1. Cadastre-se em www.cpfcnpj.com.br
-    // 2. Pegue seu TOKEN no painel
-    // 3. Veja qual o número do "Pacote de CPF" (Geralmente é 1)
-    
-    const token = "3010f09bce6b19f5786c9bcb7fb7920a".trim(); 
-    const pacoteId = "2"; // Confirme no painel se o pacote de CPF é 1, 2 ou outro.
+    /**
+     * ============================================================
+     *  ✅ MODO TESTE (DEFAULT)
+     *  - Não chama API externa
+     *  - Mantém o formato que seu front espera
+     *  - Para ativar consulta real depois: CONSULTA_CPF_MODE=live
+     * ============================================================
+     */
+    const mode = (process.env.CONSULTA_CPF_MODE || "test").toLowerCase();
 
-    // Verifica se o token está configurado
-    const usarModoMock = token === "SEU_TOKEN_AQUI" || !token;
+    if (mode !== "live") {
+      console.warn(`[consultar-cpf] MODO TESTE ativo. Retornando mock para ${cpfLimpo}`);
+      await sleep(500);
 
-    if (usarModoMock) {
-        console.warn(`--- MODO TESTE (SEM TOKEN): Retornando dados simulados para ${cpfLimpo} ---`);
-        
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        // RETORNA DADOS MOCK (Para você não travar o desenvolvimento)
-        return NextResponse.json({
-            nome: "CLIENTE TESTE (CPFCNPJ.COM.BR)",
-            cpf: cpfLimpo,
-            nascimento: "1988-03-20",
-            genero: "MASCULINO",
-            mae: "MÃE EXEMPLO DE TESTE",
-            situacao: "REGULAR",
-            uf: "SP",
-            original: { origem: "mock_sem_token" }
-        });
+      // ✅ MOCK (você pode editar os campos como quiser)
+      return NextResponse.json({
+        error: false,
+        nome: "CLIENTE TESTE (MODO MOCK)",
+        cpf: cpfLimpo,
+        nascimento: "1988-03-20",
+        genero: "MASCULINO",
+        mae: "MÃE EXEMPLO DE TESTE",
+        situacao: "REGULAR",
+        uf: "PA",
+        original: { origem: "mock_test_mode" },
+      });
     }
 
-    console.log(`--- CONSULTANDO CPFCNPJ.COM.BR: ${cpfLimpo} ---`);
+    /**
+     * ============================================================
+     *  🔥 MODO LIVE (guardado, mas DESLIGADO por padrão)
+     *  - Ative colocando CONSULTA_CPF_MODE=live no .env.local
+     * ============================================================
+     *
+     *  ✅ CPFCNPJ.COM.BR
+     *  URL: https://api.cpfcnpj.com.br/TOKEN/PACOTE/CPF
+     */
+    const token = (process.env.CPFCNPJ_TOKEN || "").trim();
+    const pacoteId = (process.env.CPFCNPJ_PACOTE_ID || "2").trim();
 
-    // A URL deles é: https://api.cpfcnpj.com.br/TOKEN/PACOTE/CPF
+    if (!token) {
+      // se ativou live mas esqueceu token, cai em mock pra não travar dev
+      console.warn(`[consultar-cpf] LIVE ativo, mas CPFCNPJ_TOKEN não configurado. Voltando para mock.`);
+      await sleep(300);
+
+      return NextResponse.json({
+        error: false,
+        nome: "CLIENTE TESTE (FALLBACK SEM TOKEN)",
+        cpf: cpfLimpo,
+        nascimento: "1988-03-20",
+        genero: "MASCULINO",
+        mae: "MÃE EXEMPLO DE TESTE",
+        situacao: "REGULAR",
+        uf: "PA",
+        original: { origem: "mock_fallback_sem_token" },
+      });
+    }
+
+    console.log(`[consultar-cpf] Consultando CPFCNPJ.COM.BR: ${cpfLimpo}`);
+
     const url = `https://api.cpfcnpj.com.br/${token}/${pacoteId}/${cpfLimpo}`;
 
     const response = await fetch(url, {
       method: "GET",
-      headers: {
-        "Content-Type": "application/json"
-      }
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
     });
 
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
 
-    if (!response.ok || data.status === 0) { // Eles as vezes retornam status: 0 no JSON para erro
-       console.error("Erro CPFCNPJ:", data);
-       return NextResponse.json(
-         { error: data.erro || data.msg || "Erro ao consultar API" },
-         { status: response.status || 400 }
-       );
+    if (!response.ok || data?.status === 0) {
+      console.error("[consultar-cpf] Erro CPFCNPJ:", data);
+      return NextResponse.json(
+        { error: true, message: data?.erro || data?.msg || "Erro ao consultar API", original: data },
+        { status: response.status || 400 }
+      );
     }
 
-    // --- ADAPTADOR (Padroniza para seu Frontend) ---
-    // A resposta deles varia, mas geralmente é data.nome, data.nascimento, etc.
+    // ✅ ADAPTADOR (padroniza para seu front)
     return NextResponse.json({
-        nome: data.nome,
-        cpf: cpfLimpo,
-        nascimento: data.nascimento, // Pode vir como "DD/MM/AAAA"
-        genero: data.genero,
-        mae: data.mae,
-        situacao: data.situacao,
-        uf: data.uf, 
-        original: data
+      error: false,
+      nome: data?.nome || "",
+      cpf: cpfLimpo,
+      nascimento: data?.nascimento || "",
+      genero: data?.genero || "",
+      mae: data?.mae || "",
+      situacao: data?.situacao || "",
+      uf: data?.uf || "",
+      original: data,
     });
-
   } catch (error: any) {
-    console.error("ERRO SERVIDOR:", error);
-    return NextResponse.json(
-      { error: "Erro interno no servidor" },
-      { status: 500 }
-    );
+    console.error("[consultar-cpf] ERRO SERVIDOR:", error);
+    return NextResponse.json({ error: true, message: "Erro interno no servidor" }, { status: 500 });
   }
 }
