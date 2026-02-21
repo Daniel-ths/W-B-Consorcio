@@ -36,6 +36,10 @@ import {
  * ✅ Todos CTAs rolam pro final
  * ✅ Se logado: salva em sales e abre /vendedor/analise com query
  * ✅ Se não logado: bloqueia e mostra botão login
+ *
+ * ✅ ALTERAÇÃO PEDIDA AGORA:
+ * - Removeu a seção "Iniciar proposta com dados do cliente" (inputs do cliente)
+ * - "Simular agora" (e CTAs que rolavam pro final) agora levam para /configurador?id=27
  */
 
 // =========================
@@ -166,129 +170,16 @@ const CONFIG = {
   ],
 };
 
-// =========================
-// FINALIZAÇÃO helpers
-// =========================
-const maskCPF = (value: string) =>
-  value
-    .replace(/\D/g, "")
-    .replace(/(\d{3})(\d)/, "$1.$2")
-    .replace(/(\d{3})(\d)/, "$1.$2")
-    .replace(/(\d{3})(\d{1,2})/, "$1-$2")
-    .replace(/(-\d{2})\d+?$/, "$1");
-
-const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-
-// telefone fixo +55 (91)
-const PHONE_PREFIX_DISPLAY = "+55 (91) ";
-const PHONE_PREFIX_E164 = "+5591";
-
-const maskPhoneAfterPrefix = (value: string) => {
-  const digits = value.replace(/\D/g, "").slice(0, 9);
-  if (!digits) return "";
-  if (digits.length <= 1) return digits;
-  if (digits.length <= 5) return `${digits.slice(0, 1)}${digits.slice(1)}`;
-  return `${digits.slice(0, 1)}${digits.slice(1, 5)}-${digits.slice(5)}`;
-};
-
-const getPhoneDigitsAfterPrefix = (fullValue: string) => {
-  const digits = fullValue.replace(/\D/g, "");
-  if (digits.startsWith("5591")) return digits.slice(4).slice(0, 9);
-  return digits.slice(0, 9);
-};
-
-// preço (string "A partir de ...") → number (ex: 199990)
-const parseBRLFromString = (text: string) => {
-  const nums = String(text || "").replace(/[^\d]/g, "");
-  if (!nums) return 0;
-  const n = Number(nums);
-  return Number.isFinite(n) ? n : 0;
-};
-
-function buildAnaliseParams() {
-  const valor = parseBRLFromString(CONFIG.precoAPartir);
-  const entrada = valor ? Math.round(valor * 0.3) : 0;
-  return { valor, entrada };
-}
-
 type TabKey = "exterior" | "interior";
 
 export default function CaptivaEVPage() {
   const router = useRouter();
 
-  // ===== FINALIZAÇÃO NO FINAL =====
-  const orderSectionId = "order-summary";
+  // ✅ novo destino do "Simular agora"
+  const configuradorHref = "/configurador?id=27";
 
-  const [authLoading, setAuthLoading] = useState(true);
-  const [user, setUser] = useState<any>(null);
-
-  const [clientName, setClientName] = useState("");
-  const [clientCpf, setClientCpf] = useState("");
-  const [clientEmail, setClientEmail] = useState("");
-  const [clientPhone, setClientPhone] = useState(PHONE_PREFIX_DISPLAY);
-
-  const [loading, setLoading] = useState(false);
-
-  const [errors, setErrors] = useState({
-    clientName: "",
-    clientCpf: "",
-    clientEmail: "",
-    clientPhone: "",
-  });
-
-  const scrollToId = (id: string) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-
-  // ✅ pega usuário logado
-  useEffect(() => {
-    let mounted = true;
-
-    async function loadSession() {
-      try {
-        const { data } = await supabase.auth.getSession();
-        if (!mounted) return;
-        setUser(data.session?.user ?? null);
-      } finally {
-        if (mounted) setAuthLoading(false);
-      }
-    }
-
-    loadSession();
-
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      setAuthLoading(false);
-    });
-
-    return () => {
-      mounted = false;
-      sub.subscription.unsubscribe();
-    };
-  }, []);
-
-  const handleCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setClientCpf(maskCPF(e.target.value));
-    if (errors.clientCpf) setErrors({ ...errors, clientCpf: "" });
-  };
-
-  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const typed = e.target.value;
-
-    let after = typed.startsWith(PHONE_PREFIX_DISPLAY)
-      ? typed.slice(PHONE_PREFIX_DISPLAY.length)
-      : typed.replace(PHONE_PREFIX_DISPLAY, "");
-
-    const maskedAfter = maskPhoneAfterPrefix(after);
-    setClientPhone(PHONE_PREFIX_DISPLAY + maskedAfter);
-
-    if (errors.clientPhone) setErrors({ ...errors, clientPhone: "" });
-  };
-
-  // ✅ CTAs rolam pro final
-  const goPrimary = () => scrollToId(orderSectionId);
+  // ✅ antes rolava pro final; agora vai pro configurador
+  const goPrimary = () => router.push(configuradorHref);
 
   // ===== Página (UI) =====
   const [tab, setTab] = useState<TabKey>("exterior");
@@ -365,87 +256,6 @@ export default function CaptivaEVPage() {
 
   const openLightbox = () => setLightboxOpen(true);
   const closeLightbox = () => setLightboxOpen(false);
-
-  const handleFinishOrder = async () => {
-    let newErrors = { clientName: "", clientCpf: "", clientEmail: "", clientPhone: "" };
-    let hasError = false;
-
-    if (authLoading) return;
-
-    if (!user) {
-      scrollToId(orderSectionId);
-      return;
-    }
-
-    if (clientName.trim().length < 3) {
-      newErrors.clientName = "Nome completo é obrigatório.";
-      hasError = true;
-    }
-
-    if (clientCpf.length < 14) {
-      newErrors.clientCpf = "CPF inválido ou incompleto.";
-      hasError = true;
-    }
-
-    if (!clientEmail || !validateEmail(clientEmail)) {
-      newErrors.clientEmail = "Insira um e-mail válido.";
-      hasError = true;
-    }
-
-    const phoneDigits = getPhoneDigitsAfterPrefix(clientPhone);
-    if (phoneDigits.length < 9) {
-      newErrors.clientPhone = "Telefone obrigatório (digite os 9 dígitos após o 9).";
-      hasError = true;
-    }
-
-    setErrors(newErrors);
-    if (hasError) return;
-
-    setLoading(true);
-
-    try {
-      const telefoneE164 = `${PHONE_PREFIX_E164}${getPhoneDigitsAfterPrefix(clientPhone)}`;
-      const { valor, entrada } = buildAnaliseParams();
-
-      const saleData = {
-        car_id: `landing-${CONFIG.titulo.toLowerCase().replace(/\s+/g, "-")}`,
-        car_name: CONFIG.titulo,
-        seller_id: user.id,
-        client_name: clientName,
-        client_cpf: clientCpf,
-        client_email: clientEmail,
-        client_phone: telefoneE164,
-        total_price: valor,
-        status: "Enviado para Análise",
-        interest_type: "Pendente (Aba Análise)",
-        details: {
-          exterior_color: CONFIG.exterior.colors[selectedExterior]?.name || "Padrão",
-          interior_color: CONFIG.interior.colors[selectedInterior]?.name || "Padrão",
-          entrada_sugerida: entrada,
-        },
-        created_at: new Date().toISOString(),
-      };
-
-      await supabase.from("sales").insert([saleData]);
-
-      const query = new URLSearchParams({
-        nome: clientName,
-        cpf: clientCpf,
-        telefone: telefoneE164,
-        modelo: CONFIG.titulo,
-        valor: String(valor),
-        entrada: String(entrada),
-        renda: "0",
-        imagem: CONFIG.heroImage,
-      }).toString();
-
-      router.push(`/vendedor/analise?${query}`);
-    } catch (error: any) {
-      console.error("Erro ao processar:", error);
-      alert("Erro ao processar pedido: " + (error?.message || "erro desconhecido"));
-      setLoading(false);
-    }
-  };
 
   return (
     <div className="min-h-screen bg-white text-gray-900">
@@ -720,17 +530,18 @@ export default function CaptivaEVPage() {
                     ))}
                   </div>
 
+                  {/* ✅ agora leva pro configurador */}
                   <button
                     onClick={goPrimary}
                     className="mt-6 h-11 w-full rounded-lg bg-[#0b4b9a] text-white text-xs font-black uppercase tracking-widest hover:bg-[#093e80] transition-colors"
                   >
-                    {CONFIG.ctaSecondary}
+                    {CONFIG.ctaHero}
                   </button>
 
                   <div className="mt-6 flex items-start gap-3 text-sm text-gray-600">
                     <ChevronDown size={18} className="mt-0.5 text-gray-400" />
                     <p>
-                      Clique em <span className="font-black">Solicitar contato</span> para iniciar a simulação de consórcio/financiamento.
+                      Clique em <span className="font-black">{CONFIG.ctaHero}</span> para abrir o configurador do veículo.
                     </p>
                   </div>
                 </div>
@@ -763,11 +574,12 @@ export default function CaptivaEVPage() {
                     </p>
                   ) : null}
 
+                  {/* ✅ agora leva pro configurador */}
                   <button
                     onClick={goPrimary}
                     className="mt-6 h-11 w-full rounded-lg bg-[#0b4b9a] text-white text-xs font-black uppercase tracking-widest hover:bg-[#093e80] transition-colors"
                   >
-                    {CONFIG.ctaSecondary}
+                    {CONFIG.ctaHero}
                   </button>
 
                   <div className="mt-6 flex items-start gap-3 text-sm text-gray-600">
@@ -813,6 +625,7 @@ export default function CaptivaEVPage() {
               <p className="text-gray-500 text-sm mt-1">{CONFIG.precoAPartir} • Consórcio ou financiamento</p>
             </div>
 
+            {/* ✅ agora leva pro configurador */}
             <button
               onClick={goPrimary}
               className="h-11 px-6 rounded-lg bg-[#0b4b9a] text-white text-xs font-black uppercase tracking-widest hover:bg-[#093e80] transition-colors"
@@ -841,183 +654,7 @@ export default function CaptivaEVPage() {
         </div>
       </section>
 
-      {/* ================= FINALIZAÇÃO NO FINAL ================= */}
-      <section id={orderSectionId} className="py-20 px-4 md:px-10 bg-white border-t border-gray-200">
-        <div className="max-w-[1400px] mx-auto">
-          <div className="mb-10">
-            <p className="text-[10px] font-black uppercase tracking-[0.35em] text-black/70 mb-3">Finalização</p>
-            <h2 className="text-3xl md:text-5xl font-black tracking-tight text-black">
-              Iniciar proposta com <span className="text-black/60">dados do cliente</span>
-            </h2>
-            <p className="text-sm text-black/60 mt-3 max-w-3xl">
-              Preencha os dados do cliente para enviar para o módulo de <strong>Análise de Crédito</strong>. *Somente vendedores logados conseguem avançar.
-            </p>
-          </div>
-
-          {!user ? (
-            <div className="bg-gray-50 border border-gray-200 rounded-2xl p-10 flex flex-col items-center justify-center text-center">
-              <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mb-4">
-                <Lock className="text-gray-500" size={32} />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Funcionalidade Restrita</h3>
-              <p className="text-gray-500 mb-6 max-w-md">A finalização de propostas é exclusiva para vendedores logados.</p>
-              <Link href="/login" className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors">
-                Fazer Login de Vendedor
-              </Link>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-6">
-                <h4 className="text-lg font-semibold text-gray-900 mb-6 pb-3 border-b border-gray-200">Informações do Cliente</h4>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
-                      Nome Completo <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      value={clientName}
-                      onChange={(e) => {
-                        setClientName(e.target.value);
-                        if (errors.clientName) setErrors({ ...errors, clientName: "" });
-                      }}
-                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
-                        ${errors.clientName ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
-                      `}
-                      placeholder="Digite o nome completo"
-                    />
-                    {errors.clientName && (
-                      <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
-                        <AlertCircle size={10} /> {errors.clientName}
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
-                      CPF <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      value={clientCpf}
-                      onChange={(e) => handleCpfChange(e as any)}
-                      maxLength={14}
-                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
-                        ${errors.clientCpf ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
-                      `}
-                      placeholder="000.000.000-00"
-                    />
-                    {errors.clientCpf && (
-                      <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
-                        <AlertCircle size={10} /> {errors.clientCpf}
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
-                      Email <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      value={clientEmail}
-                      onChange={(e) => {
-                        setClientEmail(e.target.value);
-                        if (errors.clientEmail) setErrors({ ...errors, clientEmail: "" });
-                      }}
-                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
-                        ${errors.clientEmail ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
-                      `}
-                      placeholder="exemplo@email.com"
-                    />
-                    {errors.clientEmail && (
-                      <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
-                        <AlertCircle size={10} /> {errors.clientEmail}
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
-                      Telefone <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      value={clientPhone}
-                      onChange={handlePhoneChange}
-                      maxLength={PHONE_PREFIX_DISPLAY.length + 10}
-                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
-                        ${errors.clientPhone ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
-                      `}
-                      placeholder="+55 (91) 9XXXX-XXXX"
-                    />
-                    {errors.clientPhone && (
-                      <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
-                        <AlertCircle size={10} /> {errors.clientPhone}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="mt-8 flex justify-end">
-                  <button
-                    onClick={handleFinishOrder}
-                    disabled={loading}
-                    className="bg-[#1c1c1c] text-white font-bold py-4 px-10 rounded-xl hover:bg-black transition-all flex items-center gap-3 shadow-lg disabled:opacity-70 text-xs uppercase tracking-widest group"
-                  >
-                    {loading ? (
-                      <Loader2 className="animate-spin" size={18} />
-                    ) : (
-                      <>
-                        Avançar para Análise <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              <div className="bg-gray-50 rounded-2xl p-6 border border-gray-200">
-                <h4 className="text-sm font-bold text-gray-700 uppercase mb-4 flex items-center gap-2">
-                  <CheckCircle2 size={16} className="text-green-600" /> Próxima Etapa: Crédito
-                </h4>
-
-                <div className="grid grid-cols-1 gap-4 opacity-80">
-                  <div className="bg-white p-4 rounded-xl border border-gray-200 flex items-center gap-3">
-                    <Banknote className="text-blue-600" size={24} />
-                    <div>
-                      <p className="text-sm font-bold text-gray-900 leading-none">Financiamento</p>
-                      <p className="text-[11px] text-gray-500 mt-1 uppercase">Aprovação em minutos</p>
-                    </div>
-                  </div>
-                  <div className="bg-white p-4 rounded-xl border border-gray-200 flex items-center gap-3">
-                    <Wallet className="text-purple-600" size={24} />
-                    <div>
-                      <p className="text-sm font-bold text-gray-900 leading-none">Consórcio</p>
-                      <p className="text-[11px] text-gray-500 mt-1 uppercase">Cartas de crédito</p>
-                    </div>
-                  </div>
-                </div>
-
-                <p className="text-[11px] text-gray-400 mt-4 italic">
-                  * As taxas e coeficientes serão aplicados na próxima aba após a validação dos dados acima.
-                </p>
-
-                <div className="mt-6 p-4 rounded-xl border border-gray-200 bg-white">
-                  <p className="text-[11px] text-gray-500 uppercase font-bold mb-2">Veículo</p>
-                  <p className="text-sm font-semibold text-gray-900">{CONFIG.titulo}</p>
-                  <p className="text-sm text-gray-600 mt-1">{CONFIG.precoAPartir}</p>
-                  <p className="text-xs text-gray-500 mt-2">
-                    Exterior: <span className="font-bold">{CONFIG.exterior.colors[selectedExterior]?.name || "Padrão"}</span>
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    Interior: <span className="font-bold">{CONFIG.interior.colors[selectedInterior]?.name || "Padrão"}</span>
-                  </p>
-                  <p className="text-xs text-gray-500 mt-2">
-                    Entrada sugerida (30%): <span className="font-bold">{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(buildAnaliseParams().entrada)}</span>
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </section>
+      {/* ✅ REMOVIDO: FINALIZAÇÃO NO FINAL (dados do cliente) */}
 
       {/* CTA FIXO */}
       <div className="fixed bottom-0 left-0 w-full z-50 bg-white border-t border-gray-200">

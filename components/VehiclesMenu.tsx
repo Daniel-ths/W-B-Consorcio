@@ -25,12 +25,6 @@ const ELECTRIC_LP_CARDS: Array<{
   priceStart?: number;
 }> = [
   {
-    title: "Captiva EV",
-    href: "/eletricos/captiva-ev",
-    coverImage:
-      "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/eletricos/222.png",
-  },
-  {
     title: "Equinox EV",
     href: "/eletricos/equinox-ev",
     coverImage:

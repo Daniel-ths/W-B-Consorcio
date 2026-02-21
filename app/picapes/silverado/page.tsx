@@ -66,9 +66,9 @@ const CONFIG = {
     "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/caminhonete/silverado/galeria-aberta-5.avif",
     "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/caminhonete/silverado/galeria-aberta-4.avif",
     "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/caminhonete/silverado/galeria-aberta-3.avif",
-    "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/caminhonete/silverado/conectividade3.avif",
+    "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/caminhonete/silverado/dianteira.avif",
     "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/caminhonete/silverado/galeria-aberta-2.avif",
-    "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/caminhonete/silverado/interior-s10.avif",
+    "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/caminhonete/silverado/tecnologia-online.avif",
   ],
 
   exterior: {
@@ -100,7 +100,7 @@ const CONFIG = {
         name: "Preto Premium",
         hex: "#111111",
         images: [
-          "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/caminhonete/silverado/interior-s10.avif",
+          "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/caminhonete/silverado/galeria-aberta-3.avif",
           "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/caminhonete/silverado/6.avif",
         ],
       },

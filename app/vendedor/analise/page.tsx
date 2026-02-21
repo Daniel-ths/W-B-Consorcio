@@ -41,8 +41,9 @@ type LanceMode = "reduzir_parcela" | "reduzir_meses";
  */
 
 type CouponEffect = {
-  accessoriesFree?: boolean;
+  accessoriesFree?: boolean; // (mantido por compatibilidade, mas não usamos nos cupons novos)
   platingFree?: boolean;
+  freteFree?: boolean; // ✅ NOVO (frete grátis)
   discountPercent?: number; // ex: 2 => 2%
   discountValue?: number; // em reais
   note?: string;
@@ -57,69 +58,28 @@ type Coupon = {
   effects: CouponEffect;
 };
 
-// ✅ Catálogo de códigos (adicione quantos quiser aqui)
+// ✅ Catálogo de códigos (apenas os 3 solicitados: frete / placa / vip frete+placa)
 const COUPONS: Coupon[] = [
-  // --- GRATUIDADES ---
   {
-    code: "WBC-PLACA100",
-    label: "Emplacamento grátis",
-    description: "Libera o emplacamento sem custo na venda.",
+    code: "FRETE100",
+    label: "Frete grátis",
+    description: "Libera o frete sem custo na venda (acessórios permanecem com preço normal).",
+    sellerOnly: true,
+    effects: { freteFree: true, note: "Frete 100% grátis." },
+  },
+  {
+    code: "PLACA100",
+    label: "Placa grátis",
+    description: "Libera o emplacamento sem custo na venda (acessórios permanecem com preço normal).",
     sellerOnly: true,
     effects: { platingFree: true, note: "Emplacamento 100% grátis." },
   },
   {
-    code: "WBC-ACESS100",
-    label: "Acessórios grátis",
-    description: "Libera os acessórios sem custo na venda.",
+    code: "WBCVIP",
+    label: "VIP: frete + placa grátis",
+    description: "Libera frete e emplacamento sem custo na venda (acessórios permanecem com preço normal).",
     sellerOnly: true,
-    effects: { accessoriesFree: true, note: "Acessórios 100% grátis." },
-  },
-  {
-    code: "WBC-COMBOVIP",
-    label: "Combo VIP: acessórios + emplacamento grátis",
-    description: "Libera acessórios e emplacamento sem custo na venda.",
-    sellerOnly: true,
-    effects: {
-      accessoriesFree: true,
-      platingFree: true,
-      note: "Acessórios + emplacamento 100% grátis.",
-    },
-  },
-
-  // ✅ PEDIDO: 2% OFF EM TUDO + EMPLACAMENTO GRÁTIS
-  {
-    code: "WBC-PLACA2OFF",
-    label: "2% OFF em tudo + emplacamento grátis",
-    description: "Aplica 2% de desconto no total e libera o emplacamento grátis.",
-    sellerOnly: true,
-    effects: {
-      discountPercent: 2,
-      platingFree: true,
-      note: "2% OFF no total + emplacamento grátis.",
-    },
-  },
-
-  // --- OUTROS CÓDIGOS (opcionais pra você ter variedade) ---
-  {
-    code: "WBC-PLACA3OFF",
-    label: "3% OFF + emplacamento grátis",
-    description: "Aplica 3% de desconto no total e libera emplacamento grátis.",
-    sellerOnly: true,
-    effects: { discountPercent: 3, platingFree: true, note: "3% OFF + emplacamento grátis." },
-  },
-  {
-    code: "WBC-ACESS2OFF",
-    label: "2% OFF + acessórios grátis",
-    description: "Aplica 2% de desconto no total e libera acessórios grátis.",
-    sellerOnly: true,
-    effects: { discountPercent: 2, accessoriesFree: true, note: "2% OFF + acessórios grátis." },
-  },
-  {
-    code: "WBC-PLACA500",
-    label: "R$ 500 OFF + emplacamento grátis",
-    description: "Desconto fixo de R$ 500 no total e emplacamento grátis.",
-    sellerOnly: true,
-    effects: { discountValue: 500, platingFree: true, note: "R$ 500 OFF + emplacamento grátis." },
+    effects: { freteFree: true, platingFree: true, note: "Frete + emplacamento 100% grátis." },
   },
 ];
 
@@ -405,6 +365,7 @@ function AnaliseContent() {
       params.set("cupom_label", couponApplied.label);
       params.set("cupom_acessorios_gratis", couponApplied.effects.accessoriesFree ? "1" : "0");
       params.set("cupom_emplacamento_gratis", couponApplied.effects.platingFree ? "1" : "0");
+      params.set("cupom_frete_gratis", couponApplied.effects.freteFree ? "1" : "0"); // ✅ NOVO
       params.set("cupom_desconto_percent", String(percent));
       params.set("cupom_desconto_valor", String(descontoFixo));
       params.set("cupom_obs", couponApplied.effects.note || "");
@@ -619,21 +580,25 @@ function AnaliseContent() {
                     <p className="text-[11px] font-black text-slate-900 uppercase">{couponApplied.label}</p>
                     <p className="text-[11px] text-slate-600 mt-1">{couponApplied.description}</p>
                     <div className="mt-2 flex flex-wrap gap-2">
-                      {couponApplied.effects.accessoriesFree ? (
+                      {/* ✅ NOVO: frete grátis */}
+                      {couponApplied.effects.freteFree ? (
                         <span className="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase">
-                          Acessórios grátis
+                          Frete grátis
                         </span>
                       ) : null}
+
                       {couponApplied.effects.platingFree ? (
                         <span className="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase">
                           Emplacamento grátis
                         </span>
                       ) : null}
+
                       {couponApplied.effects.discountPercent ? (
                         <span className="px-2 py-1 rounded-full bg-slate-200 text-slate-800 text-[10px] font-black uppercase">
                           {couponApplied.effects.discountPercent}% off
                         </span>
                       ) : null}
+
                       {couponApplied.effects.discountValue ? (
                         <span className="px-2 py-1 rounded-full bg-slate-200 text-slate-800 text-[10px] font-black uppercase">
                           {formatMoney(couponApplied.effects.discountValue)} off
@@ -680,7 +645,7 @@ function AnaliseContent() {
                 }}
                 className="h-11 px-4 rounded-lg border-0 border-slate-200 hover:border-black text-black font-black uppercase text-xs tracking-widest transition-all"
               >
-               
+                {/* (mantido como estava no seu código) */}
               </button>
 
               <button
