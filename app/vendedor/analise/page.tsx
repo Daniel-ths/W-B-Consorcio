@@ -11,6 +11,9 @@ import {
   ShieldCheck,
   DollarSign,
   X,
+  Tag,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
 
 // =========================
@@ -28,6 +31,140 @@ const TAXA_FINANCIAMENTO_MERCADO = 0.022; // 2.2% a.m
 
 type LanceMode = "reduzir_parcela" | "reduzir_meses";
 
+/**
+ * =========================
+ * CÓDIGOS DE PROMOÇÃO (vendedor)
+ * =========================
+ * ✅ NÃO é cupom único: pode usar infinitas vezes.
+ * ✅ Validação local (sem backend) via catálogo COUPONS.
+ * ✅ Aplica desconto AQUI antes de ir pra /vendedor/contrato.
+ */
+
+type CouponEffect = {
+  accessoriesFree?: boolean;
+  platingFree?: boolean;
+  discountPercent?: number; // ex: 2 => 2%
+  discountValue?: number; // em reais
+  note?: string;
+};
+
+type Coupon = {
+  code: string;
+  label: string;
+  description: string;
+  sellerOnly?: boolean;
+  sellerId?: string; // opcional: restringir para um vendedor específico
+  effects: CouponEffect;
+};
+
+// ✅ Catálogo de códigos (adicione quantos quiser aqui)
+const COUPONS: Coupon[] = [
+  // --- GRATUIDADES ---
+  {
+    code: "WBC-PLACA100",
+    label: "Emplacamento grátis",
+    description: "Libera o emplacamento sem custo na venda.",
+    sellerOnly: true,
+    effects: { platingFree: true, note: "Emplacamento 100% grátis." },
+  },
+  {
+    code: "WBC-ACESS100",
+    label: "Acessórios grátis",
+    description: "Libera os acessórios sem custo na venda.",
+    sellerOnly: true,
+    effects: { accessoriesFree: true, note: "Acessórios 100% grátis." },
+  },
+  {
+    code: "WBC-COMBOVIP",
+    label: "Combo VIP: acessórios + emplacamento grátis",
+    description: "Libera acessórios e emplacamento sem custo na venda.",
+    sellerOnly: true,
+    effects: {
+      accessoriesFree: true,
+      platingFree: true,
+      note: "Acessórios + emplacamento 100% grátis.",
+    },
+  },
+
+  // ✅ PEDIDO: 2% OFF EM TUDO + EMPLACAMENTO GRÁTIS
+  {
+    code: "WBC-PLACA2OFF",
+    label: "2% OFF em tudo + emplacamento grátis",
+    description: "Aplica 2% de desconto no total e libera o emplacamento grátis.",
+    sellerOnly: true,
+    effects: {
+      discountPercent: 2,
+      platingFree: true,
+      note: "2% OFF no total + emplacamento grátis.",
+    },
+  },
+
+  // --- OUTROS CÓDIGOS (opcionais pra você ter variedade) ---
+  {
+    code: "WBC-PLACA3OFF",
+    label: "3% OFF + emplacamento grátis",
+    description: "Aplica 3% de desconto no total e libera emplacamento grátis.",
+    sellerOnly: true,
+    effects: { discountPercent: 3, platingFree: true, note: "3% OFF + emplacamento grátis." },
+  },
+  {
+    code: "WBC-ACESS2OFF",
+    label: "2% OFF + acessórios grátis",
+    description: "Aplica 2% de desconto no total e libera acessórios grátis.",
+    sellerOnly: true,
+    effects: { discountPercent: 2, accessoriesFree: true, note: "2% OFF + acessórios grátis." },
+  },
+  {
+    code: "WBC-PLACA500",
+    label: "R$ 500 OFF + emplacamento grátis",
+    description: "Desconto fixo de R$ 500 no total e emplacamento grátis.",
+    sellerOnly: true,
+    effects: { discountValue: 500, platingFree: true, note: "R$ 500 OFF + emplacamento grátis." },
+  },
+];
+
+// =========================
+// Helpers de Dinheiro (BRL)
+// =========================
+const formatMoney = (val: number) => {
+  if (!isFinite(val)) return "R$ 0,00";
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(val);
+};
+
+// input “mascarado”: usuário digita números, vira centavos, formata em pt-BR (sem R$)
+const formatBRLInput = (value: number) => {
+  const v = isFinite(value) ? value : 0;
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" })
+    .format(v)
+    .replace(/^R\$\s?/, "");
+};
+
+const parseDigitsToBRLNumber = (raw: string) => {
+  const digits = (raw || "").replace(/\D/g, "");
+  const cents = digits ? parseInt(digits, 10) : 0;
+  return cents / 100;
+};
+
+const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+
+function findCoupon(
+  codeRaw: string,
+  sellerId?: string | null
+): { ok: true; coupon: Coupon } | { ok: false; reason: string } {
+  const code = (codeRaw || "").trim().toUpperCase();
+  if (!code) return { ok: false, reason: "Digite um código." };
+
+  const coupon = COUPONS.find((c) => c.code.toUpperCase() === code);
+  if (!coupon) return { ok: false, reason: "Código inválido." };
+
+  // restringe por vendedor, se desejar
+  if (coupon.sellerId && sellerId && coupon.sellerId !== sellerId) {
+    return { ok: false, reason: "Código não pertence a este vendedor." };
+  }
+
+  return { ok: true, coupon };
+}
+
 function AnaliseContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -41,12 +178,17 @@ function AnaliseContent() {
       valor: parseFloat(searchParams.get("valor") || "0"),
       entradaUrl: parseFloat(searchParams.get("entrada") || "0") || 0,
       imagem: searchParams.get("imagem") || "",
+      vendedorId: searchParams.get("vendedor") || searchParams.get("vendedor_id") || null, // opcional
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [searchParams.toString()]
   );
 
-  const [entradaManual, setEntradaManual] = useState(dadosIniciais.entradaUrl);
+  // =========================
+  // ENTRADA com máscara BRL
+  // =========================
+  const [entradaManual, setEntradaManual] = useState<number>(dadosIniciais.entradaUrl);
+  const [entradaDisplay, setEntradaDisplay] = useState<string>(formatBRLInput(dadosIniciais.entradaUrl));
 
   // ✅ escolhe prazo do consórcio
   const [prazoConsorcio, setPrazoConsorcio] = useState<number>(Math.min(CONSORCIO_MAX_MESES, 84));
@@ -54,14 +196,36 @@ function AnaliseContent() {
   const [resultado, setResultado] = useState<any>(null);
   const [planoSelecionado, setPlanoSelecionado] = useState<any>(null);
 
-  // ====== MODAL DE LANCE (NOVO) ======
+  // ====== MODAL DE LANCE ======
   const [isLanceOpen, setIsLanceOpen] = useState(false);
+
+  // LANCE com máscara BRL
   const [lanceValor, setLanceValor] = useState<number>(0);
+  const [lanceDisplay, setLanceDisplay] = useState<string>(formatBRLInput(0));
   const [lanceMode, setLanceMode] = useState<LanceMode>("reduzir_parcela");
 
-  const formatMoney = (val: number) => {
-    if (isNaN(val)) return "R$ 0,00";
-    return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(val);
+  // =========================
+  // CÓDIGO DE PROMO — UI/Estado
+  // =========================
+  const [couponInput, setCouponInput] = useState<string>("");
+  const [couponApplied, setCouponApplied] = useState<Coupon | null>(null);
+  const [couponError, setCouponError] = useState<string>("");
+
+  const applyCoupon = () => {
+    const res = findCoupon(couponInput, dadosIniciais.vendedorId);
+    if (!res.ok) {
+      setCouponApplied(null);
+      setCouponError(res.reason);
+      return;
+    }
+    setCouponError("");
+    setCouponApplied(res.coupon);
+  };
+
+  const clearCoupon = () => {
+    setCouponInput("");
+    setCouponApplied(null);
+    setCouponError("");
   };
 
   useEffect(() => {
@@ -132,7 +296,7 @@ function AnaliseContent() {
     );
   };
 
-  // ====== CÁLCULO DO LANCE (NOVO) ======
+  // ====== CÁLCULO DO LANCE ======
   const lanceCalc = useMemo(() => {
     const valorCarro = dadosIniciais.valor || 0;
     const entrada = Math.max(0, entradaManual || 0);
@@ -187,7 +351,7 @@ function AnaliseContent() {
     };
   }, [dadosIniciais.valor, entradaManual, prazoConsorcio, planoSelecionado, lanceValor, lanceMode]);
 
-  // ====== AVANÇAR COM O LANCE (NOVO) ======
+  // ====== AVANÇAR COM O LANCE + PROMO (APLICA DESCONTO AQUI) ======
   const avancarParaContrato = (opts?: { withLance?: boolean }) => {
     if (!planoSelecionado) return;
 
@@ -196,23 +360,67 @@ function AnaliseContent() {
     params.set("tipo", "CONSORCIO");
     params.set("entrada", String(entradaManual || 0));
 
-    // ✅ total_final (sem exibir valor de categoria — mas precisa calcular)
+    // ✅ total_base (sem exibir valor de categoria — mas precisa calcular)
     const valorCarro = dadosIniciais.valor || 0;
     const credito = Math.max(0, valorCarro - (entradaManual || 0));
     const valorCategoria = credito * (1 + TAXA_ADM_TOTAL);
-    const totalFinal = (valorCategoria || 0) + (entradaManual || 0);
+    const totalBase = round2((valorCategoria || 0) + (entradaManual || 0));
 
     // valores base (do plano)
     params.set("prazo_escolhido", String(planoSelecionado.prazo));
     params.set("parcela_escolhida", String(planoSelecionado.parcela));
-    params.set("total_final", String(totalFinal));
 
     // extras úteis
     params.set("taxa_adm_total", String(TAXA_ADM_TOTAL));
     params.set("modo_parcela", String(planoSelecionado.key)); // integral | reduzida
     params.set("percentual_categoria", String(planoSelecionado.percentualCategoria));
 
-    // ✅ NOVO: campos do lance (se aplicável)
+    // Sempre manda o base (pra conferência/depuração)
+    params.set("total_final_base", String(totalBase));
+
+    // ✅ PROMO: aplica desconto no total aqui e manda total final já pronto
+    let totalComPromo = totalBase;
+    let descontoTotalValor = 0;
+
+    if (couponApplied) {
+      const percent = couponApplied.effects.discountPercent || 0;
+      const descontoFixo = couponApplied.effects.discountValue || 0;
+
+      if (percent > 0) {
+        const d = round2((totalComPromo * percent) / 100);
+        descontoTotalValor = round2(descontoTotalValor + d);
+        totalComPromo = round2(totalComPromo - d);
+      }
+
+      if (descontoFixo > 0) {
+        const d = round2(descontoFixo);
+        descontoTotalValor = round2(descontoTotalValor + d);
+        totalComPromo = round2(totalComPromo - d);
+      }
+
+      totalComPromo = Math.max(0, round2(totalComPromo));
+
+      // manda infos da promo
+      params.set("cupom_codigo", couponApplied.code);
+      params.set("cupom_label", couponApplied.label);
+      params.set("cupom_acessorios_gratis", couponApplied.effects.accessoriesFree ? "1" : "0");
+      params.set("cupom_emplacamento_gratis", couponApplied.effects.platingFree ? "1" : "0");
+      params.set("cupom_desconto_percent", String(percent));
+      params.set("cupom_desconto_valor", String(descontoFixo));
+      params.set("cupom_obs", couponApplied.effects.note || "");
+
+      // manda valores calculados
+      params.set("total_final_com_cupom", String(totalComPromo));
+      params.set("desconto_total_valor", String(descontoTotalValor));
+
+      // ✅ facilita na próxima página:
+      params.set("total_final", String(totalComPromo));
+    } else {
+      // sem promo: padrão
+      params.set("total_final", String(totalBase));
+    }
+
+    // ✅ campos do lance (se aplicável)
     const usarLance = !!opts?.withLance;
     if (usarLance) {
       params.set("lance_valor", String(lanceCalc.lance));
@@ -263,7 +471,7 @@ function AnaliseContent() {
       </header>
 
       {/* =========================
-          MODAL DO LANCE (NOVO)
+          MODAL DO LANCE (R$ + PROMO)
          ========================= */}
       {isLanceOpen && (
         <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
@@ -297,23 +505,28 @@ function AnaliseContent() {
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
                   <p className="text-[10px] text-slate-400 font-bold uppercase">Plano</p>
                   <p className="text-sm font-black text-slate-900">{planoSelecionado?.label}</p>
-                  <p className="text-[10px] text-slate-500 mt-1">{planoSelecionado?.key === "reduzida" ? "Reduzida" : "Integral"}</p>
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    {planoSelecionado?.key === "reduzida" ? "Reduzida" : "Integral"}
+                  </p>
                 </div>
               </div>
 
+              {/* LANCE (R$ mascarado) */}
               <div className="bg-white border border-slate-200 rounded-xl p-4">
                 <p className="text-[10px] text-slate-400 font-bold uppercase mb-2">Valor do Lance</p>
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-bold text-slate-400">R$</span>
                   <input
-                    type="number"
-                    value={isNaN(lanceValor) ? "" : lanceValor}
+                    type="text"
+                    inputMode="numeric"
+                    value={lanceDisplay}
                     onChange={(e) => {
-                      const v = parseFloat(e.target.value);
-                      setLanceValor(isNaN(v) ? 0 : v);
+                      const num = parseDigitsToBRLNumber(e.target.value);
+                      setLanceValor(num);
+                      setLanceDisplay(formatBRLInput(num));
                     }}
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg h-11 px-3 text-lg font-black text-slate-900 outline-none focus:border-black"
-                    placeholder="0"
+                    placeholder="0,00"
                   />
                 </div>
                 <p className="text-[11px] text-slate-500 mt-2">
@@ -321,6 +534,7 @@ function AnaliseContent() {
                 </p>
               </div>
 
+              {/* COMO APLICAR */}
               <div className="bg-white border border-slate-200 rounded-xl p-4">
                 <p className="text-[10px] text-slate-400 font-bold uppercase mb-2">Como aplicar o lance?</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -351,6 +565,86 @@ function AnaliseContent() {
                 </div>
               </div>
 
+              {/* PROMO */}
+              <div className="bg-white border border-slate-200 rounded-xl p-4">
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">Código de Promoção</p>
+
+                  {couponApplied ? (
+                    <span className="inline-flex items-center gap-2 text-[10px] font-black uppercase text-emerald-700">
+                      <CheckCircle2 size={14} /> Aplicado
+                    </span>
+                  ) : null}
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                  <div className="flex-1 flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg h-11 px-3">
+                    <Tag size={16} className="text-slate-400" />
+                    <input
+                      value={couponInput}
+                      onChange={(e) => setCouponInput(e.target.value)}
+                      placeholder="Digite o código"
+                      className="w-full bg-transparent outline-none text-sm font-black uppercase tracking-wider text-slate-900 placeholder:text-slate-400"
+                    />
+                  </div>
+
+                  {!couponApplied ? (
+                    <button
+                      type="button"
+                      onClick={applyCoupon}
+                      className="h-11 px-4 rounded-lg bg-black text-white font-black uppercase text-xs tracking-widest hover:bg-slate-800 transition-all"
+                    >
+                      Aplicar
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={clearCoupon}
+                      className="h-11 px-4 rounded-lg border-2 border-slate-200 hover:border-black text-black font-black uppercase text-xs tracking-widest transition-all"
+                    >
+                      Remover
+                    </button>
+                  )}
+                </div>
+
+                {couponError ? (
+                  <div className="mt-2 flex items-center gap-2 text-rose-600">
+                    <AlertCircle size={14} />
+                    <p className="text-[11px] font-bold">{couponError}</p>
+                  </div>
+                ) : null}
+
+                {couponApplied ? (
+                  <div className="mt-3 bg-slate-50 border border-slate-200 rounded-lg p-3">
+                    <p className="text-[11px] font-black text-slate-900 uppercase">{couponApplied.label}</p>
+                    <p className="text-[11px] text-slate-600 mt-1">{couponApplied.description}</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {couponApplied.effects.accessoriesFree ? (
+                        <span className="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase">
+                          Acessórios grátis
+                        </span>
+                      ) : null}
+                      {couponApplied.effects.platingFree ? (
+                        <span className="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase">
+                          Emplacamento grátis
+                        </span>
+                      ) : null}
+                      {couponApplied.effects.discountPercent ? (
+                        <span className="px-2 py-1 rounded-full bg-slate-200 text-slate-800 text-[10px] font-black uppercase">
+                          {couponApplied.effects.discountPercent}% off
+                        </span>
+                      ) : null}
+                      {couponApplied.effects.discountValue ? (
+                        <span className="px-2 py-1 rounded-full bg-slate-200 text-slate-800 text-[10px] font-black uppercase">
+                          {formatMoney(couponApplied.effects.discountValue)} off
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              {/* RESULTADO */}
               <div className="bg-[#f2e14c]/40 border border-[#f2e14c] rounded-xl p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -363,7 +657,9 @@ function AnaliseContent() {
                   <div className="text-right">
                     <p className="text-[10px] font-black uppercase text-black/70">Parcela Final</p>
                     <p className="text-xl font-black text-black">{formatMoney(lanceCalc.parcelaFinal)}</p>
-                    <p className="text-[10px] font-black uppercase text-black/70 mt-1">Prazo Final: {lanceCalc.prazoFinal}x</p>
+                    <p className="text-[10px] font-black uppercase text-black/70 mt-1">
+                      Prazo Final: {lanceCalc.prazoFinal}x
+                    </p>
                   </div>
                 </div>
 
@@ -380,12 +676,11 @@ function AnaliseContent() {
                 type="button"
                 onClick={() => {
                   setIsLanceOpen(false);
-                  // continuar sem lance
                   avancarParaContrato({ withLance: false });
                 }}
-                className="h-11 px-4 rounded-lg border-2 border-slate-200 hover:border-black text-black font-black uppercase text-xs tracking-widest transition-all"
+                className="h-11 px-4 rounded-lg border-0 border-slate-200 hover:border-black text-black font-black uppercase text-xs tracking-widest transition-all"
               >
-                Continuar sem lance
+               
               </button>
 
               <button
@@ -404,7 +699,7 @@ function AnaliseContent() {
       )}
 
       <main className="max-w-6xl mx-auto px-6 py-8">
-        {/* CONTROLE DE ENTRADA (mantive como está) */}
+        {/* CONTROLE DE ENTRADA (R$ mascarado) */}
         <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 mb-8 flex flex-col md:flex-row items-center justify-between gap-6">
           <div>
             <h2 className="text-xl font-black uppercase tracking-tight text-black flex items-center gap-2">
@@ -420,19 +715,26 @@ function AnaliseContent() {
                 <span className="text-sm font-bold text-slate-400">R$</span>
 
                 <input
-                  type="number"
-                  value={isNaN(entradaManual) ? "" : entradaManual}
+                  type="text"
+                  inputMode="numeric"
+                  value={entradaDisplay}
                   onChange={(e) => {
-                    const val = parseFloat(e.target.value);
-                    setEntradaManual(isNaN(val) ? 0 : val);
+                    const num = parseDigitsToBRLNumber(e.target.value);
+                    setEntradaManual(num);
+                    setEntradaDisplay(formatBRLInput(num));
                   }}
-                  className="bg-transparent border-none text-black text-xl font-black w-32 focus:ring-0 p-0"
+                  className="bg-transparent border-none text-black text-xl font-black w-36 focus:ring-0 p-0 outline-none"
+                  placeholder="0,00"
                 />
               </div>
             </div>
 
             <button
-              onClick={() => setEntradaManual((dadosIniciais.valor || 0) * 0.3)}
+              onClick={() => {
+                const sugerida = (dadosIniciais.valor || 0) * 0.3;
+                setEntradaManual(sugerida);
+                setEntradaDisplay(formatBRLInput(sugerida));
+              }}
               className="bg-black hover:bg-slate-800 text-white text-[10px] font-bold uppercase px-4 py-3 rounded-md transition-all active:scale-95"
             >
               Sugerir 30%
@@ -546,6 +848,7 @@ function AnaliseContent() {
                         setPlanoSelecionado(op);
                         // reset do lance quando troca plano
                         setLanceValor(0);
+                        setLanceDisplay(formatBRLInput(0));
                         setLanceMode("reduzir_parcela");
                       }}
                       className={[
@@ -596,7 +899,7 @@ function AnaliseContent() {
               </div>
 
               <div className="mt-8 pt-4 border-t border-slate-100 space-y-3">
-                {/* ✅ NOVO: abre modal em vez de ir direto */}
+                {/* ✅ abre modal */}
                 <button
                   onClick={() => {
                     if (!planoSelecionado) return;
@@ -617,7 +920,8 @@ function AnaliseContent() {
                 </button>
 
                 <p className="text-[11px] text-slate-500">
-                  Próximo passo: montar o <span className="font-black">lance</span> (no modal) e seguir.
+                  Próximo passo: montar o <span className="font-black">lance</span> e (opcional) aplicar{" "}
+                  <span className="font-black">promoção</span> no modal.
                 </p>
               </div>
             </div>

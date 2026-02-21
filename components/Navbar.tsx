@@ -17,6 +17,7 @@ import {
   LogIn,
 } from "lucide-react";
 import VehiclesMenu from "./VehiclesMenu";
+import MobileCatalogModal from "./MobileCatalogModal"; // ✅ NOVO
 
 // =====================================================================
 // 🔧 ÁREA DE CONFIGURAÇÃO DE IMAGENS
@@ -30,6 +31,9 @@ const LOGO_SIDEBAR =
 export default function Navbar() {
   const [menuAberto, setMenuAberto] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // ✅ NOVO: modal catálogo mobile (full screen)
+  const [catalogOpen, setCatalogOpen] = useState(false);
 
   // Estados de Usuário
   const [user, setUser] = useState<any>(null);
@@ -48,7 +52,18 @@ export default function Navbar() {
   useEffect(() => {
     setSidebarOpen(false);
     setMenuAberto(null);
+    setCatalogOpen(false); // ✅ fecha catálogo ao navegar
   }, [pathname]);
+
+  // ✅ trava scroll do body quando o catálogo full-screen estiver aberto
+  useEffect(() => {
+    if (!catalogOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [catalogOpen]);
 
   const fetchProfile = async (userId: string) => {
     try {
@@ -61,7 +76,7 @@ export default function Navbar() {
       if (profile) {
         setFullName(profile.full_name || "");
         setAvatarUrl(profile.avatar_url || "");
-        setUserRole(profile.role || "user");
+        setUserRole(profile.role || "vendedor");
       }
     } catch {
       // ignora silencioso
@@ -74,7 +89,6 @@ export default function Navbar() {
 
     const init = async () => {
       try {
-        // getSession é rápido (local)
         const {
           data: { session },
         } = await supabase.auth.getSession();
@@ -90,7 +104,6 @@ export default function Navbar() {
         setLoading(false);
 
         if (u?.id) {
-          // não await aqui (evita travas)
           void fetchProfile(u.id);
         } else {
           setFullName("");
@@ -116,10 +129,7 @@ export default function Navbar() {
       const newId = u?.id ?? null;
       const prevId = currentUserIdRef.current;
 
-      // atualiza ref
       currentUserIdRef.current = newId;
-
-      // libera UI (de novo) caso algum fluxo tenha ficado “pendurado”
       setLoading(false);
 
       if (!newId) {
@@ -129,7 +139,6 @@ export default function Navbar() {
         return;
       }
 
-      // Só busca perfil quando muda usuário (evita loop e bug de state antigo)
       if (newId !== prevId) {
         void fetchProfile(newId);
       }
@@ -145,7 +154,6 @@ export default function Navbar() {
     try {
       await supabase.auth.signOut();
     } finally {
-      // ✅ sem reload (evita “UI presa”)
       setUser(null);
       setFullName("");
       setAvatarUrl("");
@@ -154,6 +162,7 @@ export default function Navbar() {
 
       setMenuAberto(null);
       setSidebarOpen(false);
+      setCatalogOpen(false);
 
       router.push("/login");
       router.refresh();
@@ -162,9 +171,33 @@ export default function Navbar() {
 
   const toggleMenu = (menu: string) => setMenuAberto(menuAberto === menu ? null : menu);
 
-  const isAdmin = userRole === "admin" || user?.email?.toLowerCase().includes("admin");
-  const dashboardLink = isAdmin ? "/admin" : "/vendedor/dashboard";
-  const dashboardLabel = isAdmin ? "Painel Gerencial" : "Painel do Vendedor";
+  // ✅ REGRAS DE ROLE
+  const role = (userRole || "").toLowerCase();
+  const email = (user?.email || "").toLowerCase();
+
+  // fallback por email (se quiser tirar depois, ok)
+  const isAdmin = role === "admin" || email.includes("admin");
+  const isSupervisor = role === "supervisor" || email.startsWith("s");
+  const isVendedor = !isAdmin && !isSupervisor;
+
+  const dashboardLink = isAdmin
+    ? "/admin"
+    : isSupervisor
+    ? "/supervisor/dashboard"
+    : "/vendedor/dashboard";
+
+  const dashboardLabel = isAdmin
+    ? "Painel Gerencial"
+    : isSupervisor
+    ? "Painel do Supervisor"
+    : "Painel do Vendedor";
+
+  const dashboardIcon = isAdmin ? (
+    <ShieldCheck size={16} />
+  ) : (
+    <LayoutDashboard size={16} />
+  );
+
   const displayName = fullName || user?.email?.split("@")[0];
 
   return (
@@ -197,7 +230,14 @@ export default function Navbar() {
 
         {/* CENTRO */}
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-          <Link href="/" onClick={() => setMenuAberto(null)} className="block">
+          <Link
+            href="/"
+            onClick={() => {
+              setMenuAberto(null);
+              setCatalogOpen(false);
+            }}
+            className="block"
+          >
             <img
               src={LOGO_NAVBAR}
               alt="Logo"
@@ -241,13 +281,15 @@ export default function Navbar() {
                     <p className="text-xs font-bold text-gray-900 truncate">{displayName}</p>
                     <p className="text-[10px] text-gray-500 truncate">{user.email}</p>
                   </div>
+
+                  {/* ✅ UM ÚNICO BOTÃO (muda conforme role) */}
                   <Link
                     href={dashboardLink}
                     className="flex items-center gap-3 px-4 py-2.5 text-xs font-bold text-gray-700 rounded-lg hover:bg-gray-50 hover:text-black"
                   >
-                    {isAdmin ? <ShieldCheck size={16} /> : <LayoutDashboard size={16} />}{" "}
-                    {dashboardLabel}
+                    {dashboardIcon} {dashboardLabel}
                   </Link>
+
                   <Link
                     href="/profile"
                     className="flex items-center gap-3 px-4 py-2.5 text-xs font-bold text-gray-700 rounded-lg hover:bg-gray-50 hover:text-black"
@@ -339,7 +381,9 @@ export default function Navbar() {
                     <p className="text-[10px] text-gray-500 truncate max-w-[150px]">{user.email}</p>
                   </div>
                 </div>
+
                 <div className="space-y-1">
+                  {/* ✅ UM ÚNICO BOTÃO (muda conforme role) */}
                   <Link
                     href={dashboardLink}
                     onClick={() => setSidebarOpen(false)}
@@ -348,6 +392,7 @@ export default function Navbar() {
                     {isAdmin ? <ShieldCheck size={14} /> : <LayoutDashboard size={14} />}{" "}
                     {dashboardLabel}
                   </Link>
+
                   <button
                     onClick={handleLogout}
                     className="w-full flex items-center gap-3 px-3 py-2 text-xs font-bold text-red-600 bg-white border border-red-100 rounded-lg hover:bg-red-50 transition-colors"
@@ -375,6 +420,20 @@ export default function Navbar() {
               Navegação
             </p>
 
+            {/* ✅ NOVO: CATÁLOGO (abre full screen) */}
+            <button
+              onClick={() => {
+                setSidebarOpen(false);
+                setCatalogOpen(true);
+              }}
+              className="w-full flex items-center gap-4 text-gray-900 font-bold text-sm uppercase tracking-wide hover:text-[#f2e14c] group transition-colors"
+            >
+              <span className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center group-hover:bg-black group-hover:text-[#f2e14c] transition-colors text-gray-400">
+                <CarFront size={18} />
+              </span>
+              Catálogo
+            </button>
+
             <Link
               href="/vendedor/seminovos"
               onClick={() => setSidebarOpen(false)}
@@ -383,7 +442,7 @@ export default function Navbar() {
               <span className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center group-hover:bg-black group-hover:text-[#f2e14c] transition-colors text-gray-400">
                 <CarFront size={18} />
               </span>
-              Catálogo Completo
+              SemiNovos
             </Link>
 
             <Link
@@ -402,6 +461,9 @@ export default function Navbar() {
           <p className="text-[10px] text-gray-400 font-medium">© 2026 WBCNAC Digital</p>
         </div>
       </div>
+
+      {/* ✅ MODAL FULL SCREEN DO CATÁLOGO (MOBILE) */}
+      <MobileCatalogModal open={catalogOpen} onClose={() => setCatalogOpen(false)} />
     </>
   );
 }

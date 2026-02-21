@@ -1,10 +1,19 @@
 "use client";
 
-import { useState, Suspense, useEffect } from "react";
+import { useState, Suspense, useEffect, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import {
-  CheckCircle2, Loader2, ArrowLeft, Printer, Send, RefreshCw, QrCode, ShieldCheck
+  CheckCircle2,
+  Loader2,
+  ArrowLeft,
+  Printer,
+  Send,
+  RefreshCw,
+  QrCode,
+  ShieldCheck,
+  MessageSquare,
+  AlertTriangle,
 } from "lucide-react";
 
 // --- CACHE GLOBAL (Anti-bloqueio API) ---
@@ -33,30 +42,147 @@ function sanitizePhoneFromOtherPage(input: string): string | null {
   return digits; // ex: "5591999999999"
 }
 
+const safeNumber = (v: any) => {
+  const n = typeof v === "number" ? v : parseFloat(String(v || "0"));
+  return Number.isFinite(n) ? n : 0;
+};
+
 function PedidoContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
   // --- DADOS DO PEDIDO ---
-  const dados = {
-    tipo: searchParams.get("tipo") || "CONSORCIO",
-    cpf: searchParams.get("cpf") || "",
-    modelo: searchParams.get("modelo") || "Veículo Selecionado",
-    valor: parseFloat(searchParams.get("valor") || "0"),
-    entrada: parseFloat(searchParams.get("entrada") || "0"),
-    parcela: parseFloat(searchParams.get("parcela_escolhida") || "0"),
-    prazo: searchParams.get("prazo_escolhido") || "0",
-    total: parseFloat(searchParams.get("total_final") || "0"),
-    imagem: searchParams.get("imagem") || "",
+  const dados = useMemo(
+    () => ({
+      tipo: searchParams.get("tipo") || "CONSORCIO",
+      cpf: searchParams.get("cpf") || "",
+      modelo: searchParams.get("modelo") || "Veículo Selecionado",
+      valor: safeNumber(searchParams.get("valor")),
+      entrada: safeNumber(searchParams.get("entrada")),
+      parcela: safeNumber(searchParams.get("parcela_escolhida")),
+      prazo: searchParams.get("prazo_escolhido") || "0",
+      total: safeNumber(searchParams.get("total_final")),
+      imagem: searchParams.get("imagem") || "",
 
-    // ✅ VINDO DA OUTRA PÁGINA
-    nome: searchParams.get("nome") || "",
-    telefone: searchParams.get("telefone") || "", // ex: +5591...
-  };
+      // ✅ VINDO DA OUTRA PÁGINA
+      nome: searchParams.get("nome") || "",
+      telefone: searchParams.get("telefone") || "", // ex: +5591...
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [searchParams.toString()]
+  );
+
+  // =========================
+  // ✅ LANCE (vindo da página anterior)
+  // =========================
+  const lanceInfo = useMemo(() => {
+    const lanceValor = safeNumber(searchParams.get("lance_valor"));
+    const prazoFinalStr = searchParams.get("prazo_final");
+    const parcelaFinal = safeNumber(searchParams.get("parcela_final"));
+
+    const prazoFinal = prazoFinalStr ? parseInt(prazoFinalStr, 10) : 0;
+    const hasLance = Number.isFinite(lanceValor) && lanceValor > 0;
+
+    return {
+      hasLance,
+      lanceValor: hasLance ? lanceValor : 0,
+      prazoFinal: Number.isFinite(prazoFinal) && prazoFinal > 0 ? prazoFinal : 0,
+      parcelaFinal: Number.isFinite(parcelaFinal) && parcelaFinal > 0 ? parcelaFinal : 0,
+      modo: searchParams.get("lance_modo") || "",
+      creditoAposLance: safeNumber(searchParams.get("credito_apos_lance")),
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams.toString()]);
+
+  // =========================
+  // ✅ PROMO DO VENDEDOR (vindo da página anterior)
+  // =========================
+  const promo = useMemo(() => {
+    const codigo = (searchParams.get("cupom_codigo") || "").trim();
+    const label = (searchParams.get("cupom_label") || "").trim();
+    const obs = (searchParams.get("cupom_obs") || "").trim();
+
+    const accessoriesFree = searchParams.get("cupom_acessorios_gratis") === "1";
+    const platingFree = searchParams.get("cupom_emplacamento_gratis") === "1";
+
+    const discountPercent = safeNumber(searchParams.get("cupom_desconto_percent"));
+    const discountValue = safeNumber(searchParams.get("cupom_desconto_valor"));
+
+    const hasPromo =
+      !!codigo ||
+      !!label ||
+      accessoriesFree ||
+      platingFree ||
+      (Number.isFinite(discountPercent) && discountPercent > 0) ||
+      (Number.isFinite(discountValue) && discountValue > 0) ||
+      !!obs;
+
+    return {
+      hasPromo,
+      codigo,
+      label,
+      obs,
+      accessoriesFree,
+      platingFree,
+      discountPercent: discountPercent > 0 ? discountPercent : 0,
+      discountValue: discountValue > 0 ? discountValue : 0,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams.toString()]);
+
+  // =========================
+  // ✅ NÚMEROS EXIBIDOS (aplica lance + desconto aqui)
+  // =========================
+  const valoresExibidos = useMemo(() => {
+    // Base do parcelamento
+    const prazoBase = parseInt(dados.prazo || "0", 10) || 0;
+    const parcelaBase = dados.parcela || 0;
+
+    // Se veio lance, usa prazo/parcela finais para exibir
+    const prazoUsado =
+      lanceInfo.hasLance && lanceInfo.prazoFinal > 0 ? lanceInfo.prazoFinal : prazoBase;
+    const parcelaUsada =
+      lanceInfo.hasLance && lanceInfo.parcelaFinal > 0 ? lanceInfo.parcelaFinal : parcelaBase;
+
+    // Total base: prioriza total_final vindo da página anterior
+    const totalBase =
+      dados.total && dados.total > 0
+        ? dados.total
+        : (dados.entrada || 0) + (parcelaUsada || 0) * (prazoUsado || 0);
+
+    // Total com lance (se houver)
+    const totalComLance = totalBase + (lanceInfo.hasLance ? lanceInfo.lanceValor : 0);
+
+    // Desconto (percentual tem prioridade; se não, valor fixo)
+    let desconto = 0;
+    if (promo.hasPromo) {
+      if (promo.discountPercent > 0) {
+        desconto = (totalComLance * promo.discountPercent) / 100;
+      } else if (promo.discountValue > 0) {
+        desconto = promo.discountValue;
+      }
+    }
+
+    // Nunca deixa desconto passar do total
+    desconto = Math.max(0, Math.min(desconto, totalComLance));
+
+    const totalFinal = Math.max(0, totalComLance - desconto);
+
+    return {
+      prazoUsado,
+      parcelaUsada,
+      totalBase,
+      totalComLance,
+      desconto,
+      totalFinal,
+    };
+  }, [dados, lanceInfo, promo]);
 
   const [loadingValidacao, setLoadingValidacao] = useState(true);
   const [verificando, setVerificando] = useState(false);
-  const [loadingSalvar, setLoadingSalvar] = useState(false);
+
+  // ✅ botão principal (salvar + sms condicional)
+  const [loadingEnviar, setLoadingEnviar] = useState(false);
   const [pedidoSalvo, setPedidoSalvo] = useState(false);
 
   const [apiData, setApiData] = useState<any>(null);
@@ -70,14 +196,22 @@ function PedidoContent() {
   const telefoneDigits = sanitizePhoneFromOtherPage(dados.telefone); // "5591..."
 
   // ✅ telefone formatado p/ exibir no layout antigo: "+55 (91) 9XXXX-XXXX"
-  const telefoneTela =
-    telefoneDigits
-      ? `${PHONE_PREFIX_DISPLAY}${maskPhoneAfterPrefix(telefoneDigits.slice(4))}` // tira "5591" e formata os 9
-      : "---";
+  const telefoneTela = telefoneDigits
+    ? `${PHONE_PREFIX_DISPLAY}${maskPhoneAfterPrefix(telefoneDigits.slice(4))}`
+    : "---";
 
-  // ✅ mensagem do SMS (mantida)
+  // ✅ mensagem do SMS
   const SMS_TESTE = (nome: string, protocolo: string) =>
     `CPF aprovado! ${nome}!🎉 Seu carro novo está mais perto. Bem-vindo!`;
+
+  const formatMoney = (val: number) =>
+    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(val);
+
+  // ✅ protocolo estável (não muda a cada render)
+  const numeroPedido = useMemo(
+    () => Math.floor(Math.random() * 1000000).toString().padStart(6, "0"),
+    []
+  );
 
   useEffect(() => {
     setDataAtual(
@@ -88,11 +222,12 @@ function PedidoContent() {
       })
     );
 
-    // ✅ se o nome chegar pela URL e ainda estiver vazio, preenche
     if (!nomeManual && dados.nome) {
       setNomeManual(dados.nome);
     }
 
+    // ✅ Ao carregar: pode consultar CPF para preencher dados.
+    // ❌ NÃO envia SMS aqui.
     if (dados.cpf) {
       const ultimaConsulta = cacheConsultasGlobal.get(dados.cpf);
       const agora = Date.now();
@@ -110,51 +245,9 @@ function PedidoContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const formatMoney = (val: number) =>
-    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(val);
-
-  const numeroPedido = Math.floor(Math.random() * 1000000).toString().padStart(6, "0");
-
-  // ✅ SMS: envia usando o telefone VINDO DA OUTRA PÁGINA (sem input manual)
-  async function enviarSmsAposAtualizar(nomeCliente: string) {
-    if (!telefoneDigits) {
-      alert("📵 Telefone inválido/ausente. Ele deve vir da página anterior como +5591XXXXXXXXX.");
-      return;
-    }
-
-    const message = SMS_TESTE(nomeCliente || "cliente", numeroPedido);
-
-    try {
-      const resp = await fetch("/api/sms/enviar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          number: telefoneDigits, // ✅ "5591..."
-          message,
-          user_reply: true,
-        }),
-      });
-
-      const json = await resp.json().catch(() => null);
-
-      if (!resp.ok || json?.error) {
-        alert(`❌ SMS falhou: ${json?.message || "erro"}`);
-        console.warn("[sms] falhou ao enviar:", json || resp.status);
-        return;
-      }
-
-      alert("📩 SMS enviado!");
-      console.log("[sms] enviado com sucesso:", json);
-    } catch (err) {
-      alert("❌ Erro de rede no envio do SMS");
-      console.warn("[sms] erro de rede:", err);
-    }
-  }
-
-  // ✅ mantém seu "Atualizar" com a função de SMS (ao clicar)
+  // ✅ valida Receita = SOMENTE consulta/atualiza dados (sem SMS)
   const validarReceita = async (isManual = true) => {
     let nomeEncontrado = (nomeManual || "").trim();
-    let sucessoConsulta = false;
 
     if (isManual) {
       setVerificando(true);
@@ -171,7 +264,6 @@ function PedidoContent() {
       const data = await response.json().catch(() => ({}));
 
       if (response.ok && data && !data.error) {
-        sucessoConsulta = true;
         setApiData(data);
 
         const nomeApi =
@@ -201,16 +293,6 @@ function PedidoContent() {
     } finally {
       setLoadingValidacao(false);
       setVerificando(false);
-
-      // ✅ manda SMS ao clicar "Atualizar" (mesmo se a consulta falhar)
-      if (isManual) {
-        const nomeParaSms = nomeEncontrado || dados.nome || "cliente";
-        await enviarSmsAposAtualizar(nomeParaSms);
-
-        if (sucessoConsulta) {
-          // ok
-        }
-      }
     }
   };
 
@@ -224,23 +306,64 @@ function PedidoContent() {
   const enderecoSimples = apiData?.uf ? { estado: apiData.uf } : null;
   const endereco = enderecoComplexo || enderecoSimples || {};
 
-  // --- SALVAR PROPOSTA ---
-  const handleFinalizarSolicitacao = async () => {
-    if (!nomeManual) return alert("Aguarde o carregamento ou preencha os dados do cliente.");
+  const cpfIsRegular = String(situacaoReceita || "PENDENTE").toUpperCase() === "REGULAR";
+
+  // ✅ SMS (só é chamado depois do envio para análise e SOMENTE se CPF REGULAR)
+  async function enviarSms(nomeCliente: string) {
+    if (!telefoneDigits) {
+      alert("📵 Telefone inválido/ausente. Ele deve vir da página anterior como +5591XXXXXXXXX.");
+      return false;
+    }
+
+    const message = SMS_TESTE(nomeCliente || "cliente", numeroPedido);
+
+    try {
+      const resp = await fetch("/api/sms/enviar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          number: telefoneDigits, // ✅ "5591..."
+          message,
+          user_reply: true,
+        }),
+      });
+
+      const json = await resp.json().catch(() => null);
+
+      if (!resp.ok || json?.error) {
+        alert(`❌ SMS falhou: ${json?.message || "erro"}`);
+        console.warn("[sms] falhou ao enviar:", json || resp.status);
+        return false;
+      }
+
+      return true;
+    } catch (err) {
+      alert("❌ Erro de rede no envio do SMS");
+      console.warn("[sms] erro de rede:", err);
+      return false;
+    }
+  }
+
+  // ✅ SALVAR PROPOSTA no banco (sempre salva)
+  const salvarNoBanco = async () => {
+    if (!nomeManual) {
+      alert("Aguarde o carregamento ou preencha os dados do cliente.");
+      return { ok: false };
+    }
 
     if (!telefoneDigits) {
       alert("📵 Telefone inválido/ausente. Ele deve vir da página anterior como +5591XXXXXXXXX.");
-      return;
+      return { ok: false };
     }
 
-    setLoadingSalvar(true);
-
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
       if (!user) {
         alert("Sessão expirada. Faça login novamente.");
-        return;
+        return { ok: false };
       }
 
       let nomeVendedor = user.email;
@@ -263,20 +386,60 @@ function PedidoContent() {
         status: "Aguardando Aprovação",
         total_price: dados.valor,
         interest_type: dados.tipo,
-        client_phone: telefoneDigits, // ✅ salva "5591..."
+        client_phone: telefoneDigits,
         created_at: new Date().toISOString(),
+
+        protocol_number: numeroPedido,
+        cpf_status: String(situacaoReceita || "PENDENTE").toUpperCase(),
+
+        promo_code: promo.codigo || null,
+        promo_label: promo.label || null,
+        promo_discount_percent: promo.discountPercent || 0,
+        promo_discount_value: promo.discountValue || 0,
+        promo_plating_free: promo.platingFree ? true : false,
+        promo_accessories_free: promo.accessoriesFree ? true : false,
+        promo_note: promo.obs || null,
+
+        lance_value: lanceInfo.hasLance ? lanceInfo.lanceValor : 0,
+        prazo_final: valoresExibidos.prazoUsado || 0,
+        parcela_final: valoresExibidos.parcelaUsada || 0,
+        total_final_estimated: valoresExibidos.totalFinal || 0,
       };
 
       const { error } = await supabase.from("sales").insert([payload]);
       if (error) throw error;
 
-      setPedidoSalvo(true);
-      alert(`✅ Proposta salva com sucesso por: ${nomeVendedor}`);
+      return { ok: true, vendedor: nomeVendedor };
     } catch (error: any) {
       console.error(error);
       alert("Erro ao salvar: " + error.message);
+      return { ok: false };
+    }
+  };
+
+  // ✅ BOTÃO PRINCIPAL: salva no banco sempre; SMS só se REGULAR
+  const handleEnviarParaAnalise = async () => {
+    if (pedidoSalvo) return;
+
+    setLoadingEnviar(true);
+    try {
+      const saved = await salvarNoBanco();
+      if (!saved.ok) return;
+
+      if (cpfIsRegular) {
+        const okSms = await enviarSms(nomeManual || dados.nome || "cliente");
+        if (okSms) {
+          alert(`✅ Enviado para análise + SMS enviado! (${saved.vendedor || "vendedor"})`);
+        } else {
+          alert(`✅ Enviado para análise. (SMS falhou) (${saved.vendedor || "vendedor"})`);
+        }
+      } else {
+        alert(`✅ Enviado para análise. (CPF não REGULAR: SMS não enviado) (${saved.vendedor || "vendedor"})`);
+      }
+
+      setPedidoSalvo(true);
     } finally {
-      setLoadingSalvar(false);
+      setLoadingEnviar(false);
     }
   };
 
@@ -302,6 +465,7 @@ function PedidoContent() {
           >
             <ArrowLeft size={18} /> <span className="hidden md:inline">Voltar</span>
           </button>
+
           <div className="flex items-center gap-2 md:gap-3">
             <button
               onClick={() => window.print()}
@@ -312,16 +476,17 @@ function PedidoContent() {
 
             {!pedidoSalvo ? (
               <button
-                onClick={handleFinalizarSolicitacao}
-                disabled={loadingSalvar}
+                onClick={handleEnviarParaAnalise}
+                disabled={loadingEnviar}
                 className="bg-[#f2e14c] text-black px-4 py-2.5 rounded-lg text-xs font-black uppercase hover:bg-[#ffe600] flex items-center gap-2 shadow-lg shadow-yellow-400/20 transition-all hover:scale-105 active:scale-95"
+                title="Salva no painel. Envia SMS apenas se CPF estiver REGULAR."
               >
-                {loadingSalvar ? <Loader2 className="animate-spin" size={16} /> : <Send size={16} />}
-                <span className="md:inline">{loadingSalvar ? "Salvando..." : "Salvar Proposta"}</span>
+                {loadingEnviar ? <Loader2 className="animate-spin" size={16} /> : <Send size={16} />}
+                <span className="md:inline">{loadingEnviar ? "Enviando..." : "Enviar p/ análise"}</span>
               </button>
             ) : (
               <div className="bg-green-500/10 text-green-500 px-4 py-2.5 rounded-lg text-xs font-black uppercase flex items-center gap-2 border border-green-500/20 animate-in fade-in zoom-in">
-                <CheckCircle2 size={16} /> Salvo
+                <CheckCircle2 size={16} /> Enviado
               </div>
             )}
           </div>
@@ -333,7 +498,9 @@ function PedidoContent() {
         <div className="bg-white shadow-lg md:shadow-2xl rounded-2xl md:rounded-none overflow-hidden w-full min-h-[80vh] md:min-h-[297mm] flex flex-col relative print:shadow-none print:w-full">
           {/* MARCA D'ÁGUA DE FUNDO */}
           <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none select-none overflow-hidden">
-            <h1 className="text-[80px] md:text-[150px] font-black -rotate-45 text-black whitespace-nowrap">WBCNAC</h1>
+            <h1 className="text-[80px] md:text-[150px] font-black -rotate-45 text-black whitespace-nowrap">
+              WBCNAC
+            </h1>
           </div>
 
           {/* --- HEADER DO DOCUMENTO --- */}
@@ -350,14 +517,60 @@ function PedidoContent() {
                   </span>
                 </div>
               </div>
-              <h1 className="text-lg md:text-xl font-bold uppercase tracking-tight text-zinc-900">Proposta Comercial</h1>
-              <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-medium">Consórcios & Veículos Multimarcas</p>
+              <h1 className="text-lg md:text-xl font-bold uppercase tracking-tight text-zinc-900">
+                Proposta Comercial
+              </h1>
+              <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-medium">
+                Consórcios & Veículos Multimarcas
+              </p>
+
+              {(promo.hasPromo || lanceInfo.hasLance) && (
+                <div className="mt-3 flex flex-wrap gap-2 print:hidden">
+                  {lanceInfo.hasLance ? (
+                    <span className="text-[10px] font-black uppercase px-2 py-1 rounded-full bg-zinc-900 text-white">
+                      Lance: {formatMoney(lanceInfo.lanceValor)}
+                    </span>
+                  ) : null}
+
+                  {promo.hasPromo ? (
+                    <>
+                      <span className="text-[10px] font-black uppercase px-2 py-1 rounded-full bg-[#f2e14c] text-black">
+                        Promo: {(promo.codigo || promo.label || "Aplicada").toUpperCase()}
+                      </span>
+                      {promo.platingFree ? (
+                        <span className="text-[10px] font-black uppercase px-2 py-1 rounded-full bg-emerald-100 text-emerald-700">
+                          Emplacamento grátis
+                        </span>
+                      ) : null}
+                      {promo.accessoriesFree ? (
+                        <span className="text-[10px] font-black uppercase px-2 py-1 rounded-full bg-emerald-100 text-emerald-700">
+                          Acessórios grátis
+                        </span>
+                      ) : null}
+                      {promo.discountPercent ? (
+                        <span className="text-[10px] font-black uppercase px-2 py-1 rounded-full bg-zinc-100 text-zinc-700">
+                          {promo.discountPercent}% OFF
+                        </span>
+                      ) : null}
+                      {promo.discountValue ? (
+                        <span className="text-[10px] font-black uppercase px-2 py-1 rounded-full bg-zinc-100 text-zinc-700">
+                          {formatMoney(promo.discountValue)} OFF
+                        </span>
+                      ) : null}
+                    </>
+                  ) : null}
+                </div>
+              )}
             </div>
 
             <div className="text-right hidden md:block">
               <div className="flex flex-col items-end">
-                <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest mb-1">Número do Protocolo</p>
-                <p className="text-xl font-mono font-black text-zinc-900 bg-zinc-100 px-3 py-1 rounded">#{numeroPedido}</p>
+                <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest mb-1">
+                  Número do Protocolo
+                </p>
+                <p className="text-xl font-mono font-black text-zinc-900 bg-zinc-100 px-3 py-1 rounded">
+                  #{numeroPedido}
+                </p>
               </div>
               <div className="mt-3 flex items-center justify-end gap-2">
                 <span className="text-[10px] font-bold uppercase text-zinc-400">Modalidade:</span>
@@ -374,22 +587,100 @@ function PedidoContent() {
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b border-black pb-2">
                 <h3 className="text-sm font-black uppercase flex items-center gap-2">
-                  <span className="bg-black text-white w-5 h-5 flex items-center justify-center text-[10px] rounded-full">1</span>
+                  <span className="bg-black text-white w-5 h-5 flex items-center justify-center text-[10px] rounded-full">
+                    1
+                  </span>
                   Identificação do Cliente
                 </h3>
+
+                {/* ✅ só atualiza dados (SEM SMS) */}
                 <button
                   onClick={() => validarReceita(true)}
                   disabled={verificando}
-                  className="print:hidden text-[10px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 uppercase bg-blue-50 px-2 py-1 rounded-full"
+                  className="print:hidden text-[10px] font-bold text-zinc-800 hover:text-black flex items-center gap-1 uppercase bg-zinc-100 px-2 py-1 rounded-full border border-zinc-200"
                 >
                   {verificando ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}
-                  {verificando ? "..." : "Enviar Pedido"}
+                  {verificando ? "..." : "Atualizar"}
                 </button>
               </div>
 
+              {/* ✅ BOTÃO BONITO / LIMPO (sem frases longas) */}
+              {!pedidoSalvo ? (
+                <button
+                  onClick={handleEnviarParaAnalise}
+                  disabled={loadingEnviar}
+                  className="print:hidden w-full group relative overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm hover:shadow-lg transition-all"
+                  title="Salva no painel. Envia SMS apenas se CPF estiver REGULAR."
+                >
+                  {/* brilho suave */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-[#f2e14c]/0 via-[#f2e14c]/25 to-[#f2e14c]/0 opacity-0 group-hover:opacity-100 transition-opacity" />
+
+                  <div className="relative p-4 md:p-5 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-11 h-11 rounded-2xl bg-zinc-900 text-white flex items-center justify-center shadow-sm">
+                        {loadingEnviar ? (
+                          <Loader2 className="animate-spin" size={18} />
+                        ) : (
+                          <Send size={18} />
+                        )}
+                      </div>
+
+                      <div className="text-left">
+                        <p className="text-xs md:text-sm font-black uppercase leading-tight text-zinc-900">
+                          Enviar para análise
+                        </p>
+
+                        {/* chips pequenos (limpos) */}
+                        <div className="mt-1 flex flex-wrap items-center gap-2">
+                          <span
+                            className={`text-[10px] font-black uppercase px-2 py-1 rounded-full border ${
+                              cpfIsRegular
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                : "bg-red-50 text-red-700 border-red-200"
+                            }`}
+                          >
+                            CPF: {String(situacaoReceita).toUpperCase()}
+                          </span>
+
+                          {cpfIsRegular ? (
+                            <span className="text-[10px] font-black uppercase px-2 py-1 rounded-full border bg-zinc-50 text-zinc-700 border-zinc-200 flex items-center gap-1">
+                              <MessageSquare size={12} /> SMS
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="hidden md:inline text-[10px] font-black uppercase text-zinc-500">
+                        #{numeroPedido}
+                      </span>
+                      <div className="w-9 h-9 rounded-full bg-[#f2e14c] flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
+                        <ArrowLeft className="rotate-180" size={18} />
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              ) : (
+                <div className="print:hidden w-full rounded-2xl p-4 border border-green-500/20 bg-green-500/10 text-green-600 flex items-center gap-2 font-black uppercase text-xs">
+                  <CheckCircle2 size={18} /> Enviado para análise
+                </div>
+              )}
+
+              {!cpfIsRegular && (
+                <div className="print:hidden flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-100">
+                  <AlertTriangle size={16} className="text-red-600 mt-0.5" />
+                  <p className="text-[11px] font-bold text-red-700 uppercase leading-snug">
+                    CPF não REGULAR — SMS bloqueado.
+                  </p>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-4 gap-x-6 gap-y-4 text-xs">
                 <div className="md:col-span-2">
-                  <label className="block text-[9px] font-bold text-zinc-400 uppercase mb-1">Nome Completo</label>
+                  <label className="block text-[9px] font-bold text-zinc-400 uppercase mb-1">
+                    Nome Completo
+                  </label>
                   <div className="font-mono font-bold text-base md:text-lg uppercase truncate border-b border-dotted border-zinc-300 pb-1 w-full">
                     {nomeManual || "---"}
                   </div>
@@ -399,14 +690,16 @@ function PedidoContent() {
                   <label className="block text-[9px] font-bold text-zinc-400 uppercase mb-1">CPF</label>
                   <div className="font-mono font-bold text-base md:text-lg border-b border-dotted border-zinc-300 pb-1 flex items-center gap-2">
                     {dados.cpf}
-                    {situacaoReceita === "REGULAR" && (
+                    {cpfIsRegular && (
                       <ShieldCheck size={14} className="text-green-600 print:hidden flex-shrink-0" />
                     )}
                   </div>
                 </div>
 
                 <div className="md:col-span-1">
-                  <label className="block text-[9px] font-bold text-zinc-400 uppercase mb-1">Telefone</label>
+                  <label className="block text-[9px] font-bold text-zinc-400 uppercase mb-1">
+                    Telefone
+                  </label>
                   <div className="font-mono font-bold text-base md:text-lg border-b border-dotted border-zinc-300 pb-1">
                     {telefoneTela}
                   </div>
@@ -414,28 +707,36 @@ function PedidoContent() {
 
                 <div className="grid grid-cols-2 md:contents gap-4">
                   <div className="md:col-span-1">
-                    <label className="block text-[9px] font-bold text-zinc-400 uppercase mb-1">Nascimento</label>
+                    <label className="block text-[9px] font-bold text-zinc-400 uppercase mb-1">
+                      Nascimento
+                    </label>
                     <div className="font-mono font-medium text-zinc-800 uppercase">{dataNascimento}</div>
                   </div>
                   <div className="md:col-span-2">
-                    <label className="block text-[9px] font-bold text-zinc-400 uppercase mb-1">Filiação (Mãe)</label>
+                    <label className="block text-[9px] font-bold text-zinc-400 uppercase mb-1">
+                      Filiação (Mãe)
+                    </label>
                     <div className="font-mono font-medium text-zinc-800 uppercase truncate">{nomeMae}</div>
                   </div>
                 </div>
 
                 <div className="md:col-span-1">
-                  <label className="block text-[9px] font-bold text-zinc-400 uppercase mb-1">Situação CPF</label>
+                  <label className="block text-[9px] font-bold text-zinc-400 uppercase mb-1">
+                    Situação CPF
+                  </label>
                   <div
                     className={`font-black uppercase text-[10px] px-2 py-0.5 rounded w-fit ${
-                      situacaoReceita === "REGULAR" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                      cpfIsRegular ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
                     }`}
                   >
-                    {situacaoReceita}
+                    {String(situacaoReceita).toUpperCase()}
                   </div>
                 </div>
 
                 <div className="md:col-span-4">
-                  <label className="block text-[9px] font-bold text-zinc-400 uppercase mb-1">Endereço Residencial</label>
+                  <label className="block text-[9px] font-bold text-zinc-400 uppercase mb-1">
+                    Endereço Residencial
+                  </label>
                   <div className="font-mono text-zinc-600 uppercase text-[10px] border border-zinc-200 p-2 rounded bg-zinc-50 print:bg-white print:border-none print:p-0 leading-tight">
                     {endereco.logradouro
                       ? `${endereco.logradouro}, ${endereco.numero || "S/N"} - ${endereco.bairro} - ${endereco.cidade}/${endereco.estado}`
@@ -449,7 +750,9 @@ function PedidoContent() {
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b border-black pb-2">
                 <h3 className="text-sm font-black uppercase flex items-center gap-2">
-                  <span className="bg-black text-white w-5 h-5 flex items-center justify-center text-[10px] rounded-full">2</span>
+                  <span className="bg-black text-white w-5 h-5 flex items-center justify-center text-[10px] rounded-full">
+                    2
+                  </span>
                   Objeto do Contrato
                 </h3>
               </div>
@@ -463,7 +766,9 @@ function PedidoContent() {
                 <div className="flex-1 grid grid-cols-2 gap-4 w-full">
                   <div>
                     <p className="text-[9px] font-bold text-zinc-400 uppercase">Modelo / Bem</p>
-                    <p className="text-lg md:text-xl font-black text-zinc-900 uppercase leading-tight mt-1">{dados.modelo}</p>
+                    <p className="text-lg md:text-xl font-black text-zinc-900 uppercase leading-tight mt-1">
+                      {dados.modelo}
+                    </p>
                     <p className="text-[10px] text-zinc-500 font-medium mt-1">CÓDIGO FIPE: REF-2026</p>
                   </div>
                   <div className="text-right">
@@ -478,7 +783,9 @@ function PedidoContent() {
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b border-black pb-2">
                 <h3 className="text-sm font-black uppercase flex items-center gap-2">
-                  <span className="bg-black text-white w-5 h-5 flex items-center justify-center text-[10px] rounded-full">3</span>
+                  <span className="bg-black text-white w-5 h-5 flex items-center justify-center text-[10px] rounded-full">
+                    3
+                  </span>
                   Fluxo de Pagamento
                 </h3>
               </div>
@@ -490,22 +797,100 @@ function PedidoContent() {
                   <span className="font-mono font-bold text-zinc-900">{formatMoney(dados.entrada)}</span>
                 </div>
 
+                {lanceInfo.hasLance ? (
+                  <div className="flex justify-between items-center p-3 border-b border-zinc-100">
+                    <span className="text-xs font-bold text-zinc-500 uppercase">
+                      Lance{" "}
+                      {lanceInfo.modo
+                        ? `(${lanceInfo.modo === "reduzir_parcela" ? "Reduzir Parcela" : "Reduzir Meses"})`
+                        : ""}
+                    </span>
+                    <div className="flex-1 border-b border-dotted border-zinc-300 mx-4 relative top-1 hidden md:block"></div>
+                    <span className="font-mono font-bold text-zinc-900">{formatMoney(lanceInfo.lanceValor)}</span>
+                  </div>
+                ) : null}
+
                 <div className="flex justify-between items-center p-4 bg-[#f2e14c]/20 print:bg-gray-100">
                   <div className="flex flex-col">
                     <span className="text-xs font-black uppercase text-zinc-900">Parcelamento</span>
-                    <span className="text-[10px] font-bold text-zinc-500">Plano em {dados.prazo} meses</span>
+                    <span className="text-[10px] font-bold text-zinc-500">
+                      Plano em {valoresExibidos.prazoUsado} meses
+                    </span>
                   </div>
                   <div className="text-right">
-                    <span className="block text-xl md:text-2xl font-black text-zinc-900">{formatMoney(dados.parcela)}</span>
+                    <span className="block text-xl md:text-2xl font-black text-zinc-900">
+                      {formatMoney(valoresExibidos.parcelaUsada)}
+                    </span>
                     <span className="text-[9px] font-bold text-zinc-500 uppercase">Valor da Parcela</span>
                   </div>
                 </div>
 
-                <div className="flex justify-between items-center p-3 bg-zinc-50 print:bg-white">
-                  <span className="text-[10px] font-bold text-zinc-400 uppercase">Custo Efetivo Total (Estimado)</span>
-                  <span className="font-mono font-bold text-zinc-500 text-xs">{formatMoney(dados.total)}</span>
+                <div className="flex justify-between items-center p-3 bg-zinc-50 print:bg-white border-t border-zinc-100">
+                  <span className="text-[10px] font-bold text-zinc-400 uppercase">
+                    Total estimado (antes do desconto)
+                  </span>
+                  <span className="font-mono font-bold text-zinc-600 text-xs">
+                    {formatMoney(valoresExibidos.totalComLance)}
+                  </span>
+                </div>
+
+                {promo.hasPromo && valoresExibidos.desconto > 0 ? (
+                  <div className="flex justify-between items-center p-3 bg-white">
+                    <span className="text-[10px] font-bold text-zinc-400 uppercase">
+                      Desconto aplicado {promo.discountPercent ? `(${promo.discountPercent}%)` : ""}
+                    </span>
+                    <span className="font-mono font-bold text-emerald-700 text-xs">
+                      - {formatMoney(valoresExibidos.desconto)}
+                    </span>
+                  </div>
+                ) : null}
+
+                <div className="flex justify-between items-center p-3 bg-zinc-900 text-white">
+                  <span className="text-[10px] font-bold uppercase opacity-80">Total final estimado</span>
+                  <span className="font-mono font-black text-sm">{formatMoney(valoresExibidos.totalFinal)}</span>
                 </div>
               </div>
+
+              {promo.hasPromo ? (
+                <div className="border border-zinc-200 rounded-lg p-3 bg-zinc-50 print:bg-white">
+                  <p className="text-[9px] font-bold text-zinc-400 uppercase">Promoção aplicada</p>
+                  <p className="text-xs font-black text-zinc-900 uppercase mt-1">
+                    {(promo.label || promo.codigo || "Promoção").trim()}
+                  </p>
+                  {(promo.codigo || promo.obs) && (
+                    <p className="text-[10px] text-zinc-600 mt-1">
+                      {promo.codigo ? (
+                        <span className="font-mono font-bold">{promo.codigo.toUpperCase()}</span>
+                      ) : null}
+                      {promo.codigo && promo.obs ? " • " : null}
+                      {promo.obs}
+                    </p>
+                  )}
+
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {promo.platingFree ? (
+                      <span className="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase">
+                        Emplacamento grátis
+                      </span>
+                    ) : null}
+                    {promo.accessoriesFree ? (
+                      <span className="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase">
+                        Acessórios grátis
+                      </span>
+                    ) : null}
+                    {promo.discountPercent ? (
+                      <span className="px-2 py-1 rounded-full bg-zinc-200 text-zinc-800 text-[10px] font-black uppercase">
+                        {promo.discountPercent}% off
+                      </span>
+                    ) : null}
+                    {promo.discountValue ? (
+                      <span className="px-2 py-1 rounded-full bg-zinc-200 text-zinc-800 text-[10px] font-black uppercase">
+                        {formatMoney(promo.discountValue)} off
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             {/* CAMPO DE OBSERVAÇÕES */}
@@ -513,6 +898,32 @@ function PedidoContent() {
               <p className="absolute top-2 left-3 text-[9px] font-bold text-zinc-400 uppercase bg-white px-1">
                 Observações / Acessórios
               </p>
+
+              {(promo.hasPromo || lanceInfo.hasLance) && (
+                <div className="pt-4 text-[10px] text-zinc-700 leading-relaxed">
+                  {lanceInfo.hasLance ? (
+                    <p>
+                      • Lance aplicado:{" "}
+                      <span className="font-mono font-bold">{formatMoney(lanceInfo.lanceValor)}</span> | Prazo:{" "}
+                      <span className="font-mono font-bold">{valoresExibidos.prazoUsado}x</span> | Parcela:{" "}
+                      <span className="font-mono font-bold">{formatMoney(valoresExibidos.parcelaUsada)}</span>
+                    </p>
+                  ) : null}
+
+                  {promo.hasPromo ? (
+                    <p className="mt-1">
+                      • Promoção:{" "}
+                      <span className="font-mono font-bold">
+                        {(promo.codigo || promo.label || "APLICADA").toUpperCase()}
+                      </span>
+                      {promo.platingFree ? " | Emplacamento grátis" : ""}
+                      {promo.accessoriesFree ? " | Acessórios grátis" : ""}
+                      {promo.discountPercent ? ` | ${promo.discountPercent}% OFF` : ""}
+                      {promo.discountValue ? ` | ${formatMoney(promo.discountValue)} OFF` : ""}
+                    </p>
+                  ) : null}
+                </div>
+              )}
             </div>
           </div>
 
@@ -532,7 +943,8 @@ function PedidoContent() {
 
             <div className="flex flex-col md:flex-row items-center justify-between gap-4 md:gap-0">
               <div className="text-[9px] text-zinc-400 leading-tight max-w-md text-justify">
-                Este documento representa uma simulação comercial e não possui valor de contrato definitivo até a aprovação de crédito e assinatura digital.
+                Este documento representa uma simulação comercial e não possui valor de contrato definitivo até a aprovação
+                de crédito e assinatura digital.
               </div>
 
               <div className="flex items-center gap-2 opacity-50 grayscale">
