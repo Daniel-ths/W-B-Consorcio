@@ -78,14 +78,6 @@ function ModalDetalhes({
       Number(val || 0)
     );
 
-  const formatDate = (date: string) =>
-    new Date(date).toLocaleDateString("pt-BR") +
-    " às " +
-    new Date(date).toLocaleTimeString("pt-BR", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-
   const statusColor =
     sale.status === "Aprovado"
       ? "bg-green-50 text-green-800"
@@ -221,7 +213,13 @@ function ModalDetalhes({
 
                 <div className="col-span-2">
                   <p className="text-[10px] font-bold text-slate-400 uppercase">Criado em</p>
-                  <p className="text-sm font-medium text-slate-700">{formatDate(sale.created_at)}</p>
+                  <p className="text-sm font-medium text-slate-700">
+                    {new Date(sale.created_at).toLocaleDateString("pt-BR")} às{" "}
+                    {new Date(sale.created_at).toLocaleTimeString("pt-BR", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </p>
                 </div>
               </div>
             </div>
@@ -249,7 +247,12 @@ function ModalDetalhes({
               <div className="mt-4 border-t border-slate-200 pt-4 space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-500 font-medium">Valor Total</span>
-                  <span className="font-black text-slate-900">{formatMoney(sale.total_price)}</span>
+                  <span className="font-black text-slate-900">
+                    {new Intl.NumberFormat("pt-BR", {
+                      style: "currency",
+                      currency: "BRL",
+                    }).format(Number(sale.total_price) || 0)}
+                  </span>
                 </div>
               </div>
             </div>
@@ -268,7 +271,9 @@ function ModalDetalhes({
                 </div>
                 <div className="leading-tight">
                   <p className="text-sm font-bold text-slate-900">{sale.seller_name || "—"}</p>
-                  <p className="text-[10px] text-slate-500 font-mono">{sale.profiles?.email || "—"}</p>
+                  <p className="text-[10px] text-slate-500 font-mono">
+                    {sale.profiles?.email || "—"}
+                  </p>
                 </div>
               </div>
             </div>
@@ -293,7 +298,6 @@ function ModalDetalhes({
               </div>
 
               <p className="text-[11px] text-slate-400 font-bold mt-3">
-                * Auditoria só aparece se você estiver salvando approved_by_* e approved_at.
               </p>
             </div>
           </div>
@@ -327,6 +331,11 @@ export default function AdminDashboard() {
 
   const [sales, setSales] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // ✅ Produção de supervisores (hoje)
+  const [supervisorStatusFilter, setSupervisorStatusFilter] = useState<
+    "TODOS" | "ATENDIMENTOS" | "APROVACOES" | "RECUSAS"
+  >("TODOS");
 
   // filtros
   const [filterStatus, setFilterStatus] = useState("TODOS");
@@ -425,13 +434,84 @@ export default function AdminDashboard() {
     setDateTo(iso);
   };
 
+  // ✅ normaliza "nome" do supervisor para agrupar corretamente
+  const normalizeSupervisorName = (raw: any) => {
+    const s = String(raw || "").trim();
+    if (!s) return "Supervisor (não informado)";
+    return s.replace(/\s+/g, " ");
+  };
+
+  // =========================================================
+  // ✅ NOVO: marca "atendimento" ao abrir detalhes (sem aprovar/recusar)
+  // - Isso resolve seu caso: supervisor abriu/atendeu hoje, mas não aparecia.
+  // - Regra: se a proposta está "Aguardando Aprovação" e NÃO tem approved_by_* ainda,
+  //   preenche approved_by_id e approved_by_name (SEM setar approved_at).
+  //   Assim entra na contagem de "Atendimentos" do dia.
+  // =========================================================
+  const getMyDisplayName = async () => {
+    const { data: authData } = await supabase.auth.getUser();
+    const user = authData?.user;
+    if (!user?.id) return null;
+
+    const { data: me } = await supabase
+      .from("profiles")
+      .select("email, name, full_name")
+      .eq("id", user.id)
+      .single();
+
+    const displayName =
+      (me as any)?.name || (me as any)?.full_name || (me as any)?.email || user.email || "Usuário";
+
+    return { id: user.id, name: displayName };
+  };
+
+  const markSupervisorTouch = async (sale: any) => {
+    try {
+      if (!sale?.id) return;
+
+      // só marca touch em pendentes
+      if (sale.status !== "Aguardando Aprovação") return;
+
+      // se já tem, não precisa
+      if (sale.approved_by_id || sale.approved_by_name) return;
+
+      const me = await getMyDisplayName();
+      if (!me) return;
+
+      const payload = {
+        approved_by_id: me.id,
+        approved_by_name: me.name,
+        // approved_at fica null (porque não é decisão)
+      };
+
+      const { error } = await supabase.from("sales").update(payload).eq("id", sale.id);
+      if (error) throw error;
+
+      // reflete no estado
+      setSales((prev) => prev.map((s) => (s.id === sale.id ? { ...s, ...payload } : s)));
+      if (selectedSale?.id === sale.id) setSelectedSale((p: any) => ({ ...p, ...payload }));
+    } catch (e) {
+      // silencioso pra não poluir UX
+      console.warn("[admin] markSupervisorTouch falhou:", e);
+    }
+  };
+
+  const openSale = async (sale: any) => {
+    setSelectedSale(sale);
+    // marca atendimento (sem decisão) para aparecer em "Produção dos Supervisores (Hoje)"
+    await markSupervisorTouch(sale);
+  };
+
   // fetch
   const fetchSales = async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
         .from("sales")
-        .select(`*, profiles:seller_id (email)`)
+        .select(
+          `*, profiles:seller_id (email),
+           approved_by_id, approved_by_name, approved_at`
+        )
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -507,7 +587,6 @@ export default function AdminDashboard() {
         if (sortKey === "status") {
           return String(a.status || "").localeCompare(String(b.status || ""), "pt-BR") * dir;
         }
-        // client_name
         return String(a.client_name || "").localeCompare(String(b.client_name || ""), "pt-BR") * dir;
       });
   }, [sales, filterStatus, searchTerm, dateFrom, dateTo, sortKey, sortDir]);
@@ -554,7 +633,6 @@ export default function AdminDashboard() {
 
     const conversion = total ? (approved.length / total) * 100 : 0;
 
-    // hoje (no recorte)
     const { startISO, endISO } = getTodayRangeISO();
     const todaySales = rows.filter((s) => {
       const created = new Date(s.created_at).toISOString();
@@ -610,7 +688,131 @@ export default function AdminDashboard() {
   }, [sales]);
 
   // =========================
-  // Gráficos (30 dias) — sem funil
+  // ✅ Produção por Supervisor (HOJE)
+  // Agora conta "Atendimentos" por:
+  // - qualquer item que teve supervisor atribuído e foi "mexido" hoje:
+  //   (approved_at hoje) OU (updated_at hoje) OU (created_at hoje)
+  // Isso garante que "só abrir e atender" hoje apareça (porque markSupervisorTouch faz update).
+  // =========================
+  const supervisorsToday = useMemo(() => {
+    const { startISO, endISO } = getTodayRangeISO();
+
+    const isInToday = (isoLike: any) => {
+      if (!isoLike) return false;
+      const t = new Date(isoLike).toISOString();
+      return t >= startISO && t <= endISO;
+    };
+
+    const getActionTime = (s: any) => s?.approved_at || s?.updated_at || s?.created_at;
+
+    const touchedToday = sales.filter((s) => {
+      const sup = s?.approved_by_name || s?.approved_by_id;
+      if (!sup) return false;
+      return isInToday(getActionTime(s));
+    });
+
+    const decidedToday = sales.filter((s) => isInToday(s.approved_at)); // decidiu hoje
+
+    const map = new Map<
+      string,
+      {
+        supervisor: string;
+        atendimentos: number;
+        aprovacoes: number;
+        recusas: number;
+        decididas: number;
+        valorAprovado: number;
+        vendedores: Map<string, number>;
+        lastActionAt?: number;
+      }
+    >();
+
+    const touch = (supName: string) => {
+      const key = normalizeSupervisorName(supName);
+      const curr =
+        map.get(key) ||
+        ({
+          supervisor: key,
+          atendimentos: 0,
+          aprovacoes: 0,
+          recusas: 0,
+          decididas: 0,
+          valorAprovado: 0,
+          vendedores: new Map<string, number>(),
+          lastActionAt: 0,
+        } as any);
+      map.set(key, curr);
+      return curr;
+    };
+
+    // 1) Atendimentos (tocados hoje)
+    touchedToday.forEach((s) => {
+      const sup = s?.approved_by_name || s?.approved_by_id;
+      if (!sup) return;
+
+      const row = touch(sup);
+      row.atendimentos += 1;
+
+      const sellerName = String(s?.seller_name || s?.profiles?.email || "Vendedor (não informado)").trim();
+      row.vendedores.set(sellerName, (row.vendedores.get(sellerName) || 0) + 1);
+
+      const ts = new Date(getActionTime(s)).getTime();
+      row.lastActionAt = Math.max(row.lastActionAt || 0, ts);
+    });
+
+    // 2) Decisões (approved_at hoje)
+    decidedToday.forEach((s) => {
+      const sup = s?.approved_by_name || s?.approved_by_id || "Supervisor (não informado)";
+      const row = touch(sup);
+
+      row.decididas += 1;
+
+      if (s.status === "Aprovado") {
+        row.aprovacoes += 1;
+        row.valorAprovado += Number(s.total_price) || 0;
+      } else if (s.status === "Recusado") {
+        row.recusas += 1;
+      }
+
+      const ts = new Date(s.approved_at).getTime();
+      row.lastActionAt = Math.max(row.lastActionAt || 0, ts);
+    });
+
+    const list = Array.from(map.values()).map((r) => {
+      const vendedoresTop = Array.from(r.vendedores.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([name, count]) => ({ name, count }));
+
+      const conv = r.atendimentos ? (r.aprovacoes / r.atendimentos) * 100 : 0;
+
+      return {
+        supervisor: r.supervisor,
+        atendimentos: r.atendimentos,
+        aprovacoes: r.aprovacoes,
+        recusas: r.recusas,
+        decididas: r.decididas,
+        valorAprovado: r.valorAprovado,
+        conversao: conv,
+        vendedoresTop,
+        lastActionAt: r.lastActionAt || 0,
+      };
+    });
+
+    const filtered = list.filter((r) => {
+      if (supervisorStatusFilter === "ATENDIMENTOS") return r.atendimentos > 0;
+      if (supervisorStatusFilter === "APROVACOES") return r.aprovacoes > 0;
+      if (supervisorStatusFilter === "RECUSAS") return r.recusas > 0;
+      return true;
+    });
+
+    filtered.sort((a, b) => b.atendimentos - a.atendimentos || b.lastActionAt - a.lastActionAt);
+
+    return filtered;
+  }, [sales, supervisorStatusFilter]);
+
+  // =========================
+  // Gráficos (30 dias)
   // =========================
   const charts = useMemo(() => {
     const days = 30;
@@ -676,34 +878,21 @@ export default function AdminDashboard() {
   }, [filteredBase]);
 
   // =========================
-  // Ações (status/delete) — Admin
+  // Ações (status/delete)
   // =========================
   const updateStatus = async (saleId: string, newStatus: string) => {
     try {
       setIsUpdating(saleId);
 
-      // (Admin) registra auditoria quando decide e limpa quando reabre
-      const { data: authData } = await supabase.auth.getUser();
-      const user = authData?.user;
-
+      const me = await getMyDisplayName();
       const payload: any = { status: newStatus };
 
       if (newStatus === "Aprovado" || newStatus === "Recusado") {
         payload.approved_at = new Date().toISOString();
 
-        // tenta pegar nome/email do admin
-        if (user?.id) {
-          const { data: me } = await supabase
-            .from("profiles")
-            .select("email, name, full_name")
-            .eq("id", user.id)
-            .single();
-
-          const displayName =
-            (me as any)?.name || (me as any)?.full_name || (me as any)?.email || user.email || "Admin";
-
-          payload.approved_by_id = user.id;
-          payload.approved_by_name = displayName;
+        if (me?.id) {
+          payload.approved_by_id = me.id;
+          payload.approved_by_name = me.name;
         }
       }
 
@@ -822,7 +1011,9 @@ export default function AdminDashboard() {
             </div>
             <div>
               <h1 className="text-lg font-black uppercase tracking-tight">Admin Dashboard</h1>
-              <p className="text-xs text-gray-400 font-bold">WBCNAC • Torre de Controle • {todayLabel}</p>
+              <p className="text-xs text-gray-400 font-bold">
+                WBCNAC • Torre de Controle • {todayLabel}
+              </p>
             </div>
           </div>
 
@@ -929,7 +1120,164 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* ✅ NOVO: PEDIDOS DO DIA */}
+        {/* ✅ PRODUÇÃO DOS SUPERVISORES (HOJE) */}
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden mb-8">
+          <div className="p-5 border-b border-slate-100 flex items-center justify-between gap-3">
+            <div>
+              <h3 className="font-black text-slate-900 uppercase tracking-tight">
+                Produção dos Supervisores (Hoje)
+              </h3>
+              <p className="text-xs text-slate-400 font-bold">
+                Supervisor • atendimentos do dia • aprovações/recusas • top vendedores atendidos
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="hidden md:flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1">
+                {(
+                  [
+                    { k: "TODOS", label: "Todos" },
+                    { k: "ATENDIMENTOS", label: "Atendimentos" },
+                    { k: "APROVACOES", label: "Aprovações" },
+                    { k: "RECUSAS", label: "Recusas" },
+                  ] as const
+                ).map((b) => (
+                  <button
+                    key={b.k}
+                    onClick={() => setSupervisorStatusFilter(b.k)}
+                    className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${
+                      supervisorStatusFilter === b.k
+                        ? "bg-black text-white"
+                        : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                    }`}
+                  >
+                    {b.label}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                onClick={fetchSales}
+                className="text-xs bg-slate-50 text-slate-600 px-3 py-2 rounded-lg font-bold hover:bg-slate-100 flex items-center gap-2 border border-slate-200"
+                title="Atualizar"
+              >
+                <Loader2 size={14} className={loading ? "animate-spin" : ""} />
+                Atualizar
+              </button>
+            </div>
+          </div>
+
+          <div className="p-5">
+            {supervisorsToday.length === 0 ? (
+              <div className="p-8 text-center text-slate-400 text-sm font-medium">
+                Sem atividade de supervisores hoje (ou approved_by_* ainda não está sendo preenchido).
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead className="bg-slate-50 text-slate-500 font-semibold uppercase text-[10px] border-b border-slate-200">
+                    <tr>
+                      <th className="px-4 py-3 min-w-[240px]">Supervisor</th>
+                      <th className="px-4 py-3 text-center min-w-[110px]">Atendimentos</th>
+                      <th className="px-4 py-3 text-center min-w-[110px]">Aprovações</th>
+                      <th className="px-4 py-3 text-center min-w-[110px]">Recusas</th>
+                      <th className="px-4 py-3 text-center min-w-[110px]">Conversão</th>
+                      <th className="px-4 py-3 text-right min-w-[150px]">Valor Aprovado</th>
+                      <th className="px-4 py-3 min-w-[260px]">Top Vendedores Atendidos</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {supervisorsToday.map((r, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-slate-900 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                              {String(r.supervisor)
+                                .split(" ")
+                                .slice(0, 2)
+                                .map((p: string) => p[0])
+                                .join("")
+                                .toUpperCase()
+                                .slice(0, 2)}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-black text-slate-900 truncate">
+                                {String(r.supervisor).includes("@")
+                                  ? String(r.supervisor).split("@")[0]
+                                  : r.supervisor}
+                              </p>
+                              <p className="text-[10px] text-slate-400 font-bold">
+                                Decididas hoje: {r.decididas}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="px-4 py-3 text-center">
+                          <span className="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-black bg-slate-100 text-slate-700 border border-slate-200">
+                            {r.atendimentos}
+                          </span>
+                        </td>
+
+                        <td className="px-4 py-3 text-center">
+                          <span className="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-black bg-green-100 text-green-700 border border-green-200">
+                            {r.aprovacoes}
+                          </span>
+                        </td>
+
+                        <td className="px-4 py-3 text-center">
+                          <span className="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-black bg-red-100 text-red-700 border border-red-200">
+                            {r.recusas}
+                          </span>
+                        </td>
+
+                        <td className="px-4 py-3 text-center">
+                          <span className="text-xs font-black text-slate-800">
+                            {Number.isFinite(r.conversao) ? r.conversao.toFixed(0) : 0}%
+                          </span>
+                        </td>
+
+                        <td className="px-4 py-3 text-right text-xs font-black text-slate-900">
+                          {formatCurrency(r.valorAprovado)}
+                        </td>
+
+                        <td className="px-4 py-3">
+                          {r.vendedoresTop.length === 0 ? (
+                            <span className="text-[11px] font-bold text-slate-400">
+                              — (nenhum vendedor identificado)
+                            </span>
+                          ) : (
+                            <div className="flex flex-wrap gap-2">
+                              {r.vendedoresTop.map((v: any, i: number) => (
+                                <span
+                                  key={i}
+                                  className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase bg-white border border-slate-200 text-slate-700"
+                                  title={v.name}
+                                >
+                                  {String(v.name).includes("@")
+                                    ? String(v.name).split("@")[0]
+                                    : String(v.name)}
+                                  <span className="bg-slate-100 border border-slate-200 text-slate-700 px-2 py-0.5 rounded-full text-[10px] font-black">
+                                    {v.count}
+                                  </span>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                <p className="text-[11px] text-slate-400 font-bold mt-3">
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ✅ PEDIDOS DO DIA */}
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden mb-8">
           <div className="p-5 border-b border-slate-100 flex items-center justify-between">
             <div>
@@ -1022,7 +1370,7 @@ export default function AdminDashboard() {
                       {todaySection.list.slice(0, 10).map((sale: any) => (
                         <tr
                           key={sale.id}
-                          onClick={() => setSelectedSale(sale)}
+                          onClick={() => openSale(sale)}
                           className="hover:bg-slate-50 cursor-pointer"
                         >
                           <td className="px-4 py-3">
@@ -1069,7 +1417,9 @@ export default function AdminDashboard() {
           <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-5">
               <div className="flex items-center justify-between mb-3">
-                <p className="text-xs font-black uppercase text-slate-500 tracking-widest">Volume (30 dias)</p>
+                <p className="text-xs font-black uppercase text-slate-500 tracking-widest">
+                  Volume (30 dias)
+                </p>
                 <span className="text-[10px] font-bold text-slate-400">Total/dia</span>
               </div>
               <div className="h-44">
@@ -1083,12 +1433,16 @@ export default function AdminDashboard() {
                   </LineChart>
                 </ResponsiveContainer>
               </div>
-              <p className="text-[11px] text-slate-400 font-bold mt-2">Use filtros para “auditar” períodos.</p>
+              <p className="text-[11px] text-slate-400 font-bold mt-2">
+                Use filtros para “auditar” períodos.
+              </p>
             </div>
 
             <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-5">
               <div className="flex items-center justify-between mb-3">
-                <p className="text-xs font-black uppercase text-slate-500 tracking-widest">Distribuição (recorte)</p>
+                <p className="text-xs font-black uppercase text-slate-500 tracking-widest">
+                  Distribuição (recorte)
+                </p>
                 <span className="text-[10px] font-bold text-slate-400">Status</span>
               </div>
               <div className="h-44 flex items-center">
@@ -1130,10 +1484,12 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* Ranking (sem Top Aprovadores) */}
+          {/* Ranking */}
           <div className="lg:col-span-4 space-y-6">
             <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-5">
-              <p className="text-xs font-black uppercase text-slate-500 tracking-widest">Top Vendedores (valor)</p>
+              <p className="text-xs font-black uppercase text-slate-500 tracking-widest">
+                Top Vendedores (valor)
+              </p>
               <div className="mt-4 space-y-3">
                 {topSellersByValue.length === 0 ? (
                   <p className="text-sm text-slate-400 font-medium">Sem dados.</p>
@@ -1195,7 +1551,9 @@ export default function AdminDashboard() {
                   key={status}
                   onClick={() => setFilterStatus(status)}
                   className={`px-4 py-2 rounded-lg text-xs font-bold uppercase whitespace-nowrap transition-all ${
-                    filterStatus === status ? "bg-black text-white" : "bg-slate-50 text-slate-500 hover:bg-slate-100"
+                    filterStatus === status
+                      ? "bg-black text-white"
+                      : "bg-slate-50 text-slate-500 hover:bg-slate-100"
                   }`}
                 >
                   {status === "Aguardando Aprovação" ? "Pendentes" : status}
@@ -1205,7 +1563,6 @@ export default function AdminDashboard() {
           </div>
 
           <div className="flex flex-col lg:flex-row items-center justify-between gap-3">
-            {/* datas + ordenação */}
             <div className="flex flex-col md:flex-row items-center gap-2 w-full">
               <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 w-full md:w-auto">
                 <CalendarRange size={16} className="text-slate-400" />
@@ -1287,7 +1644,6 @@ export default function AdminDashboard() {
               </button>
             </div>
 
-            {/* atalhos */}
             <div className="flex items-center gap-2 w-full lg:w-auto justify-end">
               <button
                 onClick={fetchSales}
@@ -1314,7 +1670,6 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* barra de lote */}
           {selectedIds.size > 0 && (
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col md:flex-row items-center justify-between gap-3">
               <div className="text-xs font-black uppercase text-slate-600">
@@ -1415,7 +1770,7 @@ export default function AdminDashboard() {
                     return (
                       <tr
                         key={sale.id}
-                        onClick={() => setSelectedSale(sale)}
+                        onClick={() => openSale(sale)}
                         className="hover:bg-slate-50 transition-colors group cursor-pointer"
                       >
                         <td className="px-6 py-4 text-center" onClick={(e) => e.stopPropagation()}>
@@ -1486,7 +1841,7 @@ export default function AdminDashboard() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setSelectedSale(sale);
+                                openSale(sale);
                               }}
                               className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-all border border-blue-100"
                               title="Ver Detalhes"

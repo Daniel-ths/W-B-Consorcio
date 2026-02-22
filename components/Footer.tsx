@@ -9,14 +9,14 @@ export default function Footer() {
         
         {/* Coluna 1: Marca */}
         <div className="space-y-6">
-            <Link href="/" className="flex items-center gap-4 group">
+            <Link href="/" className="flex items-center gap-1 group">
                 <img 
                     src="https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/parceirologo.png"
                     alt="WB Auto" 
                     className="h-32 w-auto object-contain mix-blend-multiply" 
                 />
                 <span className="text-lg font-bold tracking-widest uppercase text-gray-900">
-                    WB<span className="text-gray-500 font-normal">Auto</span>
+                    Nacional <span className="text-gray-500 font-normal">Consórcio</span>
                 </span>
             </Link>
             <p className="leading-relaxed text-xs">
@@ -80,7 +80,7 @@ export default function Footer() {
 {/* Faixa Final */}
       <div className="border-t border-gray-200 bg-[#e5e5e5] py-6">
         <div className="max-w-[1400px] mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4 text-[10px] tracking-wider uppercase text-gray-500 font-bold">
-            <p>© {new Date().getFullYear()} W B C Consórcio LTDA: Todos os direitos reservados.</p>
+            <p>© {new Date().getFullYear()} nacional Consórcio LTDA: Todos os direitos reservados.</p>
             <div className="flex gap-6 flex-wrap justify-center">
                 {/* AQUI ESTÃO OS LINKS ATUALIZADOS */}
                 <Link href="/politica-de-privacidade" className="hover:text-black">

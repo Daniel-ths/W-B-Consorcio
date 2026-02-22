@@ -265,20 +265,16 @@ function AnaliseContent() {
     const prazo = planoSelecionado?.prazo || Math.min(prazoConsorcio, CONSORCIO_MAX_MESES);
     const percentualCategoria = planoSelecionado?.percentualCategoria ?? 1;
 
-    // parcela base é do plano selecionado (sem lance)
     const parcelaBase = planoSelecionado?.parcela || 0;
 
-    // lance: não pode passar do crédito
     const lance = Math.max(0, Math.min(lanceValor || 0, credito));
 
-    // modelo simples: lance reduz o crédito necessário
     const creditoAposLance = Math.max(0, credito - lance);
     const valorCategoriaAposLance = creditoAposLance * (1 + TAXA_ADM_TOTAL);
 
     const parcelaAposLance_mesmoPrazo =
       prazo > 0 ? (valorCategoriaAposLance * percentualCategoria) / prazo : 0;
 
-    // reduzir meses mantendo parcela original (base)
     const mesesAposLance_mantendoParcela =
       parcelaBase > 0
         ? Math.max(1, Math.ceil((valorCategoriaAposLance * percentualCategoria) / parcelaBase))
@@ -292,7 +288,7 @@ function AnaliseContent() {
           }
         : {
             prazoFinal: Math.min(prazo, mesesAposLance_mantendoParcela),
-            parcelaFinal: parcelaBase, // mantém parcela original do plano
+            parcelaFinal: parcelaBase,
           };
 
     return {
@@ -311,7 +307,7 @@ function AnaliseContent() {
     };
   }, [dadosIniciais.valor, entradaManual, prazoConsorcio, planoSelecionado, lanceValor, lanceMode]);
 
-  // ====== AVANÇAR COM O LANCE + PROMO (APLICA DESCONTO AQUI) ======
+  // ====== AVANÇAR COM O LANCE + PROMO ======
   const avancarParaContrato = (opts?: { withLance?: boolean }) => {
     if (!planoSelecionado) return;
 
@@ -320,25 +316,20 @@ function AnaliseContent() {
     params.set("tipo", "CONSORCIO");
     params.set("entrada", String(entradaManual || 0));
 
-    // ✅ total_base (sem exibir valor de categoria — mas precisa calcular)
     const valorCarro = dadosIniciais.valor || 0;
     const credito = Math.max(0, valorCarro - (entradaManual || 0));
     const valorCategoria = credito * (1 + TAXA_ADM_TOTAL);
     const totalBase = round2((valorCategoria || 0) + (entradaManual || 0));
 
-    // valores base (do plano)
     params.set("prazo_escolhido", String(planoSelecionado.prazo));
     params.set("parcela_escolhida", String(planoSelecionado.parcela));
 
-    // extras úteis
     params.set("taxa_adm_total", String(TAXA_ADM_TOTAL));
-    params.set("modo_parcela", String(planoSelecionado.key)); // integral | reduzida
+    params.set("modo_parcela", String(planoSelecionado.key));
     params.set("percentual_categoria", String(planoSelecionado.percentualCategoria));
 
-    // Sempre manda o base (pra conferência/depuração)
     params.set("total_final_base", String(totalBase));
 
-    // ✅ PROMO: aplica desconto no total aqui e manda total final já pronto
     let totalComPromo = totalBase;
     let descontoTotalValor = 0;
 
@@ -360,32 +351,27 @@ function AnaliseContent() {
 
       totalComPromo = Math.max(0, round2(totalComPromo));
 
-      // manda infos da promo
       params.set("cupom_codigo", couponApplied.code);
       params.set("cupom_label", couponApplied.label);
       params.set("cupom_acessorios_gratis", couponApplied.effects.accessoriesFree ? "1" : "0");
       params.set("cupom_emplacamento_gratis", couponApplied.effects.platingFree ? "1" : "0");
-      params.set("cupom_frete_gratis", couponApplied.effects.freteFree ? "1" : "0"); // ✅ NOVO
+      params.set("cupom_frete_gratis", couponApplied.effects.freteFree ? "1" : "0");
       params.set("cupom_desconto_percent", String(percent));
       params.set("cupom_desconto_valor", String(descontoFixo));
       params.set("cupom_obs", couponApplied.effects.note || "");
 
-      // manda valores calculados
       params.set("total_final_com_cupom", String(totalComPromo));
       params.set("desconto_total_valor", String(descontoTotalValor));
 
-      // ✅ facilita na próxima página:
       params.set("total_final", String(totalComPromo));
     } else {
-      // sem promo: padrão
       params.set("total_final", String(totalBase));
     }
 
-    // ✅ campos do lance (se aplicável)
     const usarLance = !!opts?.withLance;
     if (usarLance) {
       params.set("lance_valor", String(lanceCalc.lance));
-      params.set("lance_modo", String(lanceMode)); // reduzir_parcela | reduzir_meses
+      params.set("lance_modo", String(lanceMode));
       params.set("prazo_final", String(lanceCalc.prazoFinal));
       params.set("parcela_final", String(lanceCalc.parcelaFinal));
       params.set("credito_apos_lance", String(lanceCalc.creditoAposLance));
@@ -433,11 +419,19 @@ function AnaliseContent() {
 
       {/* =========================
           MODAL DO LANCE (R$ + PROMO)
+          ✅ FIX: corpo rolável + footer sticky
          ========================= */}
       {isLanceOpen && (
-        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+        <div
+          className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setIsLanceOpen(false)}
+        >
+          <div
+            className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* header (fixo) */}
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
               <div>
                 <h3 className="font-black text-slate-900 uppercase text-sm">Simulador de Lance</h3>
                 <p className="text-[11px] text-slate-500 mt-1">
@@ -452,7 +446,8 @@ function AnaliseContent() {
               </button>
             </div>
 
-            <div className="p-5 space-y-5">
+            {/* ✅ corpo rolável */}
+            <div className="p-5 space-y-5 flex-1 overflow-y-auto overscroll-contain">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
                   <p className="text-[10px] text-slate-400 font-bold uppercase">Crédito</p>
@@ -580,7 +575,6 @@ function AnaliseContent() {
                     <p className="text-[11px] font-black text-slate-900 uppercase">{couponApplied.label}</p>
                     <p className="text-[11px] text-slate-600 mt-1">{couponApplied.description}</p>
                     <div className="mt-2 flex flex-wrap gap-2">
-                      {/* ✅ NOVO: frete grátis */}
                       {couponApplied.effects.freteFree ? (
                         <span className="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase">
                           Frete grátis
@@ -634,18 +628,22 @@ function AnaliseContent() {
                     : "Você mantém a parcela e reduz a quantidade de meses (quando possível)."}
                 </p>
               </div>
+
+              {/* espaçador extra pra nunca esconder conteúdo no footer sticky */}
+              <div className="h-2" />
             </div>
 
-            <div className="p-5 border-t border-slate-100 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+            {/* ✅ footer sticky com botões SEMPRE acessíveis */}
+            <div className="p-5 border-t border-slate-100 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between flex-shrink-0 bg-white sticky bottom-0">
               <button
                 type="button"
                 onClick={() => {
                   setIsLanceOpen(false);
                   avancarParaContrato({ withLance: false });
                 }}
-                className="h-11 px-4 rounded-lg border-0 border-slate-200 hover:border-black text-black font-black uppercase text-xs tracking-widest transition-all"
+                className="h-11 px-4 rounded-lg border-2 border-slate-200 hover:border-black text-black font-black uppercase text-xs tracking-widest transition-all"
               >
-                {/* (mantido como estava no seu código) */}
+                Continuar sem lance
               </button>
 
               <button
@@ -811,7 +809,6 @@ function AnaliseContent() {
                       key={op.key}
                       onClick={() => {
                         setPlanoSelecionado(op);
-                        // reset do lance quando troca plano
                         setLanceValor(0);
                         setLanceDisplay(formatBRLInput(0));
                         setLanceMode("reduzir_parcela");
@@ -864,7 +861,6 @@ function AnaliseContent() {
               </div>
 
               <div className="mt-8 pt-4 border-t border-slate-100 space-y-3">
-                {/* ✅ abre modal */}
                 <button
                   onClick={() => {
                     if (!planoSelecionado) return;
@@ -879,7 +875,9 @@ function AnaliseContent() {
                   ].join(" ")}
                 >
                   {planoSelecionado
-                    ? `Continuar (${planoSelecionado.prazo}x • ${planoSelecionado.key === "reduzida" ? "Reduzida" : "Integral"})`
+                    ? `Continuar (${planoSelecionado.prazo}x • ${
+                        planoSelecionado.key === "reduzida" ? "Reduzida" : "Integral"
+                      })`
                     : "Selecione uma opção acima"}
                   {planoSelecionado ? <ChevronRight size={14} /> : null}
                 </button>

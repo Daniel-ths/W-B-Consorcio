@@ -284,7 +284,7 @@ export default function LoginPage() {
             </form>
 
             <div className="mt-7 text-center text-xs text-slate-400">
-              © 2026 W B C Consórcio LTDA. Todos os direitos reservados.
+              © 2026 Nacional Consórcio LTDA. Todos os direitos reservados.
             </div>
           </div>
         </div>
