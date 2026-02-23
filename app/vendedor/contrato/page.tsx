@@ -187,7 +187,8 @@ function PedidoContent() {
 
   // ✅ mensagem do SMS
   const SMS_TESTE = (nome: string, protocolo: string) =>
-    `CPF aprovado! ${nome}!🎉 Seu carro novo está mais perto. Bem vindo!`;
+    `Parabéns, ${nome}!🎉 Seu CPF foi aprovado e você está mais perto de conquistar seu carro novo.
+Seja bem vindoa!`;
 
   const formatMoney = (val: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(val);
