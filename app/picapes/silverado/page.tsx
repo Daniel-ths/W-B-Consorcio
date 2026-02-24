@@ -134,22 +134,34 @@ const maskCPF = (value: string) =>
 
 const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-// --- TELEFONE FIXO +55 ---
+// --- TELEFONE FIXO +55 (AGORA COM DDD + 9 DÍGITOS) ---
+// Formato: +55 (DD) 9XXXX-XXXX
 const PHONE_PREFIX_DISPLAY = "+55 ";
 const PHONE_PREFIX_E164 = "+55";
+const PHONE_AFTER_LEN = 11; // DDD (2) + número (9)
+const PHONE_DISPLAY_MAXLEN = PHONE_PREFIX_DISPLAY.length + 15; // "(DD) 9XXXX-XXXX" = 15 chars
 
 const maskPhoneAfterPrefix = (value: string) => {
-  const digits = value.replace(/\D/g, "").slice(0, 9);
+  const digits = String(value || "").replace(/\D/g, "").slice(0, PHONE_AFTER_LEN); // 11 dígitos: DDD + 9
   if (!digits) return "";
-  if (digits.length <= 1) return digits;
-  if (digits.length <= 5) return `${digits.slice(0, 1)}${digits.slice(1)}`;
-  return `${digits.slice(0, 1)}${digits.slice(1, 5)}-${digits.slice(5)}`;
+
+  const ddd = digits.slice(0, 2);
+  const num = digits.slice(2); // até 9 dígitos
+
+  if (digits.length <= 2) return `(${ddd}`;
+  if (num.length === 0) return `(${ddd}) `;
+
+  // num pode ter 1..9
+  if (num.length <= 1) return `(${ddd}) ${num}`;
+  if (num.length <= 5) return `(${ddd}) ${num}`; // já começa com 9, vai até 5
+  return `(${ddd}) ${num.slice(0, 5)}-${num.slice(5)}`; // 9XXXX-XXXX
 };
 
 const getPhoneDigitsAfterPrefix = (fullValue: string) => {
-  const digits = fullValue.replace(/\D/g, "");
-  if (digits.startsWith("5591")) return digits.slice(4).slice(0, 9);
-  return digits.slice(0, 9);
+  // retorna sempre DDD+9 dígitos (11) sem o 55
+  let digits = String(fullValue || "").replace(/\D/g, "");
+  if (digits.startsWith("55")) digits = digits.slice(2);
+  return digits.slice(0, PHONE_AFTER_LEN);
 };
 
 export default function SilveradoPage() {
@@ -214,13 +226,14 @@ export default function SilveradoPage() {
   };
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const typed = e.target.value;
+    const typed = e.target.value || "";
 
-    let after = typed.startsWith(PHONE_PREFIX_DISPLAY)
+    // Garante prefixo +55 sempre presente
+    const raw = typed.startsWith(PHONE_PREFIX_DISPLAY)
       ? typed.slice(PHONE_PREFIX_DISPLAY.length)
       : typed.replace(PHONE_PREFIX_DISPLAY, "");
 
-    const maskedAfter = maskPhoneAfterPrefix(after);
+    const maskedAfter = maskPhoneAfterPrefix(raw);
     setClientPhone(PHONE_PREFIX_DISPLAY + maskedAfter);
 
     if (errors.clientPhone) setErrors({ ...errors, clientPhone: "" });
@@ -311,9 +324,9 @@ export default function SilveradoPage() {
       hasError = true;
     }
 
-    const phoneDigits = getPhoneDigitsAfterPrefix(clientPhone);
-    if (phoneDigits.length < 9) {
-      newErrors.clientPhone = "Telefone obrigatório (digite os 9 dígitos após o 9).";
+    const phoneDigits = getPhoneDigitsAfterPrefix(clientPhone); // DDD+9 (11)
+    if (phoneDigits.length < PHONE_AFTER_LEN) {
+      newErrors.clientPhone = "Telefone obrigatório (inclua DDD + 9 dígitos). Ex: +55 (91) 9XXXX-XXXX";
       hasError = true;
     }
 
@@ -323,6 +336,7 @@ export default function SilveradoPage() {
     setLoading(true);
 
     try {
+      // E.164: +55 + DDD + 9 dígitos
       const telefoneE164 = `${PHONE_PREFIX_E164}${getPhoneDigitsAfterPrefix(clientPhone)}`;
 
       const saleData = {
@@ -525,7 +539,7 @@ export default function SilveradoPage() {
                   />
 
                   <button
-                    onClick={openLightbox}
+                    onClick={() => setLightboxOpen(true)}
                     className="absolute top-4 right-4 w-10 h-10 rounded-xl bg-white/95 border border-gray-200 flex items-center justify-center hover:bg-white transition-colors"
                     aria-label="Expandir imagem"
                     title="Expandir"
@@ -820,11 +834,11 @@ export default function SilveradoPage() {
                     <input
                       value={clientPhone}
                       onChange={handlePhoneChange}
-                      maxLength={PHONE_PREFIX_DISPLAY.length + 10}
+                      maxLength={PHONE_DISPLAY_MAXLEN}
                       className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
                         ${errors.clientPhone ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
                       `}
-                      placeholder="+55  XXXX-XXXX"
+                      placeholder="+55 (91) 9XXXX-XXXX"
                     />
                     {errors.clientPhone && (
                       <p className="text-red-500 text-xs mt-1 flex items-center gap-1">

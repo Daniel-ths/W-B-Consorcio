@@ -138,18 +138,26 @@ const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email
 const PHONE_PREFIX_DISPLAY = "+55 ";
 const PHONE_PREFIX_E164 = "+55";
 
+// ✅ Agora aceita DDD (2) + celular (9) = 11 dígitos após +55
 const maskPhoneAfterPrefix = (value: string) => {
-  const digits = value.replace(/\D/g, "").slice(0, 9);
+  const digits = String(value || "").replace(/\D/g, "").slice(0, 11); // 2 (DDD) + 9 (celular)
   if (!digits) return "";
-  if (digits.length <= 1) return digits;
-  if (digits.length <= 5) return `${digits.slice(0, 1)}${digits.slice(1)}`;
-  return `${digits.slice(0, 1)}${digits.slice(1, 5)}-${digits.slice(5)}`;
+
+  const ddd = digits.slice(0, 2);
+  const rest = digits.slice(2); // 9 dígitos
+
+  // Digitação progressiva
+  if (digits.length <= 2) return `(${ddd}`;
+  if (rest.length === 0) return `(${ddd})`;
+  if (rest.length <= 5) return `(${ddd}) ${rest}`;
+  return `(${ddd}) ${rest.slice(0, 5)}-${rest.slice(5)}`; // (DD) 9XXXX-XXXX
 };
 
+// ✅ Retorna SOMENTE 11 dígitos (DDD + 9) e remove país se colarem com 55
 const getPhoneDigitsAfterPrefix = (fullValue: string) => {
-  const digits = fullValue.replace(/\D/g, "");
-  if (digits.startsWith("5591")) return digits.slice(4).slice(0, 9);
-  return digits.slice(0, 9);
+  let digits = String(fullValue || "").replace(/\D/g, "");
+  if (digits.startsWith("55")) digits = digits.slice(2);
+  return digits.slice(0, 11);
 };
 
 export default function TrailblazerElectricStylePage() {
@@ -213,14 +221,14 @@ export default function TrailblazerElectricStylePage() {
     if (errors.clientCpf) setErrors({ ...errors, clientCpf: "" });
   };
 
+  // ✅ FIX DDD +55 (agora aceita qualquer DDD e 11 dígitos após +55)
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const typed = e.target.value;
+    const typed = e.target.value || "";
 
-    let after = typed.startsWith(PHONE_PREFIX_DISPLAY)
-      ? typed.slice(PHONE_PREFIX_DISPLAY.length)
-      : typed.replace(PHONE_PREFIX_DISPLAY, "");
+    // permite colar/usar com ou sem +55 no começo
+    const afterRaw = typed.replace(/^\s*\+?55\s*/i, "");
+    const maskedAfter = maskPhoneAfterPrefix(afterRaw);
 
-    const maskedAfter = maskPhoneAfterPrefix(after);
     setClientPhone(PHONE_PREFIX_DISPLAY + maskedAfter);
 
     if (errors.clientPhone) setErrors({ ...errors, clientPhone: "" });
@@ -328,9 +336,10 @@ export default function TrailblazerElectricStylePage() {
       hasError = true;
     }
 
+    // ✅ FIX: agora valida DDD + 9 dígitos (11 após o +55)
     const phoneDigits = getPhoneDigitsAfterPrefix(clientPhone);
-    if (phoneDigits.length < 9) {
-      newErrors.clientPhone = "Telefone obrigatório (digite os 9 dígitos após o 9).";
+    if (phoneDigits.length < 11) {
+      newErrors.clientPhone = "Telefone obrigatório (DDD + 9 dígitos). Ex: (91) 91234-5678";
       hasError = true;
     }
 
@@ -340,6 +349,7 @@ export default function TrailblazerElectricStylePage() {
     setLoading(true);
 
     try {
+      // ✅ FIX: E164 correto: +55 + (DDD+9)
       const telefoneE164 = `${PHONE_PREFIX_E164}${getPhoneDigitsAfterPrefix(clientPhone)}`;
 
       const saleData = {
@@ -543,7 +553,9 @@ export default function TrailblazerElectricStylePage() {
       <section className="bg-white border-t border-gray-200">
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-16">
           <p className="text-center text-sm text-gray-500">{CONFIG.titulo}</p>
-          <h3 className="text-center text-3xl md:text-4xl font-black tracking-tight mt-2">{CONFIG.exterior.headline}</h3>
+          <h3 className="text-center text-3xl md:text-4xl font-black tracking-tight mt-2">
+  {CONFIG.exterior.headline}
+</h3>
 
           <div className="mt-10 grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
             {/* ESQUERDA */}
@@ -556,7 +568,9 @@ export default function TrailblazerElectricStylePage() {
                     className={[
                       "w-full transition-all duration-300 ease-out will-change-transform",
                       isImgSwitching ? "opacity-0 scale-[0.985]" : "opacity-100 scale-100",
-                      tab === "exterior" ? "h-[360px] md:h-[420px] object-contain p-6" : "h-[360px] md:h-[420px] object-cover",
+                      tab === "exterior"
+                        ? "h-[360px] md:h-[420px] object-contain p-6"
+                        : "h-[360px] md:h-[420px] object-cover",
                     ].join(" ")}
                   />
 
@@ -768,7 +782,10 @@ export default function TrailblazerElectricStylePage() {
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-2">Funcionalidade Restrita</h3>
               <p className="text-gray-500 mb-6 max-w-md">A finalização de propostas é exclusiva para vendedores logados.</p>
-              <Link href="/login" className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors">
+              <Link
+                href="/login"
+                className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors"
+              >
                 Fazer Login de Vendedor
               </Link>
             </div>
@@ -852,11 +869,11 @@ export default function TrailblazerElectricStylePage() {
                     <input
                       value={clientPhone}
                       onChange={handlePhoneChange}
-                      maxLength={PHONE_PREFIX_DISPLAY.length + 10}
+                      maxLength={22} // ✅ +55 (DD) 9XXXX-XXXX
                       className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
                         ${errors.clientPhone ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
                       `}
-                      placeholder="+55 XXXX-XXXX"
+                      placeholder="+55 (91) 91234-5678"
                     />
                     {errors.clientPhone && (
                       <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
@@ -916,10 +933,12 @@ export default function TrailblazerElectricStylePage() {
                   <p className="text-sm font-semibold text-gray-900">{CONFIG.titulo}</p>
                   <p className="text-sm text-gray-600 mt-1">A partir de {formatBRL0(CONFIG.priceStart)}</p>
                   <p className="text-xs text-gray-500 mt-2">
-                    Exterior: <span className="font-bold">{CONFIG.exterior.colors[selectedExterior]?.name || "Padrão"}</span>
+                    Exterior:{" "}
+                    <span className="font-bold">{CONFIG.exterior.colors[selectedExterior]?.name || "Padrão"}</span>
                   </p>
                   <p className="text-xs text-gray-500">
-                    Interior: <span className="font-bold">{CONFIG.interior.colors[selectedInterior]?.name || "Padrão"}</span>
+                    Interior:{" "}
+                    <span className="font-bold">{CONFIG.interior.colors[selectedInterior]?.name || "Padrão"}</span>
                   </p>
                 </div>
               </div>
@@ -958,7 +977,10 @@ export default function TrailblazerElectricStylePage() {
               <p className="text-sm font-black text-gray-900">
                 {CONFIG.titulo} • {tab === "exterior" ? "Exterior" : "Interior"}
               </p>
-              <button onClick={closeLightbox} className="text-xs font-black uppercase tracking-widest text-[#0b4b9a] hover:opacity-80">
+              <button
+                onClick={closeLightbox}
+                className="text-xs font-black uppercase tracking-widest text-[#0b4b9a] hover:opacity-80"
+              >
                 Fechar
               </button>
             </div>

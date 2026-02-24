@@ -18,8 +18,6 @@ import {
   Award,
   Flame,
   MousePointer2,
-  Armchair,
-  Radio,
   RotateCw,
   Layers,
   Loader2,
@@ -45,22 +43,50 @@ const validateEmail = (email: string) => {
   return re.test(email);
 };
 
-// --- TELEFONE FIXO +55  ---
-const PHONE_PREFIX_DISPLAY = "+55";
+// --- TELEFONE FIXO +55 ---
+const PHONE_PREFIX_DISPLAY = "+55 ";
 const PHONE_PREFIX_E164 = "+55";
 
+// ✅ fallback padrão (pra não “sumir” o DDD quando o usuário digitar só o número)
+// Troque para "" se você quiser OBRIGAR digitar DDD
+const DEFAULT_DDD = "91";
+
+// ✅ máscara agora aceita DDD (2) + número (9) = 11 dígitos
+// Formato: "91 9XXXX-XXXX"
 const maskPhoneAfterPrefix = (value: string) => {
-  const digits = value.replace(/\D/g, "").slice(0, 9);
+  const digits = String(value || "").replace(/\D/g, "").slice(0, 11); // 2 DDD + 9 número
   if (!digits) return "";
-  if (digits.length <= 1) return digits;
-  if (digits.length <= 5) return `${digits.slice(0, 1)}${digits.slice(1)}`;
-  return `${digits.slice(0, 1)}${digits.slice(1, 5)}-${digits.slice(5)}`;
+
+  const ddd = digits.slice(0, 2);
+  const rest = digits.slice(2); // até 9
+
+  // só DDD
+  if (digits.length <= 2) return ddd;
+
+  // DDD + 1..5
+  if (rest.length <= 5) return `${ddd} ${rest}`;
+
+  // DDD + 9xxxx-xxxx
+  return `${ddd} ${rest.slice(0, 5)}-${rest.slice(5, 9)}`;
 };
 
-const getPhoneDigitsAfterPrefix = (fullValue: string) => {
-  const digits = fullValue.replace(/\D/g, "");
-  if (digits.startsWith("5591")) return digits.slice(4).slice(0, 9);
-  return digits.slice(0, 9);
+// ✅ pega SOMENTE dígitos do telefone e normaliza para E.164 com +55
+// - aceita input com +55, com/sem máscara
+// - se vier só número (8/9), aplica DEFAULT_DDD (se definido)
+const normalizePhoneToE164 = (fullValue: string) => {
+  const digits = String(fullValue || "").replace(/\D/g, "");
+  const noCountry = digits.startsWith("55") ? digits.slice(2) : digits;
+
+  // já veio com DDD + número (fixo 10 ou cel 11)
+  if (noCountry.length === 10 || noCountry.length === 11) return `+55${noCountry}`;
+
+  // veio só número (8/9), aplica fallback
+  if ((noCountry.length === 8 || noCountry.length === 9) && DEFAULT_DDD) {
+    const ddd = String(DEFAULT_DDD).replace(/\D/g, "").slice(0, 2);
+    if (ddd.length === 2) return `+55${ddd}${noCountry}`;
+  }
+
+  return ""; // inválido
 };
 
 const moneyBRL = (value: number) =>
@@ -370,7 +396,7 @@ export default function CamaroPage() {
   };
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const typed = e.target.value;
+    const typed = e.target.value || "";
 
     let after = typed.startsWith(PHONE_PREFIX_DISPLAY)
       ? typed.slice(PHONE_PREFIX_DISPLAY.length)
@@ -390,7 +416,6 @@ export default function CamaroPage() {
     if (authLoading) return;
 
     if (!user) {
-      // mantém seu padrão: exige login para consultar/analisar
       scrollToId(sectionRefs.order);
       return;
     }
@@ -410,9 +435,12 @@ export default function CamaroPage() {
       hasError = true;
     }
 
-    const phoneDigits = getPhoneDigitsAfterPrefix(clientPhone);
-    if (phoneDigits.length < 9) {
-      newErrors.clientPhone = "Telefone obrigatório (digite os 9 dígitos após o 9).";
+    // ✅ agora valida DDD+telefone OU aplica fallback DEFAULT_DDD
+    const telefoneE164 = normalizePhoneToE164(clientPhone);
+    if (!telefoneE164) {
+      newErrors.clientPhone = DEFAULT_DDD
+        ? "Telefone inválido. Digite DDD + número (ex: 91 9XXXX-XXXX)."
+        : "Telefone inválido. Digite DDD + número (ex: 11 9XXXX-XXXX).";
       hasError = true;
     }
 
@@ -422,16 +450,14 @@ export default function CamaroPage() {
     setLoading(true);
 
     try {
-      const telefoneE164 = `${PHONE_PREFIX_E164}${getPhoneDigitsAfterPrefix(clientPhone)}`;
-
       const saleData = {
-        car_id: "camaro-ss-collection", // ✅ estático pra esta página
+        car_id: "camaro-ss-collection",
         car_name: CAMARO_DATA.nome,
         seller_id: user.id,
         client_name: clientName,
         client_cpf: clientCpf,
         client_email: clientEmail,
-        client_phone: telefoneE164,
+        client_phone: telefoneE164, // ✅ E.164 correto
         total_price: CAMARO_DATA.preco,
         status: "Enviado para Análise",
         interest_type: "Pendente (Aba Análise)",
@@ -449,7 +475,7 @@ export default function CamaroPage() {
       const query = new URLSearchParams({
         nome: clientName,
         cpf: clientCpf,
-        telefone: telefoneE164,
+        telefone: telefoneE164, // ✅ não some no contrato
         modelo: CAMARO_DATA.nome,
         valor: CAMARO_DATA.preco.toString(),
         entrada: "0",
@@ -894,7 +920,10 @@ export default function CamaroPage() {
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-2">Funcionalidade Restrita</h3>
               <p className="text-gray-500 mb-6 max-w-md">A finalização de propostas é exclusiva para vendedores logados.</p>
-              <Link href="/login" className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors">
+              <Link
+                href="/login"
+                className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors"
+              >
                 Fazer Login de Vendedor
               </Link>
             </div>
@@ -902,7 +931,9 @@ export default function CamaroPage() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* FORM */}
               <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-6">
-                <h4 className="text-lg font-semibold text-gray-900 mb-6 pb-3 border-b border-gray-200">Informações do Cliente</h4>
+                <h4 className="text-lg font-semibold text-gray-900 mb-6 pb-3 border-b border-gray-200">
+                  Informações do Cliente
+                </h4>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div>
@@ -976,17 +1007,28 @@ export default function CamaroPage() {
                     <input
                       value={clientPhone}
                       onChange={handlePhoneChange}
-                      maxLength={PHONE_PREFIX_DISPLAY.length + 10}
+                      // ✅ +55 + " " + (2 DDD + espaço + 9xxxx-xxxx) ≈ 16 chars
+                      maxLength={PHONE_PREFIX_DISPLAY.length + 14}
                       className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
                         ${errors.clientPhone ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
                       `}
-                      placeholder="+55 XXXX-XXXX"
+                      placeholder="+55 91 9XXXX-XXXX"
                     />
                     {errors.clientPhone && (
                       <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
                         <AlertCircle size={10} /> {errors.clientPhone}
                       </p>
                     )}
+                    {/* ✅ dica pro vendedor */}
+                    <p className="text-[11px] text-gray-500 mt-2">
+                      Digite <strong>DDD + número</strong> (ex: <strong>91 9XXXX-XXXX</strong>)
+                      {DEFAULT_DDD ? (
+                        <>
+                          {" "}
+                          • Se digitar só o número, o sistema usa <strong>DDD {DEFAULT_DDD}</strong>.
+                        </>
+                      ) : null}
+                    </p>
                   </div>
                 </div>
 
@@ -1000,7 +1042,8 @@ export default function CamaroPage() {
                       <Loader2 className="animate-spin" size={18} />
                     ) : (
                       <>
-                        Avançar para Análise <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                        Avançar para Análise{" "}
+                        <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
                       </>
                     )}
                   </button>

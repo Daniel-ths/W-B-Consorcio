@@ -57,8 +57,7 @@ const CONFIG = {
     { value: "468", unit: "L", label: "Porta-malas • conforto e acabamento", icon: <CarFront size={18} /> },
   ],
 
-  heroImage:
-    "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/suv/galeria-aberta-01.avif",
+  heroImage: "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/suv/galeria-aberta-01.avif",
 
   sectionImage:
     "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/suv/Equinox-turbo/galeria-aberta-02.avif",
@@ -144,22 +143,51 @@ const maskCPF = (value: string) =>
 
 const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-// --- TELEFONE FIXO +55 ---
+// --- TELEFONE (BR) — com DDD + número completo ---
+// Display: "+55 (DD) 9XXXX-XXXX" / "+55 (DD) XXXX-XXXX"
+// DB/URL (E164 digits): "55DD9XXXXXXXX"
 const PHONE_PREFIX_DISPLAY = "+55 ";
-const PHONE_PREFIX_E164 = "+55";
+const DEFAULT_DDD = "91"; // fallback se colarem sem DDD
 
-const maskPhoneAfterPrefix = (value: string) => {
-  const digits = value.replace(/\D/g, "").slice(0, 9);
-  if (!digits) return "";
-  if (digits.length <= 1) return digits;
-  if (digits.length <= 5) return `${digits.slice(0, 1)}${digits.slice(1)}`;
-  return `${digits.slice(0, 1)}${digits.slice(1, 5)}-${digits.slice(5)}`;
+const onlyDigits = (v: string) => String(v || "").replace(/\D/g, "");
+
+const maskPhoneBR = (digitsNational: string) => {
+  // digitsNational = DDD(2) + número(8/9)
+  const d = onlyDigits(digitsNational).slice(0, 11); // 2 + 9 = 11 máx
+  if (!d) return "";
+
+  const ddd = d.slice(0, 2);
+  const num = d.slice(2);
+
+  if (num.length <= 4) return `(${ddd}) ${num}`;
+  if (num.length <= 8) return `(${ddd}) ${num.slice(0, 4)}-${num.slice(4)}`;
+  return `(${ddd}) ${num.slice(0, 5)}-${num.slice(5)}`; // 9 dígitos
 };
 
-const getPhoneDigitsAfterPrefix = (fullValue: string) => {
-  const digits = fullValue.replace(/\D/g, "");
-  if (digits.startsWith("5591")) return digits.slice(4).slice(0, 9);
-  return digits.slice(0, 9);
+const toE164Digits = (displayPhone: string) => {
+  const digits = onlyDigits(displayPhone);
+
+  // já veio com 55
+  if (digits.startsWith("55")) {
+    const national = digits.slice(2);
+
+    if (national.length === 10 || national.length === 11) return `55${national}`;
+
+    // se veio só número (8/9) depois do 55 (sem DDD), aplica fallback
+    if ((national.length === 8 || national.length === 9) && DEFAULT_DDD) {
+      return `55${DEFAULT_DDD}${national}`;
+    }
+
+    return null;
+  }
+
+  // veio sem 55: pode ser DDD+numero
+  if (digits.length === 10 || digits.length === 11) return `55${digits}`;
+
+  // veio só número (8/9), aplica fallback
+  if ((digits.length === 8 || digits.length === 9) && DEFAULT_DDD) return `55${DEFAULT_DDD}${digits}`;
+
+  return null;
 };
 
 export default function VehicleElectricStylePage() {
@@ -224,101 +252,34 @@ export default function VehicleElectricStylePage() {
     if (errors.clientCpf) setErrors({ ...errors, clientCpf: "" });
   };
 
+  // ✅ agora permite DDD + número completo
   const handlePhoneChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const typed = e.target.value;
+    const typed = e.target.value || "";
 
-    let after = typed.startsWith(PHONE_PREFIX_DISPLAY)
+    // garante prefixo
+    let rest = typed.startsWith(PHONE_PREFIX_DISPLAY)
       ? typed.slice(PHONE_PREFIX_DISPLAY.length)
       : typed.replace(PHONE_PREFIX_DISPLAY, "");
 
-    const maskedAfter = maskPhoneAfterPrefix(after);
-    setClientPhone(PHONE_PREFIX_DISPLAY + maskedAfter);
+    const digitsRest = onlyDigits(rest);
+
+    // limitar em DDD(2)+numero(9)=11
+    const national = digitsRest.slice(0, 11);
+
+    // se apagou tudo, mantém só +55
+    if (!national) {
+      setClientPhone(PHONE_PREFIX_DISPLAY);
+      if (errors.clientPhone) setErrors({ ...errors, clientPhone: "" });
+      return;
+    }
+
+    setClientPhone(PHONE_PREFIX_DISPLAY + maskPhoneBR(national));
 
     if (errors.clientPhone) setErrors({ ...errors, clientPhone: "" });
   };
 
   // ✅ todos CTAs chamam isso
   const goPrimary = () => scrollToId(orderSectionId);
-
-  const handleFinishOrder = async () => {
-    let newErrors = { clientName: "", clientCpf: "", clientEmail: "", clientPhone: "" };
-    let hasError = false;
-
-    if (authLoading) return;
-
-    if (!user) {
-      scrollToId(orderSectionId);
-      return;
-    }
-
-    if (clientName.trim().length < 3) {
-      newErrors.clientName = "Nome completo é obrigatório.";
-      hasError = true;
-    }
-    if (clientCpf.length < 14) {
-      newErrors.clientCpf = "CPF inválido ou incompleto.";
-      hasError = true;
-    }
-    if (!clientEmail || !validateEmail(clientEmail)) {
-      newErrors.clientEmail = "Insira um e-mail válido.";
-      hasError = true;
-    }
-    const phoneDigits = getPhoneDigitsAfterPrefix(clientPhone);
-    if (phoneDigits.length < 9) {
-      newErrors.clientPhone = "Telefone obrigatório (digite os 9 dígitos após o 9).";
-      hasError = true;
-    }
-
-    setErrors(newErrors);
-    if (hasError) return;
-
-    setLoading(true);
-
-    try {
-      const telefoneE164 = `${PHONE_PREFIX_E164}${getPhoneDigitsAfterPrefix(clientPhone)}`;
-
-      const valor = CONFIG.priceStart || 0;
-      const entrada = valor ? calcEntrada30(valor) : 0;
-
-      const saleData = {
-        car_id: `landing-${CONFIG.titulo.toLowerCase().replace(/\s+/g, "-")}`,
-        car_name: CONFIG.titulo,
-        seller_id: user.id,
-        client_name: clientName,
-        client_cpf: clientCpf,
-        client_email: clientEmail,
-        client_phone: telefoneE164,
-        total_price: valor,
-        status: "Enviado para Análise",
-        interest_type: "Pendente (Aba Análise)",
-        details: {
-          exterior_color: CONFIG.exterior.colors[selectedExterior]?.name || "Padrão",
-          interior_color: CONFIG.interior.colors[selectedInterior]?.name || "Padrão",
-          entrada_sugerida: entrada,
-        },
-        created_at: new Date().toISOString(),
-      };
-
-      await supabase.from("sales").insert([saleData]);
-
-      const query = new URLSearchParams({
-        nome: clientName,
-        cpf: clientCpf,
-        telefone: telefoneE164,
-        modelo: CONFIG.titulo,
-        valor: String(valor),
-        entrada: String(entrada),
-        renda: "0",
-        imagem: CONFIG.heroImage,
-      }).toString();
-
-      router.push(`/vendedor/analise?${query}`);
-    } catch (error: any) {
-      console.error("Erro ao processar:", error);
-      alert("Erro ao processar pedido: " + (error?.message || "erro desconhecido"));
-      setLoading(false);
-    }
-  };
 
   // ======= PAGE STATE (original) =======
   const [tab, setTab] = useState<TabKey>("exterior");
@@ -392,6 +353,93 @@ export default function VehicleElectricStylePage() {
 
   const openLightbox = () => setLightboxOpen(true);
   const closeLightbox = () => setLightboxOpen(false);
+
+  const handleFinishOrder = async () => {
+    let newErrors = { clientName: "", clientCpf: "", clientEmail: "", clientPhone: "" };
+    let hasError = false;
+
+    if (authLoading) return;
+
+    if (!user) {
+      scrollToId(orderSectionId);
+      return;
+    }
+
+    if (clientName.trim().length < 3) {
+      newErrors.clientName = "Nome completo é obrigatório.";
+      hasError = true;
+    }
+    if (clientCpf.length < 14) {
+      newErrors.clientCpf = "CPF inválido ou incompleto.";
+      hasError = true;
+    }
+    if (!clientEmail || !validateEmail(clientEmail)) {
+      newErrors.clientEmail = "Insira um e-mail válido.";
+      hasError = true;
+    }
+
+    const telefoneE164Digits = toE164Digits(clientPhone);
+    if (!telefoneE164Digits) {
+      newErrors.clientPhone = "Telefone inválido. Digite com DDD (ex: +55 (91) 9XXXX-XXXX).";
+      hasError = true;
+    } else {
+      const national = telefoneE164Digits.slice(2); // DDD+numero
+      if (national.length !== 10 && national.length !== 11) {
+        newErrors.clientPhone = "Telefone incompleto. Informe DDD + número (8 ou 9 dígitos).";
+        hasError = true;
+      }
+    }
+
+    setErrors(newErrors);
+    if (hasError) return;
+
+    setLoading(true);
+
+    try {
+      const telefoneE164 = telefoneE164Digits!; // "55DD9XXXXXXXX"
+
+      const valor = CONFIG.priceStart || 0;
+      const entrada = valor ? calcEntrada30(valor) : 0;
+
+      const saleData = {
+        car_id: `landing-${CONFIG.titulo.toLowerCase().replace(/\s+/g, "-")}`,
+        car_name: CONFIG.titulo,
+        seller_id: user.id,
+        client_name: clientName,
+        client_cpf: clientCpf,
+        client_email: clientEmail,
+        client_phone: telefoneE164,
+        total_price: valor,
+        status: "Enviado para Análise",
+        interest_type: "Pendente (Aba Análise)",
+        details: {
+          exterior_color: CONFIG.exterior.colors[selectedExterior]?.name || "Padrão",
+          interior_color: CONFIG.interior.colors[selectedInterior]?.name || "Padrão",
+          entrada_sugerida: entrada,
+        },
+        created_at: new Date().toISOString(),
+      };
+
+      await supabase.from("sales").insert([saleData]);
+
+      const query = new URLSearchParams({
+        nome: clientName,
+        cpf: clientCpf,
+        telefone: telefoneE164,
+        modelo: CONFIG.titulo,
+        valor: String(valor),
+        entrada: String(entrada),
+        renda: "0",
+        imagem: CONFIG.heroImage,
+      }).toString();
+
+      router.push(`/vendedor/analise?${query}`);
+    } catch (error: any) {
+      console.error("Erro ao processar:", error);
+      alert("Erro ao processar pedido: " + (error?.message || "erro desconhecido"));
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-white text-gray-900">
@@ -613,7 +661,9 @@ export default function VehicleElectricStylePage() {
                   }}
                   className={[
                     "text-sm font-black pb-2 transition-colors",
-                    tab === "exterior" ? "text-[#0b4b9a] border-b-2 border-[#0b4b9a]" : "text-gray-600 hover:text-gray-900",
+                    tab === "exterior"
+                      ? "text-[#0b4b9a] border-b-2 border-[#0b4b9a]"
+                      : "text-gray-600 hover:text-gray-900",
                   ].join(" ")}
                 >
                   Exterior
@@ -627,7 +677,9 @@ export default function VehicleElectricStylePage() {
                   }}
                   className={[
                     "text-sm font-black pb-2 transition-colors",
-                    tab === "interior" ? "text-[#0b4b9a] border-b-2 border-[#0b4b9a]" : "text-gray-600 hover:text-gray-900",
+                    tab === "interior"
+                      ? "text-[#0b4b9a] border-b-2 border-[#0b4b9a]"
+                      : "text-gray-600 hover:text-gray-900",
                   ].join(" ")}
                 >
                   Interior
@@ -651,7 +703,9 @@ export default function VehicleElectricStylePage() {
                         onClick={() => handleSelectExterior(idx)}
                         className={[
                           "w-10 h-10 rounded-full border transition-all p-1",
-                          idx === selectedExterior ? "border-[#0b4b9a] ring-2 ring-[#0b4b9a]/20" : "border-gray-200 hover:border-gray-300",
+                          idx === selectedExterior
+                            ? "border-[#0b4b9a] ring-2 ring-[#0b4b9a]/20"
+                            : "border-gray-200 hover:border-gray-300",
                         ].join(" ")}
                         title={c.name}
                         aria-label={c.name}
@@ -693,7 +747,9 @@ export default function VehicleElectricStylePage() {
                         onClick={() => handleSelectInterior(idx)}
                         className={[
                           "w-10 h-10 rounded-full border transition-all p-1",
-                          idx === selectedInterior ? "border-[#0b4b9a] ring-2 ring-[#0b4b9a]/20" : "border-gray-200 hover:border-gray-300",
+                          idx === selectedInterior
+                            ? "border-[#0b4b9a] ring-2 ring-[#0b4b9a]/20"
+                            : "border-gray-200 hover:border-gray-300",
                         ].join(" ")}
                         title={c.name}
                         aria-label={c.name}
@@ -789,14 +845,19 @@ export default function VehicleElectricStylePage() {
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-2">Funcionalidade Restrita</h3>
               <p className="text-gray-500 mb-6 max-w-md">A finalização de propostas é exclusiva para vendedores logados.</p>
-              <Link href="/login" className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors">
+              <Link
+                href="/login"
+                className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors"
+              >
                 Fazer Login de Vendedor
               </Link>
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-6">
-                <h4 className="text-lg font-semibold text-gray-900 mb-6 pb-3 border-b border-gray-200">Informações do Cliente</h4>
+                <h4 className="text-lg font-semibold text-gray-900 mb-6 pb-3 border-b border-gray-200">
+                  Informações do Cliente
+                </h4>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div>
@@ -870,11 +931,11 @@ export default function VehicleElectricStylePage() {
                     <input
                       value={clientPhone}
                       onChange={handlePhoneChange}
-                      maxLength={PHONE_PREFIX_DISPLAY.length + 10}
+                      maxLength={PHONE_PREFIX_DISPLAY.length + 16} // "+55 (DD) 9XXXX-XXXX"
                       className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
                         ${errors.clientPhone ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
                       `}
-                      placeholder="+55 XXXX-XXXX"
+                      placeholder="+55 (91) 9XXXX-XXXX"
                     />
                     {errors.clientPhone && (
                       <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
@@ -967,9 +1028,7 @@ export default function VehicleElectricStylePage() {
           <div className="min-w-0">
             <p className="text-xs font-black text-gray-900 truncate">{CONFIG.titulo}</p>
             <p className="text-[11px] text-gray-500 truncate">
-              {CONFIG.priceStart > 0
-                ? `A partir de ${formatBRL0(CONFIG.priceStart)} • simule agora`
-                : "Simule consórcio/financiamento agora"}
+              {CONFIG.priceStart > 0 ? `A partir de ${formatBRL0(CONFIG.priceStart)} • simule agora` : "Simule consórcio/financiamento agora"}
             </p>
           </div>
 
@@ -990,10 +1049,7 @@ export default function VehicleElectricStylePage() {
           className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-center justify-center p-6"
           onClick={closeLightbox}
         >
-          <div
-            className="max-w-5xl w-full bg-white rounded-2xl overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="max-w-5xl w-full bg-white rounded-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
               <p className="text-sm font-black text-gray-900">
                 {CONFIG.titulo} • {tab === "exterior" ? "Exterior" : "Interior"}

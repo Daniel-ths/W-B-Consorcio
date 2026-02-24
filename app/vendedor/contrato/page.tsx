@@ -19,26 +19,63 @@ import {
 // --- TELEFONE FIXO +55 ---
 const PHONE_PREFIX_DISPLAY = "+55 ";
 
-// Formata SOMENTE os 9 dígitos após o prefixo: 9XXXX-XXXX
-const maskPhoneAfterPrefix = (digitsOnlyAfterPrefix: string) => {
-  const digits = String(digitsOnlyAfterPrefix || "")
-    .replace(/\D/g, "")
-    .slice(0, 9);
+// ✅ fallback caso algum fluxo ainda envie sem DDD (apenas 8/9 dígitos)
+const DEFAULT_DDD = "91";
+
+// ✅ Formata SOMENTE o número (8/9) para: 9XXXX-XXXX
+const maskPhoneBRNumber = (digitsOnly: string) => {
+  const digits = String(digitsOnly || "").replace(/\D/g, "").slice(0, 9);
   if (!digits) return "";
-  if (digits.length <= 1) return digits;
-  if (digits.length <= 5) return `${digits.slice(0, 1)}${digits.slice(1)}`;
-  return `${digits.slice(0, 1)}${digits.slice(1, 5)}-${digits.slice(5)}`;
+  if (digits.length <= 5) return digits;
+  return `${digits.slice(0, 5)}-${digits.slice(5)}`;
 };
 
-// ✅ recebe telefone vindo como "+5591..." (ou "5591...") e normaliza para SOMENTE DÍGITOS "5591..."
+// ✅ Formata para tela com DDD: "+55 DDD 9XXXX-XXXX"
+const formatPhoneForDisplay = (digitsE164: string) => {
+  const digits = String(digitsE164 || "").replace(/\D/g, "");
+
+  if (!digits.startsWith("55")) return "---";
+
+  const national = digits.slice(2); // remove "55"
+  if (national.length !== 10 && national.length !== 11) return "---"; // DDD(2)+fixo(8)=10 | DDD(2)+cel(9)=11
+
+  const ddd = national.slice(0, 2);
+  const number = national.slice(2); // 8 ou 9 dígitos
+
+  return `${PHONE_PREFIX_DISPLAY}${ddd} ${maskPhoneBRNumber(number)}`;
+};
+
+// ✅ recebe telefone vindo como "+55..." / "55..." / "DDD+numero" / "numero" e normaliza para "55DDDNÚMERO"
 function sanitizePhoneFromOtherPage(input: string): string | null {
   if (!input) return null;
 
-  const digits = String(input).replace(/\D/g, ""); // remove "+", espaços, etc.
-  if (!digits.startsWith("55")) return null;
-  if (digits.length < 12 || digits.length > 13) return null;
+  const digits = String(input).replace(/\D/g, "");
 
-  return digits; // ex: "5591999999999"
+  // 1) veio com país
+  if (digits.startsWith("55")) {
+    const national = digits.slice(2); // remove 55
+
+    // já está correto: DDD(2)+numero(8/9)
+    if (national.length === 10 || national.length === 11) return `55${national}`;
+
+    // veio com 55 mas sem DDD (apenas 8/9) -> aplica fallback
+    if ((national.length === 8 || national.length === 9) && DEFAULT_DDD) {
+      const ddd = String(DEFAULT_DDD).replace(/\D/g, "").slice(0, 2);
+      if (ddd.length === 2) return `55${ddd}${national}`;
+    }
+
+    return null;
+  }
+
+  // 2) veio sem país: pode ser DDD+numero (10/11) ou só numero (8/9)
+  if (digits.length === 10 || digits.length === 11) return `55${digits}`;
+
+  if ((digits.length === 8 || digits.length === 9) && DEFAULT_DDD) {
+    const ddd = String(DEFAULT_DDD).replace(/\D/g, "").slice(0, 2);
+    if (ddd.length === 2) return `55${ddd}${digits}`;
+  }
+
+  return null;
 }
 
 const safeNumber = (v: any) => {
@@ -68,7 +105,7 @@ function PedidoContent() {
 
       // ✅ VINDO DA OUTRA PÁGINA
       nome: searchParams.get("nome") || "",
-      telefone: searchParams.get("telefone") || "", // ex: +5591...
+      telefone: searchParams.get("telefone") || "", // ex: +55...
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [searchParams.toString()]
@@ -162,8 +199,6 @@ function PedidoContent() {
 
   // =========================
   // ✅ ATO/ENTRADA: SEMPRE IGUAL À 1ª PARCELA INTEGRAL (pedido do cliente)
-  // - Se parcela for 0 por algum motivo, tenta fallback em dados.parcela
-  // - Se continuar 0, mantém 0 (mas não deve acontecer se a página anterior enviar parcela_escolhida)
   // =========================
   const atoEntrada = useMemo(() => {
     const p = safeNumber(valoresExibidos.parcelaUsada) || safeNumber(dados.parcela);
@@ -186,12 +221,10 @@ function PedidoContent() {
   const [dataAtual, setDataAtual] = useState("");
 
   // ✅ telefone do cliente vindo da outra página (digits p/ SMS e DB)
-  const telefoneDigits = sanitizePhoneFromOtherPage(dados.telefone); // "5591..."
+  const telefoneDigits = sanitizePhoneFromOtherPage(dados.telefone); // "55DDDNÚMERO"
 
-  // ✅ telefone formatado p/ exibir no layout antigo: "+55  9XXXX-XXXX"
-  const telefoneTela = telefoneDigits
-    ? `${PHONE_PREFIX_DISPLAY}${maskPhoneAfterPrefix(telefoneDigits.slice(4))}`
-    : "---";
+  // ✅ telefone formatado p/ exibir COM DDD: "+55 91 9XXXX-XXXX"
+  const telefoneTela = telefoneDigits ? formatPhoneForDisplay(telefoneDigits) : "---";
 
   // ✅ mensagem do SMS
   const SMS_TESTE = (nome: string, protocolo: string) =>
@@ -282,7 +315,9 @@ Seja bem vindo!`;
   // ✅ SMS (só é chamado depois do envio para análise e SOMENTE se CPF REGULAR)
   async function enviarSms(nomeCliente: string) {
     if (!telefoneDigits) {
-      alert("📵 Telefone inválido/ausente. Ele deve vir da página anterior como +5591XXXXXXXXX.");
+      alert(
+        "📵 Telefone inválido/ausente. Ele deve vir da página anterior como +55DDDNÚMERO (ex: +5591999999999)."
+      );
       return false;
     }
 
@@ -294,7 +329,7 @@ Seja bem vindo!`;
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          number: telefoneDigits, // ✅ "5591..."
+          number: telefoneDigits, // ✅ "55DDDNÚMERO"
           message,
           user_reply: true,
         }),
@@ -324,7 +359,9 @@ Seja bem vindo!`;
     }
 
     if (!telefoneDigits) {
-      alert("📵 Telefone inválido/ausente. Ele deve vir da página anterior como +5591XXXXXXXXX.");
+      alert(
+        "📵 Telefone inválido/ausente. Ele deve vir da página anterior como +55DDDNÚMERO (ex: +5591999999999)."
+      );
       return { ok: false };
     }
 
@@ -378,8 +415,8 @@ Seja bem vindo!`;
         prazo_final: valoresExibidos.prazoUsado || 0,
         parcela_final: valoresExibidos.parcelaUsada || 0,
 
-        // ✅ NOVO: ato/entrada sempre igual à 1ª parcela integral
-        ato_entrada: atoEntrada,
+        // ✅ OPÇÃO B: NÃO ENVIA ato_entrada como coluna (evita erro de schema cache)
+        // ato_entrada: atoEntrada,
       };
 
       const { error } = await supabase.from("sales").insert([payload]);
@@ -745,7 +782,6 @@ Seja bem vindo!`;
                 <div className="flex justify-between items-center p-3 border-b border-zinc-100">
                   <span className="text-xs font-bold text-zinc-500 uppercase">Ato / Entrada</span>
                   <div className="flex-1 border-b border-dotted border-zinc-300 mx-4 relative top-1 hidden md:block"></div>
-                  {/* ✅ AGORA: sempre a 1ª parcela integral */}
                   <span className="font-mono font-bold text-zinc-900">{formatMoney(atoEntrada)}</span>
                 </div>
 

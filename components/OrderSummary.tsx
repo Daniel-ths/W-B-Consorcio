@@ -7,8 +7,6 @@ import { supabase } from "@/lib/supabase";
 import {
   Loader2,
   ChevronRight,
-  Download,
-  Link as LinkIcon,
   Lock,
   Wallet,
   Banknote,
@@ -41,26 +39,56 @@ const formatCurrency = (val: number) => {
   }).format(val || 0);
 };
 
-// --- TELEFONE FIXO +55  ---
+// ======================================================
+// ✅ TELEFONE (BR) — agora com DDD + número completo
+// Formato na tela: "+55 (DD) 9XXXX-XXXX" ou "+55 (DD) XXXX-XXXX"
+// E164 (salvar/enviar): "55DD9XXXXXXXX" (somente dígitos)
+// ======================================================
 const PHONE_PREFIX_DISPLAY = "+55 ";
-const PHONE_PREFIX_E164 = "+55";
+const DEFAULT_DDD = "91"; // fallback opcional se colarem sem DDD
 
-// Formata SOMENTE o que vem depois do prefixo (9 dígitos): 9XXXX-XXXX
-const maskPhoneAfterPrefix = (value: string) => {
-  const digits = value.replace(/\D/g, "").slice(0, 9); // só 9 dígitos (9xxxxxxxx)
-  if (!digits) return "";
-  if (digits.length <= 1) return digits; // "9"
-  if (digits.length <= 5) return `${digits.slice(0, 1)}${digits.slice(1)}`; // "9" + resto
-  return `${digits.slice(0, 1)}${digits.slice(1, 5)}-${digits.slice(5)}`; // 9XXXX-XXXX
+const onlyDigits = (v: string) => String(v || "").replace(/\D/g, "");
+
+const maskPhoneBR = (digitsNational: string) => {
+  // digitsNational = DDD(2) + número(8/9)
+  const d = onlyDigits(digitsNational).slice(0, 11); // 2 + 9 = 11 máx
+  if (!d) return "";
+
+  const ddd = d.slice(0, 2);
+  const num = d.slice(2); // 0..9
+
+  // celular (9) ou fixo (8)
+  if (num.length <= 4) return `(${ddd}) ${num}`;
+  if (num.length <= 8) return `(${ddd}) ${num.slice(0, 4)}-${num.slice(4)}`;
+  return `(${ddd}) ${num.slice(0, 5)}-${num.slice(5)}`; // 9 dígitos
 };
 
-// Extrai os dígitos (9) que o vendedor digitou (após o prefixo)
-const getPhoneDigitsAfterPrefix = (fullValue: string) => {
-  const digits = fullValue.replace(/\D/g, "");
-  // Se estiver no formato "+55 9....", os dígitos começam com 5591
-  if (digits.startsWith("5591")) return digits.slice(4).slice(0, 9);
-  // fallback: se alguém colar só "9...."
-  return digits.slice(0, 9);
+// retorna "55DDDNÚMERO" (só dígitos) a partir do input display
+const toE164Digits = (displayPhone: string) => {
+  const digits = onlyDigits(displayPhone);
+
+  // se já veio com 55
+  if (digits.startsWith("55")) {
+    const national = digits.slice(2);
+
+    // se veio DDD+numero ok
+    if (national.length === 10 || national.length === 11) return `55${national}`;
+
+    // se veio só número (8/9) depois do 55 (sem DDD), aplica fallback
+    if ((national.length === 8 || national.length === 9) && DEFAULT_DDD) {
+      return `55${DEFAULT_DDD}${national}`;
+    }
+
+    return null;
+  }
+
+  // se veio sem 55: pode ser DDD+numero
+  if (digits.length === 10 || digits.length === 11) return `55${digits}`;
+
+  // se veio só número (8/9), aplica fallback
+  if ((digits.length === 8 || digits.length === 9) && DEFAULT_DDD) return `55${DEFAULT_DDD}${digits}`;
+
+  return null;
 };
 
 export default function OrderSummary({
@@ -81,6 +109,8 @@ export default function OrderSummary({
   const [clientName, setClientName] = useState("");
   const [clientCpf, setClientCpf] = useState("");
   const [clientEmail, setClientEmail] = useState("");
+
+  // ✅ começa só com o prefixo +55 (sem travar DDD)
   const [clientPhone, setClientPhone] = useState(PHONE_PREFIX_DISPLAY);
 
   // Estados de Controle
@@ -99,16 +129,32 @@ export default function OrderSummary({
     if (errors.clientCpf) setErrors({ ...errors, clientCpf: "" });
   };
 
+  // ✅ AGORA: permite digitar/colar DDD + número completo
+  // - mantém prefixo +55 sempre
+  // - mascara em "(DD) 9XXXX-XXXX" / "(DD) XXXX-XXXX"
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const typed = e.target.value;
+    const typed = e.target.value || "";
 
-    // garante que sempre começa com o prefixo
-    let after = typed.startsWith(PHONE_PREFIX_DISPLAY)
+    // garante prefixo
+    let rest = typed.startsWith(PHONE_PREFIX_DISPLAY)
       ? typed.slice(PHONE_PREFIX_DISPLAY.length)
       : typed.replace(PHONE_PREFIX_DISPLAY, "");
 
-    const maskedAfter = maskPhoneAfterPrefix(after);
-    setClientPhone(PHONE_PREFIX_DISPLAY + maskedAfter);
+    // se o usuário apagar tudo, mantemos o prefixo
+    const digitsRest = onlyDigits(rest);
+
+    // limitar em DDD(2)+numero(9)=11
+    const national = digitsRest.slice(0, 11);
+
+    // se ainda não tem nada, fica só +55
+    if (!national) {
+      setClientPhone(PHONE_PREFIX_DISPLAY);
+      if (errors.clientPhone) setErrors({ ...errors, clientPhone: "" });
+      return;
+    }
+
+    const masked = maskPhoneBR(national);
+    setClientPhone(PHONE_PREFIX_DISPLAY + masked);
 
     if (errors.clientPhone) setErrors({ ...errors, clientPhone: "" });
   };
@@ -137,10 +183,17 @@ export default function OrderSummary({
       hasError = true;
     }
 
-    const phoneDigits = getPhoneDigitsAfterPrefix(clientPhone);
-    if (phoneDigits.length < 9) {
-      newErrors.clientPhone = "Telefone obrigatório (digite os 9 dígitos após o 9).";
+    // ✅ valida E164 final (55 + DDD + número)
+    const telefoneE164Digits = toE164Digits(clientPhone);
+    if (!telefoneE164Digits) {
+      newErrors.clientPhone = "Telefone inválido. Digite com DDD (ex: +55 (91) 9XXXX-XXXX).";
       hasError = true;
+    } else {
+      const national = telefoneE164Digits.slice(2);
+      if (national.length !== 10 && national.length !== 11) {
+        newErrors.clientPhone = "Telefone incompleto. Informe DDD + número (8 ou 9 dígitos).";
+        hasError = true;
+      }
     }
 
     setErrors(newErrors);
@@ -152,8 +205,8 @@ export default function OrderSummary({
       currentCar.model_name || currentCar.name || currentCar.model || `Veículo ID ${currentCar.id}`;
 
     try {
-      // ✅ telefone final E164 (vai ser enviado também pela URL)
-      const telefoneE164 = `${PHONE_PREFIX_E164}${getPhoneDigitsAfterPrefix(clientPhone)}`; // "+55919XXXXXXXX"
+      // ✅ telefone final (só dígitos) para DB + URL
+      const telefoneE164 = toE164Digits(clientPhone)!; // "55DDDNÚMERO"
 
       const saleData = {
         car_id: currentCar.id,
@@ -177,11 +230,10 @@ export default function OrderSummary({
 
       await supabase.from("sales").insert([saleData]);
 
-      // ✅ AQUI estava o problema: você não enviava o telefone na query.
       const query = new URLSearchParams({
         nome: clientName,
         cpf: clientCpf,
-        telefone: telefoneE164, // ✅ ADICIONADO
+        telefone: telefoneE164, // ✅ envia sempre "55DDDNÚMERO"
         modelo: carNameResolved,
         valor: totalPrice.toString(),
         entrada: "0",
@@ -403,17 +455,20 @@ export default function OrderSummary({
                         <input
                           value={clientPhone}
                           onChange={handlePhoneChange}
-                          maxLength={PHONE_PREFIX_DISPLAY.length + 10}
+                          maxLength={PHONE_PREFIX_DISPLAY.length + 16} // "+55 (DD) 9XXXX-XXXX"
                           className={`w-full h-12 px-4 border rounded focus:outline-none transition-all text-sm
                             ${errors.clientPhone ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
                           `}
-                          placeholder="+55 XXXX-XXXX"
+                          placeholder="+55 (91) 9XXXX-XXXX"
                         />
                         {errors.clientPhone && (
                           <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
                             <AlertCircle size={10} /> {errors.clientPhone}
                           </p>
                         )}
+                        <p className="text-[11px] text-gray-400 mt-1">
+                          Dica: digite assim: <span className="font-mono">91 9XXXX XXXX</span> (o campo formata sozinho)
+                        </p>
                       </div>
                     </div>
 

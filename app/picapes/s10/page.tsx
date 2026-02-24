@@ -134,22 +134,51 @@ const maskCPF = (value: string) =>
 
 const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-// --- TELEFONE FIXO +55  ---
+// --- TELEFONE (BR) — com DDD + número completo ---
+// Display: "+55 (DD) 9XXXX-XXXX" / "+55 (DD) XXXX-XXXX"
+// DB/URL (E164 digits): "55DD9XXXXXXXX"
 const PHONE_PREFIX_DISPLAY = "+55 ";
-const PHONE_PREFIX_E164 = "+55";
+const DEFAULT_DDD = "91"; // fallback se colarem sem DDD
 
-const maskPhoneAfterPrefix = (value: string) => {
-  const digits = value.replace(/\D/g, "").slice(0, 9);
-  if (!digits) return "";
-  if (digits.length <= 1) return digits;
-  if (digits.length <= 5) return `${digits.slice(0, 1)}${digits.slice(1)}`;
-  return `${digits.slice(0, 1)}${digits.slice(1, 5)}-${digits.slice(5)}`;
+const onlyDigits = (v: string) => String(v || "").replace(/\D/g, "");
+
+const maskPhoneBR = (digitsNational: string) => {
+  // digitsNational = DDD(2) + número(8/9)
+  const d = onlyDigits(digitsNational).slice(0, 11); // 2 + 9 = 11 máx
+  if (!d) return "";
+
+  const ddd = d.slice(0, 2);
+  const num = d.slice(2);
+
+  if (num.length <= 4) return `(${ddd}) ${num}`;
+  if (num.length <= 8) return `(${ddd}) ${num.slice(0, 4)}-${num.slice(4)}`;
+  return `(${ddd}) ${num.slice(0, 5)}-${num.slice(5)}`; // 9 dígitos
 };
 
-const getPhoneDigitsAfterPrefix = (fullValue: string) => {
-  const digits = fullValue.replace(/\D/g, "");
-  if (digits.startsWith("5591")) return digits.slice(4).slice(0, 9);
-  return digits.slice(0, 9);
+const toE164Digits = (displayPhone: string) => {
+  const digits = onlyDigits(displayPhone);
+
+  // já veio com 55
+  if (digits.startsWith("55")) {
+    const national = digits.slice(2);
+
+    if (national.length === 10 || national.length === 11) return `55${national}`;
+
+    // se veio só número (8/9) depois do 55 (sem DDD), aplica fallback
+    if ((national.length === 8 || national.length === 9) && DEFAULT_DDD) {
+      return `55${DEFAULT_DDD}${national}`;
+    }
+
+    return null;
+  }
+
+  // veio sem 55: pode ser DDD+numero
+  if (digits.length === 10 || digits.length === 11) return `55${digits}`;
+
+  // veio só número (8/9), aplica fallback
+  if ((digits.length === 8 || digits.length === 9) && DEFAULT_DDD) return `55${DEFAULT_DDD}${digits}`;
+
+  return null;
 };
 
 export default function S10Page() {
@@ -213,15 +242,28 @@ export default function S10Page() {
     if (errors.clientCpf) setErrors({ ...errors, clientCpf: "" });
   };
 
+  // ✅ agora permite DDD + número completo
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const typed = e.target.value;
+    const typed = e.target.value || "";
 
-    let after = typed.startsWith(PHONE_PREFIX_DISPLAY)
+    // garante prefixo
+    let rest = typed.startsWith(PHONE_PREFIX_DISPLAY)
       ? typed.slice(PHONE_PREFIX_DISPLAY.length)
       : typed.replace(PHONE_PREFIX_DISPLAY, "");
 
-    const maskedAfter = maskPhoneAfterPrefix(after);
-    setClientPhone(PHONE_PREFIX_DISPLAY + maskedAfter);
+    const digitsRest = onlyDigits(rest);
+
+    // limitar em DDD(2)+numero(9)=11
+    const national = digitsRest.slice(0, 11);
+
+    // se apagou tudo, mantém só +55
+    if (!national) {
+      setClientPhone(PHONE_PREFIX_DISPLAY);
+      if (errors.clientPhone) setErrors({ ...errors, clientPhone: "" });
+      return;
+    }
+
+    setClientPhone(PHONE_PREFIX_DISPLAY + maskPhoneBR(national));
 
     if (errors.clientPhone) setErrors({ ...errors, clientPhone: "" });
   };
@@ -328,10 +370,16 @@ export default function S10Page() {
       hasError = true;
     }
 
-    const phoneDigits = getPhoneDigitsAfterPrefix(clientPhone);
-    if (phoneDigits.length < 9) {
-      newErrors.clientPhone = "Telefone obrigatório (digite os 9 dígitos após o 9).";
+    const telefoneE164Digits = toE164Digits(clientPhone);
+    if (!telefoneE164Digits) {
+      newErrors.clientPhone = "Telefone inválido. Digite com DDD (ex: +55 (91) 9XXXX-XXXX).";
       hasError = true;
+    } else {
+      const national = telefoneE164Digits.slice(2); // DDD+numero
+      if (national.length !== 10 && national.length !== 11) {
+        newErrors.clientPhone = "Telefone incompleto. Informe DDD + número (8 ou 9 dígitos).";
+        hasError = true;
+      }
     }
 
     setErrors(newErrors);
@@ -340,7 +388,8 @@ export default function S10Page() {
     setLoading(true);
 
     try {
-      const telefoneE164 = `${PHONE_PREFIX_E164}${getPhoneDigitsAfterPrefix(clientPhone)}`;
+      // ✅ telefone final em dígitos (E164 digits): "55DD9XXXXXXXX"
+      const telefoneE164 = telefoneE164Digits!;
 
       const saleData = {
         car_id: `landing-${CONFIG.titulo.toLowerCase().replace(/\s+/g, "-")}`,
@@ -481,7 +530,9 @@ export default function S10Page() {
       <section className="bg-white">
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-14">
           <p className="text-sm text-gray-500">Galeria</p>
-          <h3 className="text-3xl md:text-4xl font-black tracking-tight mt-2">Descubra todos os ângulos do {CONFIG.titulo}</h3>
+          <h3 className="text-3xl md:text-4xl font-black tracking-tight mt-2">
+            Descubra todos os ângulos do {CONFIG.titulo}
+          </h3>
 
           <div className="mt-8 grid grid-cols-12 gap-3">
             <div className="col-span-12 lg:col-span-6 rounded-none overflow-hidden bg-gray-100">
@@ -535,7 +586,9 @@ export default function S10Page() {
                     className={[
                       "w-full transition-all duration-300 ease-out will-change-transform",
                       isImgSwitching ? "opacity-0 scale-[0.985]" : "opacity-100 scale-100",
-                      tab === "exterior" ? "h-[360px] md:h-[420px] object-contain p-6" : "h-[360px] md:h-[420px] object-cover",
+                      tab === "exterior"
+                        ? "h-[360px] md:h-[420px] object-contain p-6"
+                        : "h-[360px] md:h-[420px] object-cover",
                     ].join(" ")}
                   />
 
@@ -580,7 +633,9 @@ export default function S10Page() {
                   }}
                   className={[
                     "text-sm font-black pb-2 transition-colors",
-                    tab === "exterior" ? "text-[#0b4b9a] border-b-2 border-[#0b4b9a]" : "text-gray-600 hover:text-gray-900",
+                    tab === "exterior"
+                      ? "text-[#0b4b9a] border-b-2 border-[#0b4b9a]"
+                      : "text-gray-600 hover:text-gray-900",
                   ].join(" ")}
                 >
                   Exterior
@@ -594,7 +649,9 @@ export default function S10Page() {
                   }}
                   className={[
                     "text-sm font-black pb-2 transition-colors",
-                    tab === "interior" ? "text-[#0b4b9a] border-b-2 border-[#0b4b9a]" : "text-gray-600 hover:text-gray-900",
+                    tab === "interior"
+                      ? "text-[#0b4b9a] border-b-2 border-[#0b4b9a]"
+                      : "text-gray-600 hover:text-gray-900",
                   ].join(" ")}
                 >
                   Interior
@@ -605,7 +662,9 @@ export default function S10Page() {
                 <div className="mt-5">
                   <p className="text-xs font-black uppercase tracking-widest text-gray-500">{CONFIG.exterior.trimLabel}</p>
 
-                  <p className="mt-2 text-sm font-black text-gray-900">{CONFIG.exterior.colors[selectedExterior]?.name ?? "Cor"}</p>
+                  <p className="mt-2 text-sm font-black text-gray-900">
+                    {CONFIG.exterior.colors[selectedExterior]?.name ?? "Cor"}
+                  </p>
 
                   <div className="mt-4 flex items-center gap-3">
                     {CONFIG.exterior.colors.map((c, idx) => (
@@ -614,7 +673,9 @@ export default function S10Page() {
                         onClick={() => handleSelectExterior(idx)}
                         className={[
                           "w-10 h-10 rounded-full border transition-all p-1",
-                          idx === selectedExterior ? "border-[#0b4b9a] ring-2 ring-[#0b4b9a]/20" : "border-gray-200 hover:border-gray-300",
+                          idx === selectedExterior
+                            ? "border-[#0b4b9a] ring-2 ring-[#0b4b9a]/20"
+                            : "border-gray-200 hover:border-gray-300",
                         ].join(" ")}
                         title={c.name}
                         aria-label={c.name}
@@ -634,7 +695,8 @@ export default function S10Page() {
                   <div className="mt-6 flex items-start gap-3 text-sm text-gray-600">
                     <ChevronDown size={18} className="mt-0.5 text-gray-400" />
                     <p>
-                      Clique em <span className="font-black">Solicitar contato</span> para iniciar a simulação de consórcio/financiamento.
+                      Clique em <span className="font-black">Solicitar contato</span> para iniciar a simulação de
+                      consórcio/financiamento.
                     </p>
                   </div>
                 </div>
@@ -642,7 +704,9 @@ export default function S10Page() {
                 <div className="mt-5">
                   <p className="text-xs font-black uppercase tracking-widest text-gray-500">{CONFIG.interior.trimLabel}</p>
 
-                  <p className="mt-2 text-sm font-black text-gray-900">{CONFIG.interior.colors[selectedInterior]?.name ?? "Interior"}</p>
+                  <p className="mt-2 text-sm font-black text-gray-900">
+                    {CONFIG.interior.colors[selectedInterior]?.name ?? "Interior"}
+                  </p>
 
                   <div className="mt-4 flex items-center gap-3">
                     {CONFIG.interior.colors.map((c, idx) => (
@@ -651,7 +715,9 @@ export default function S10Page() {
                         onClick={() => handleSelectInterior(idx)}
                         className={[
                           "w-10 h-10 rounded-full border transition-all p-1",
-                          idx === selectedInterior ? "border-[#0b4b9a] ring-2 ring-[#0b4b9a]/20" : "border-gray-200 hover:border-gray-300",
+                          idx === selectedInterior
+                            ? "border-[#0b4b9a] ring-2 ring-[#0b4b9a]/20"
+                            : "border-gray-200 hover:border-gray-300",
                         ].join(" ")}
                         title={c.name}
                         aria-label={c.name}
@@ -834,11 +900,11 @@ export default function S10Page() {
                     <input
                       value={clientPhone}
                       onChange={handlePhoneChange}
-                      maxLength={PHONE_PREFIX_DISPLAY.length + 10}
+                      maxLength={PHONE_PREFIX_DISPLAY.length + 16} // "+55 (DD) 9XXXX-XXXX"
                       className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
                         ${errors.clientPhone ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
                       `}
-                      placeholder="+55  XXXX-XXXX"
+                      placeholder="+55 (91) 9XXXX-XXXX"
                     />
                     {errors.clientPhone && (
                       <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
@@ -957,7 +1023,11 @@ export default function S10Page() {
             </div>
 
             <div className="bg-white">
-              <img src={tab === "exterior" ? exteriorCurrent : interiorCurrent} alt="Imagem ampliada" className="w-full max-h-[75vh] object-contain" />
+              <img
+                src={tab === "exterior" ? exteriorCurrent : interiorCurrent}
+                alt="Imagem ampliada"
+                className="w-full max-h-[75vh] object-contain"
+              />
             </div>
           </div>
         </div>

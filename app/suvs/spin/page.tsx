@@ -133,22 +133,42 @@ const maskCPF = (value: string) =>
 
 const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-// --- TELEFONE FIXO +55  ---
+// --- TELEFONE (com DDD) ---
 const PHONE_PREFIX_DISPLAY = "+55 ";
-const PHONE_PREFIX_E164 = "+5591";
 
+// máscara: (DD) 9XXXX-XXXX  (DDD + 9 dígitos = 11 após +55)
 const maskPhoneAfterPrefix = (value: string) => {
-  const digits = value.replace(/\D/g, "").slice(0, 9);
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+
+  const ddd = digits.slice(0, 2);
+  const number = digits.slice(2); // até 9
+
   if (!digits) return "";
-  if (digits.length <= 1) return digits;
-  if (digits.length <= 5) return `${digits.slice(0, 1)}${digits.slice(1)}`;
-  return `${digits.slice(0, 1)}${digits.slice(1, 5)}-${digits.slice(5)}`;
+
+  // digitando DDD
+  if (digits.length <= 2) return `(${ddd}`;
+
+  // DDD fechado, começando número
+  if (number.length === 0) return `(${ddd}) `;
+
+  // número parcial
+  if (number.length <= 5) return `(${ddd}) ${number}`;
+
+  // número com hífen
+  return `(${ddd}) ${number.slice(0, 5)}-${number.slice(5)}`;
 };
 
+// pega só os dígitos após +55 => DDD(2) + número(9) = 11
 const getPhoneDigitsAfterPrefix = (fullValue: string) => {
   const digits = fullValue.replace(/\D/g, "");
-  if (digits.startsWith("5591")) return digits.slice(4).slice(0, 9);
-  return digits.slice(0, 9);
+  const after55 = digits.startsWith("55") ? digits.slice(2) : digits;
+  return after55.slice(0, 11);
+};
+
+// monta E.164: +55DD9XXXXXXXX
+const buildPhoneE164 = (displayValue: string) => {
+  const after = getPhoneDigitsAfterPrefix(displayValue);
+  return `+55${after}`;
 };
 
 export default function SpinElectricStylePage() {
@@ -212,14 +232,18 @@ export default function SpinElectricStylePage() {
     if (errors.clientCpf) setErrors({ ...errors, clientCpf: "" });
   };
 
+  // ✅ TELEFONE com DDD (corrigido)
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const typed = e.target.value;
+    const typed = e.target.value || "";
 
-    let after = typed.startsWith(PHONE_PREFIX_DISPLAY)
-      ? typed.slice(PHONE_PREFIX_DISPLAY.length)
-      : typed.replace(PHONE_PREFIX_DISPLAY, "");
+    // garante que sempre começa com +55 (mesmo se o usuário apagar)
+    const normalized = typed.startsWith(PHONE_PREFIX_DISPLAY)
+      ? typed
+      : PHONE_PREFIX_DISPLAY + typed.replace(/\D/g, "");
 
-    const maskedAfter = maskPhoneAfterPrefix(after);
+    const afterPrefix = normalized.slice(PHONE_PREFIX_DISPLAY.length);
+    const maskedAfter = maskPhoneAfterPrefix(afterPrefix);
+
     setClientPhone(PHONE_PREFIX_DISPLAY + maskedAfter);
 
     if (errors.clientPhone) setErrors({ ...errors, clientPhone: "" });
@@ -254,9 +278,9 @@ export default function SpinElectricStylePage() {
       hasError = true;
     }
 
-    const phoneDigits = getPhoneDigitsAfterPrefix(clientPhone);
-    if (phoneDigits.length < 9) {
-      newErrors.clientPhone = "Telefone obrigatório (digite os 9 dígitos após o 9).";
+    const phoneDigits = getPhoneDigitsAfterPrefix(clientPhone); // DDD(2) + número(9) = 11
+    if (phoneDigits.length < 11) {
+      newErrors.clientPhone = "Telefone obrigatório (DDD + 9 dígitos). Ex: (91) 9XXXX-XXXX";
       hasError = true;
     }
 
@@ -266,7 +290,7 @@ export default function SpinElectricStylePage() {
     setLoading(true);
 
     try {
-      const telefoneE164 = `${PHONE_PREFIX_E164}${getPhoneDigitsAfterPrefix(clientPhone)}`;
+      const telefoneE164 = buildPhoneE164(clientPhone);
 
       const saleData = {
         car_id: `landing-${CONFIG.titulo.toLowerCase().replace(/\s+/g, "-")}`,
@@ -538,7 +562,9 @@ export default function SpinElectricStylePage() {
                     className={[
                       "w-full transition-all duration-300 ease-out will-change-transform",
                       isImgSwitching ? "opacity-0 scale-[0.985]" : "opacity-100 scale-100",
-                      tab === "exterior" ? "h-[360px] md:h-[420px] object-contain p-6" : "h-[360px] md:h-[420px] object-cover",
+                      tab === "exterior"
+                        ? "h-[360px] md:h-[420px] object-contain p-6"
+                        : "h-[360px] md:h-[420px] object-cover",
                     ].join(" ")}
                   />
 
@@ -584,7 +610,9 @@ export default function SpinElectricStylePage() {
                   }}
                   className={[
                     "text-sm font-black pb-2 transition-colors",
-                    tab === "exterior" ? "text-[#0b4b9a] border-b-2 border-[#0b4b9a]" : "text-gray-600 hover:text-gray-900",
+                    tab === "exterior"
+                      ? "text-[#0b4b9a] border-b-2 border-[#0b4b9a]"
+                      : "text-gray-600 hover:text-gray-900",
                   ].join(" ")}
                 >
                   Exterior
@@ -598,7 +626,9 @@ export default function SpinElectricStylePage() {
                   }}
                   className={[
                     "text-sm font-black pb-2 transition-colors",
-                    tab === "interior" ? "text-[#0b4b9a] border-b-2 border-[#0b4b9a]" : "text-gray-600 hover:text-gray-900",
+                    tab === "interior"
+                      ? "text-[#0b4b9a] border-b-2 border-[#0b4b9a]"
+                      : "text-gray-600 hover:text-gray-900",
                   ].join(" ")}
                 >
                   Interior
@@ -607,7 +637,9 @@ export default function SpinElectricStylePage() {
 
               {tab === "exterior" ? (
                 <div className="mt-5">
-                  <p className="text-xs font-black uppercase tracking-widest text-gray-500">{CONFIG.exterior.trimLabel}</p>
+                  <p className="text-xs font-black uppercase tracking-widest text-gray-500">
+                    {CONFIG.exterior.trimLabel}
+                  </p>
 
                   <p className="mt-2 text-sm font-black text-gray-900">
                     {CONFIG.exterior.colors[selectedExterior]?.name ?? "Cor"}
@@ -620,7 +652,9 @@ export default function SpinElectricStylePage() {
                         onClick={() => handleSelectExterior(idx)}
                         className={[
                           "w-10 h-10 rounded-full border transition-all p-1",
-                          idx === selectedExterior ? "border-[#0b4b9a] ring-2 ring-[#0b4b9a]/20" : "border-gray-200 hover:border-gray-300",
+                          idx === selectedExterior
+                            ? "border-[#0b4b9a] ring-2 ring-[#0b4b9a]/20"
+                            : "border-gray-200 hover:border-gray-300",
                         ].join(" ")}
                         title={c.name}
                         aria-label={c.name}
@@ -640,7 +674,8 @@ export default function SpinElectricStylePage() {
                   <div className="mt-6 flex items-start gap-3 text-sm text-gray-600">
                     <ChevronDown size={18} className="mt-0.5 text-gray-400" />
                     <p>
-                      Clique em <span className="font-black">Solicitar contato</span> para iniciar a simulação de consórcio/financiamento.
+                      Clique em <span className="font-black">Solicitar contato</span> para iniciar a simulação de
+                      consórcio/financiamento.
                     </p>
                   </div>
                 </div>
@@ -659,7 +694,9 @@ export default function SpinElectricStylePage() {
                         onClick={() => handleSelectInterior(idx)}
                         className={[
                           "w-10 h-10 rounded-full border transition-all p-1",
-                          idx === selectedInterior ? "border-[#0b4b9a] ring-2 ring-[#0b4b9a]/20" : "border-gray-200 hover:border-gray-300",
+                          idx === selectedInterior
+                            ? "border-[#0b4b9a] ring-2 ring-[#0b4b9a]/20"
+                            : "border-gray-200 hover:border-gray-300",
                         ].join(" ")}
                         title={c.name}
                         aria-label={c.name}
@@ -724,7 +761,8 @@ export default function SpinElectricStylePage() {
 
           <div className="mt-10 text-xs text-gray-400">
             <p>
-              <span className="font-black text-gray-600">Aviso:</span> informações e imagens podem variar por versão/ano-modelo. Sujeito a análise.
+              <span className="font-black text-gray-600">Aviso:</span> informações e imagens podem variar por versão/ano-modelo.
+              Sujeito a análise.
             </p>
           </div>
         </div>
@@ -739,7 +777,8 @@ export default function SpinElectricStylePage() {
               Iniciar proposta com <span className="text-black/60">dados do cliente</span>
             </h2>
             <p className="text-sm text-black/60 mt-3 max-w-3xl">
-              Preencha os dados do cliente para enviar para o módulo de <strong>Análise de Crédito</strong>. *Somente vendedores logados conseguem avançar.
+              Preencha os dados do cliente para enviar para o módulo de <strong>Análise de Crédito</strong>. *Somente
+              vendedores logados conseguem avançar.
             </p>
           </div>
 
@@ -750,7 +789,10 @@ export default function SpinElectricStylePage() {
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-2">Funcionalidade Restrita</h3>
               <p className="text-gray-500 mb-6 max-w-md">A finalização de propostas é exclusiva para vendedores logados.</p>
-              <Link href="/login" className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors">
+              <Link
+                href="/login"
+                className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors"
+              >
                 Fazer Login de Vendedor
               </Link>
             </div>
@@ -834,11 +876,12 @@ export default function SpinElectricStylePage() {
                     <input
                       value={clientPhone}
                       onChange={handlePhoneChange}
-                      maxLength={PHONE_PREFIX_DISPLAY.length + 10}
+                      // "+55 (99) 99999-9999" (com símbolos) cabe aqui
+                      maxLength={PHONE_PREFIX_DISPLAY.length + 16}
                       className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
                         ${errors.clientPhone ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
                       `}
-                      placeholder="+55 XXXX-XXXX"
+                      placeholder="+55 (91) 9XXXX-XXXX"
                     />
                     {errors.clientPhone && (
                       <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
@@ -898,10 +941,12 @@ export default function SpinElectricStylePage() {
                   <p className="text-sm font-semibold text-gray-900">{CONFIG.titulo}</p>
                   <p className="text-sm text-gray-600 mt-1">A partir de {formatBRL0(CONFIG.priceStart)}</p>
                   <p className="text-xs text-gray-500 mt-2">
-                    Exterior: <span className="font-bold">{CONFIG.exterior.colors[selectedExterior]?.name || "Padrão"}</span>
+                    Exterior:{" "}
+                    <span className="font-bold">{CONFIG.exterior.colors[selectedExterior]?.name || "Padrão"}</span>
                   </p>
                   <p className="text-xs text-gray-500">
-                    Interior: <span className="font-bold">{CONFIG.interior.colors[selectedInterior]?.name || "Padrão"}</span>
+                    Interior:{" "}
+                    <span className="font-bold">{CONFIG.interior.colors[selectedInterior]?.name || "Padrão"}</span>
                   </p>
                 </div>
               </div>
@@ -915,9 +960,7 @@ export default function SpinElectricStylePage() {
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-3 flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs font-black text-gray-900 truncate">{CONFIG.titulo}</p>
-            <p className="text-[11px] text-gray-500 truncate">
-              {`A partir de ${formatBRL0(CONFIG.priceStart)}`}
-            </p>
+            <p className="text-[11px] text-gray-500 truncate">{`A partir de ${formatBRL0(CONFIG.priceStart)}`}</p>
           </div>
 
           <button
@@ -937,10 +980,7 @@ export default function SpinElectricStylePage() {
           className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-center justify-center p-6"
           onClick={closeLightbox}
         >
-          <div
-            className="max-w-5xl w-full bg-white rounded-2xl overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="max-w-5xl w-full bg-white rounded-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
               <p className="text-sm font-black text-gray-900">
                 {CONFIG.titulo} • {tab === "exterior" ? "Exterior" : "Interior"}
