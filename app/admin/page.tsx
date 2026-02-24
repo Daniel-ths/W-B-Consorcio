@@ -26,7 +26,6 @@ import {
   Eye,
   X,
   CalendarRange,
-  Filter,
   ArrowUpDown,
   AlertTriangle,
   Timer,
@@ -47,9 +46,6 @@ import {
   Cell,
 } from "recharts";
 
-// =========================
-// MODAL (ADMIN) — com auditoria + ações completas
-// =========================
 function ModalDetalhes({
   sale,
   onClose,
@@ -63,14 +59,15 @@ function ModalDetalhes({
   onDelete: (id: string) => Promise<void>;
   isDeleting: boolean;
 }) {
-  if (!sale) return null;
-
   const [isProcessing, setIsProcessing] = useState(false);
 
   const handleAction = async (status: string) => {
     setIsProcessing(true);
-    await onUpdateStatus(sale.id, status);
-    setIsProcessing(false);
+    try {
+      await onUpdateStatus(sale.id, status);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const formatMoney = (val: number) =>
@@ -79,131 +76,179 @@ function ModalDetalhes({
     );
 
   const statusColor =
-    sale.status === "Aprovado"
-      ? "bg-green-50 text-green-800"
-      : sale.status === "Recusado"
-      ? "bg-red-50 text-red-800"
-      : "bg-yellow-50 text-yellow-800";
+    sale?.status === "Aprovado"
+      ? "bg-green-50 text-green-800 border-green-200"
+      : sale?.status === "Recusado"
+      ? "bg-red-50 text-red-800 border-red-200"
+      : "bg-yellow-50 text-yellow-800 border-yellow-200";
+
+  if (!sale) return null;
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto relative animate-in zoom-in-95 duration-200">
-        {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-100 p-6 flex justify-between items-center z-10">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 print:p-0">
+      <style jsx global>{`
+        @media print {
+          @page {
+            size: A4;
+            margin: 10mm;
+          }
+          body {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          .no-print {
+            display: none !important;
+          }
+          .print-only {
+            display: block !important;
+          }
+          .print-modal-root {
+            position: static !important;
+            inset: auto !important;
+            padding: 0 !important;
+          }
+          .print-modal-overlay {
+            display: none !important;
+          }
+          .print-modal-card {
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            overflow: visible !important;
+            max-width: none !important;
+            width: 100% !important;
+            border: 1px solid #e2e8f0 !important;
+          }
+          .print-area {
+            padding: 10mm !important;
+          }
+          .print-area * {
+            line-height: 1.25 !important;
+          }
+          .print-h2 {
+            font-size: 14px !important;
+          }
+          .print-label {
+            font-size: 9px !important;
+          }
+          .print-value {
+            font-size: 11px !important;
+          }
+          .print-card {
+            border-radius: 10px !important;
+            padding: 10px !important;
+          }
+          .print-grid {
+            gap: 10px !important;
+          }
+          .print-badge {
+            font-size: 9px !important;
+            padding: 4px 8px !important;
+          }
+        }
+      `}</style>
+
+      <div
+        className="absolute inset-0 bg-black/50 print-modal-overlay no-print"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+
+      <div className="relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden print-modal-card print-modal-root">
+        <div className="p-6 border-b border-slate-100 flex items-start justify-between gap-4 no-print">
           <div>
-            <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
               Detalhes da Proposta
+            </p>
+            <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+              <CarFront size={18} />
+              {sale.car_name || "—"}
             </h2>
-            <p className="text-xs text-slate-500 font-bold">ID: {sale.id.slice(0, 8)}</p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span
+                className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase border ${statusColor}`}
+              >
+                {sale.status}
+              </span>
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase border border-slate-200 bg-slate-50 text-slate-700">
+                Tipo: {sale.interest_type || "—"}
+              </span>
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase border border-slate-200 bg-white text-slate-700">
+                Total: {formatMoney(Number(sale.total_price) || 0)}
+              </span>
+            </div>
           </div>
+
           <button
             onClick={onClose}
-            className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors"
+            className="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600"
+            title="Fechar"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
 
-        {/* Body */}
-        <div className="p-6 space-y-8">
-          {/* Status + ações */}
-          <div
-            className={`p-4 rounded-xl flex flex-col md:flex-row md:items-center md:justify-between gap-3 ${statusColor}`}
-          >
-            <div className="flex flex-col">
-              <span className="text-[10px] font-bold uppercase tracking-widest opacity-70">
-                Status Atual
-              </span>
-              <span className="font-black text-sm uppercase flex items-center gap-2 mt-1">
-                {sale.status === "Aprovado" && <CheckCircle2 size={18} />}
-                {sale.status === "Recusado" && <XCircle size={18} />}
-                {sale.status === "Aguardando Aprovação" && <Clock size={18} />}
+        <div className="hidden print-only border-b border-slate-200 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+                Proposta
+              </p>
+              <h2 className="print-h2 text-[14px] font-black text-slate-900 truncate">
+                {sale.car_name || "—"}
+              </h2>
+              <p className="text-[10px] font-bold text-slate-500">
+                {new Date(sale.created_at).toLocaleDateString("pt-BR")} •{" "}
+                {new Date(sale.created_at).toLocaleTimeString("pt-BR", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </p>
+            </div>
+            <div className="text-right">
+              <span className={`print-badge inline-flex items-center rounded-full border ${statusColor}`}>
                 {sale.status}
               </span>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => handleAction("Aguardando Aprovação")}
-                disabled={isProcessing}
-                className="bg-white/70 hover:bg-white px-3 py-2 rounded-lg text-[10px] font-black uppercase border border-white/70"
-              >
-                Reabrir
-              </button>
-
-              <button
-                onClick={() => handleAction("Aprovado")}
-                disabled={isProcessing}
-                className="bg-green-600 text-white px-4 py-2 rounded-lg text-xs font-bold uppercase hover:bg-green-700 flex items-center gap-2 shadow-sm disabled:opacity-50"
-              >
-                {isProcessing ? (
-                  <Loader2 className="animate-spin" size={14} />
-                ) : (
-                  <Check size={14} />
-                )}{" "}
-                Aprovar
-              </button>
-
-              <button
-                onClick={() => handleAction("Recusado")}
-                disabled={isProcessing}
-                className="bg-red-600 text-white px-4 py-2 rounded-lg text-xs font-bold uppercase hover:bg-red-700 flex items-center gap-2 shadow-sm disabled:opacity-50"
-              >
-                {isProcessing ? (
-                  <Loader2 className="animate-spin" size={14} />
-                ) : (
-                  <X size={14} />
-                )}{" "}
-                Recusar
-              </button>
-
-              <button
-                onClick={async () => {
-                  if (!confirm("Excluir permanentemente esta transação?")) return;
-                  await onDelete(sale.id);
-                  onClose();
-                }}
-                disabled={isDeleting}
-                className="bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-bold uppercase hover:bg-black flex items-center gap-2 shadow-sm disabled:opacity-50"
-              >
-                {isDeleting ? (
-                  <Loader2 className="animate-spin" size={14} />
-                ) : (
-                  <Trash2 size={14} />
-                )}{" "}
-                Excluir
-              </button>
+              <div className="text-[10px] font-black text-slate-900 mt-1">
+                {formatMoney(Number(sale.total_price) || 0)}
+              </div>
             </div>
           </div>
+        </div>
 
-          {/* Grid: Cliente + Venda */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Cliente */}
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5">
-              <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-200 pb-2 flex items-center gap-2">
+        <div className="p-6 space-y-4 print-area print-grid" id="print-area">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 print-grid">
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 print-card">
+              <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 border-b border-slate-200 pb-2 flex items-center gap-2">
                 <Users size={14} /> Cliente
               </h3>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">Nome</p>
-                  <p className="text-sm font-bold text-slate-900">{sale.client_name}</p>
+              <div className="grid grid-cols-2 gap-3 print-grid">
+                <div className="col-span-2 min-w-0">
+                  <p className="print-label text-[10px] font-bold text-slate-400 uppercase">Nome</p>
+                  <p className="print-value text-sm font-bold text-slate-900 truncate">
+                    {sale.client_name || "—"}
+                  </p>
                 </div>
 
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">CPF</p>
-                  <p className="text-sm font-mono text-slate-700">{sale.client_cpf}</p>
+                <div className="min-w-0">
+                  <p className="print-label text-[10px] font-bold text-slate-400 uppercase">CPF</p>
+                  <p className="print-value text-sm font-mono text-slate-700 truncate">
+                    {sale.client_cpf || "—"}
+                  </p>
                 </div>
 
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">Telefone</p>
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-mono text-slate-700">{sale.client_phone || "--"}</p>
+                <div className="min-w-0">
+                  <p className="print-label text-[10px] font-bold text-slate-400 uppercase">Telefone</p>
+                  <p className="print-value text-sm font-mono text-slate-700 truncate">
+                    {sale.client_phone || "--"}
+                  </p>
+                  <div className="no-print">
                     {sale.client_phone && (
                       <a
                         href={`https://wa.me/55${sale.client_phone.replace(/\D/g, "")}`}
                         target="_blank"
-                        className="text-green-700 hover:text-green-900 bg-green-100 px-2 py-0.5 rounded text-[10px] font-bold uppercase flex items-center gap-1"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 mt-1 text-green-700 hover:text-green-900 bg-green-100 px-2 py-0.5 rounded text-[10px] font-bold uppercase"
                       >
                         <Phone size={10} /> WhatsApp
                       </a>
@@ -212,8 +257,8 @@ function ModalDetalhes({
                 </div>
 
                 <div className="col-span-2">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">Criado em</p>
-                  <p className="text-sm font-medium text-slate-700">
+                  <p className="print-label text-[10px] font-bold text-slate-400 uppercase">Criado em</p>
+                  <p className="print-value text-sm font-medium text-slate-700">
                     {new Date(sale.created_at).toLocaleDateString("pt-BR")} às{" "}
                     {new Date(sale.created_at).toLocaleTimeString("pt-BR", {
                       hour: "2-digit",
@@ -224,28 +269,29 @@ function ModalDetalhes({
               </div>
             </div>
 
-            {/* Venda */}
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5">
-              <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-200 pb-2 flex items-center gap-2">
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 print-card">
+              <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 border-b border-slate-200 pb-2 flex items-center gap-2">
                 <CarFront size={14} /> Proposta
               </h3>
 
               <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">Veículo</p>
-                  <p className="text-lg font-black text-slate-900">{sale.car_name}</p>
+                <div className="min-w-0">
+                  <p className="print-label text-[10px] font-bold text-slate-400 uppercase">Veículo</p>
+                  <p className="print-value text-lg font-black text-slate-900 truncate">
+                    {sale.car_name || "—"}
+                  </p>
                 </div>
 
-                <div className="text-right">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">Tipo</p>
+                <div className="text-right shrink-0">
+                  <p className="print-label text-[10px] font-bold text-slate-400 uppercase">Tipo</p>
                   <span className="bg-black text-white text-[10px] font-bold px-2 py-1 rounded uppercase">
-                    {sale.interest_type}
+                    {sale.interest_type || "—"}
                   </span>
                 </div>
               </div>
 
-              <div className="mt-4 border-t border-slate-200 pt-4 space-y-2">
-                <div className="flex justify-between text-sm">
+              <div className="mt-3 border-t border-slate-200 pt-3 space-y-2">
+                <div className="flex justify-between text-sm gap-3">
                   <span className="text-slate-500 font-medium">Valor Total</span>
                   <span className="font-black text-slate-900">
                     {new Intl.NumberFormat("pt-BR", {
@@ -258,93 +304,139 @@ function ModalDetalhes({
             </div>
           </div>
 
-          {/* Responsável + Auditoria */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Vendedor */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-5">
-              <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-100 pb-2 flex items-center gap-2">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 print-grid">
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 print-card">
+              <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 border-b border-slate-100 pb-2 flex items-center gap-2">
                 <CheckCircle2 size={14} /> Vendedor
               </h3>
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-slate-900 rounded-full flex items-center justify-center text-white font-bold text-sm">
-                  {sale.seller_name ? sale.seller_name.substring(0, 2).toUpperCase() : "VD"}
+                  {sale.seller_name ? String(sale.seller_name).substring(0, 2).toUpperCase() : "VD"}
                 </div>
-                <div className="leading-tight">
-                  <p className="text-sm font-bold text-slate-900">{sale.seller_name || "—"}</p>
-                  <p className="text-[10px] text-slate-500 font-mono">
+                <div className="leading-tight min-w-0">
+                  <p className="text-sm font-bold text-slate-900 truncate">{sale.seller_name || "—"}</p>
+                  <p className="text-[10px] text-slate-500 font-mono truncate">
                     {sale.profiles?.email || "—"}
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* Auditoria */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-5">
-              <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-100 pb-2 flex items-center gap-2">
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 print-card">
+              <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 border-b border-slate-100 pb-2 flex items-center gap-2">
                 <ShieldCheck size={14} /> Auditoria
               </h3>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">Aprovador</p>
-                  <p className="text-sm font-bold text-slate-900">{sale.approved_by_name || "—"}</p>
+              <div className="grid grid-cols-2 gap-3 print-grid">
+                <div className="min-w-0">
+                  <p className="print-label text-[10px] font-bold text-slate-400 uppercase">Aprovador</p>
+                  <p className="print-value text-sm font-bold text-slate-900 truncate">
+                    {sale.approved_by_name || "—"}
+                  </p>
                 </div>
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">Data</p>
-                  <p className="text-sm font-medium text-slate-700">
+                <div className="min-w-0">
+                  <p className="print-label text-[10px] font-bold text-slate-400 uppercase">Data</p>
+                  <p className="print-value text-sm font-medium text-slate-700 truncate">
                     {sale.approved_at ? new Date(sale.approved_at).toLocaleString("pt-BR") : "—"}
                   </p>
                 </div>
               </div>
-
-              <p className="text-[11px] text-slate-400 font-bold mt-3">
-              </p>
             </div>
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="bg-gray-50 p-6 border-t border-gray-100 flex justify-end gap-3 sticky bottom-0 rounded-b-2xl">
-          <button
-            onClick={onClose}
-            className="px-6 py-2.5 bg-white border border-gray-200 text-slate-700 font-bold text-xs uppercase rounded-lg hover:bg-gray-100 transition-colors"
-          >
-            Fechar
-          </button>
-          <button
-            onClick={() => window.print()}
-            className="px-6 py-2.5 bg-black text-white font-bold text-xs uppercase rounded-lg hover:bg-slate-800 transition-colors flex items-center gap-2"
-          >
-            <FileText size={14} /> Imprimir
-          </button>
+        <div className="bg-gray-50 p-6 border-t border-gray-100 flex flex-col md:flex-row md:items-center md:justify-between gap-3 sticky bottom-0 no-print">
+          <div className="flex items-center gap-2">
+            {sale.status === "Aguardando Aprovação" && (
+              <>
+                <button
+                  onClick={() => handleAction("Aprovado")}
+                  disabled={isProcessing}
+                  className="px-4 py-2.5 bg-green-600 text-white font-bold text-xs uppercase rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-60"
+                >
+                  {isProcessing ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <Check size={14} />
+                  )}
+                  Aprovar
+                </button>
+
+                <button
+                  onClick={() => handleAction("Recusado")}
+                  disabled={isProcessing}
+                  className="px-4 py-2.5 bg-red-600 text-white font-bold text-xs uppercase rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 disabled:opacity-60"
+                >
+                  {isProcessing ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <XCircle size={14} />
+                  )}
+                  Recusar
+                </button>
+              </>
+            )}
+
+            {sale.status !== "Aguardando Aprovação" && (
+              <button
+                onClick={() => handleAction("Aguardando Aprovação")}
+                disabled={isProcessing}
+                className="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-bold text-xs uppercase rounded-lg hover:bg-slate-100 transition-colors disabled:opacity-60"
+              >
+                Reabrir
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center justify-end gap-3">
+            <button
+              onClick={async () => {
+                if (!confirm("Excluir esta proposta permanentemente?")) return;
+                await onDelete(sale.id);
+                onClose();
+              }}
+              disabled={isDeleting}
+              className="px-4 py-2.5 bg-white border border-red-200 text-red-600 font-bold text-xs uppercase rounded-lg hover:bg-red-50 transition-colors flex items-center gap-2 disabled:opacity-60"
+            >
+              {isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+              Excluir
+            </button>
+
+            <button
+              onClick={onClose}
+              className="px-4 py-2.5 bg-white border border-gray-200 text-slate-700 font-bold text-xs uppercase rounded-lg hover:bg-gray-100 transition-colors"
+            >
+              Fechar
+            </button>
+
+            <button
+              onClick={() => window.print()}
+              className="px-4 py-2.5 bg-black text-white font-bold text-xs uppercase rounded-lg hover:bg-slate-800 transition-colors flex items-center gap-2"
+            >
+              <FileText size={14} /> Imprimir
+            </button>
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-// =========================
-// ADMIN DASHBOARD — “torre de controle”
-// =========================
 export default function AdminDashboard() {
   const router = useRouter();
 
   const [sales, setSales] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // ✅ Produção de supervisores (hoje)
   const [supervisorStatusFilter, setSupervisorStatusFilter] = useState<
     "TODOS" | "ATENDIMENTOS" | "APROVACOES" | "RECUSAS"
   >("TODOS");
 
-  // filtros
   const [filterStatus, setFilterStatus] = useState("TODOS");
   const [searchTerm, setSearchTerm] = useState("");
-
   const [dateFrom, setDateFrom] = useState<string>("");
   const [dateTo, setDateTo] = useState<string>("");
 
-  // ordenação + paginação
   const [sortKey, setSortKey] = useState<"created_at" | "total_price" | "status" | "client_name">(
     "created_at"
   );
@@ -352,14 +444,11 @@ export default function AdminDashboard() {
   const [page, setPage] = useState(1);
   const pageSize = 12;
 
-  // modal
   const [selectedSale, setSelectedSale] = useState<any>(null);
 
-  // ações
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
 
-  // seleção (lote)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const formatCurrency = (val: number) =>
@@ -367,7 +456,6 @@ export default function AdminDashboard() {
 
   const todayLabel = useMemo(() => new Date().toLocaleDateString("pt-BR"), []);
 
-  // helpers
   const isWithinDateRange = (createdAt: string) => {
     const d = new Date(createdAt);
     if (dateFrom) {
@@ -421,9 +509,6 @@ export default function AdminDashboard() {
     return { startISO: start.toISOString(), endISO: end.toISOString() };
   };
 
-  const resolveSellerKey = (sale: any) =>
-    sale?.seller_name || sale?.profiles?.email || sale?.seller_id || "Desconhecido";
-
   const setFilterToToday = () => {
     const now = new Date();
     const y = now.getFullYear();
@@ -434,20 +519,12 @@ export default function AdminDashboard() {
     setDateTo(iso);
   };
 
-  // ✅ normaliza "nome" do supervisor para agrupar corretamente
   const normalizeSupervisorName = (raw: any) => {
     const s = String(raw || "").trim();
     if (!s) return "Supervisor (não informado)";
     return s.replace(/\s+/g, " ");
   };
 
-  // =========================================================
-  // ✅ NOVO: marca "atendimento" ao abrir detalhes (sem aprovar/recusar)
-  // - Isso resolve seu caso: supervisor abriu/atendeu hoje, mas não aparecia.
-  // - Regra: se a proposta está "Aguardando Aprovação" e NÃO tem approved_by_* ainda,
-  //   preenche approved_by_id e approved_by_name (SEM setar approved_at).
-  //   Assim entra na contagem de "Atendimentos" do dia.
-  // =========================================================
   const getMyDisplayName = async () => {
     const { data: authData } = await supabase.auth.getUser();
     const user = authData?.user;
@@ -468,50 +545,32 @@ export default function AdminDashboard() {
   const markSupervisorTouch = async (sale: any) => {
     try {
       if (!sale?.id) return;
-
-      // só marca touch em pendentes
       if (sale.status !== "Aguardando Aprovação") return;
-
-      // se já tem, não precisa
       if (sale.approved_by_id || sale.approved_by_name) return;
 
       const me = await getMyDisplayName();
       if (!me) return;
 
-      const payload = {
-        approved_by_id: me.id,
-        approved_by_name: me.name,
-        // approved_at fica null (porque não é decisão)
-      };
-
+      const payload = { approved_by_id: me.id, approved_by_name: me.name };
       const { error } = await supabase.from("sales").update(payload).eq("id", sale.id);
       if (error) throw error;
 
-      // reflete no estado
       setSales((prev) => prev.map((s) => (s.id === sale.id ? { ...s, ...payload } : s)));
       if (selectedSale?.id === sale.id) setSelectedSale((p: any) => ({ ...p, ...payload }));
-    } catch (e) {
-      // silencioso pra não poluir UX
-      console.warn("[admin] markSupervisorTouch falhou:", e);
-    }
+    } catch {}
   };
 
   const openSale = async (sale: any) => {
     setSelectedSale(sale);
-    // marca atendimento (sem decisão) para aparecer em "Produção dos Supervisores (Hoje)"
     await markSupervisorTouch(sale);
   };
 
-  // fetch
   const fetchSales = async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
         .from("sales")
-        .select(
-          `*, profiles:seller_id (email),
-           approved_by_id, approved_by_name, approved_at`
-        )
+        .select(`*, profiles:seller_id (email), approved_by_id, approved_by_name, approved_at`)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -527,9 +586,6 @@ export default function AdminDashboard() {
     fetchSales();
   }, []);
 
-  // =========================
-  // Status Badge
-  // =========================
   const StatusBadge = ({ status }: { status: string }) => {
     let styles = "bg-gray-100 text-gray-600";
     let icon = <Clock size={12} />;
@@ -554,9 +610,6 @@ export default function AdminDashboard() {
     );
   };
 
-  // =========================
-  // Filtragem + ordenação
-  // =========================
   const filteredBase = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
 
@@ -602,9 +655,6 @@ export default function AdminDashboard() {
     return filteredBase.slice(start, start + pageSize);
   }, [filteredBase, page]);
 
-  // =========================
-  // KPIs “executivos”
-  // =========================
   const kpis = useMemo(() => {
     const rows = filteredBase;
 
@@ -614,24 +664,6 @@ export default function AdminDashboard() {
     const refused = rows.filter((s) => s.status === "Recusado");
 
     const revenue = rows.reduce((acc, s) => acc + (Number(s.total_price) || 0), 0);
-    const ticket = total ? revenue / total : 0;
-
-    const decided = rows.filter(
-      (s) => (s.status === "Aprovado" || s.status === "Recusado") && s.approved_at
-    );
-    const avgDecisionHours = decided.length
-      ? decided.reduce((acc, s) => {
-          const h =
-            (new Date(s.approved_at).getTime() - new Date(s.created_at).getTime()) /
-            (1000 * 60 * 60);
-          return acc + (h > 0 ? h : 0);
-        }, 0) / decided.length
-      : 0;
-
-    const pendingOver24 = pending.filter((s) => hoursSince(s.created_at) >= 24).length;
-    const pendingOver48 = pending.filter((s) => hoursSince(s.created_at) >= 48).length;
-
-    const conversion = total ? (approved.length / total) * 100 : 0;
 
     const { startISO, endISO } = getTodayRangeISO();
     const todaySales = rows.filter((s) => {
@@ -641,26 +673,25 @@ export default function AdminDashboard() {
     const todayValue = todaySales.reduce((acc, s) => acc + (Number(s.total_price) || 0), 0);
     const approvedToday = todaySales.filter((s) => s.status === "Aprovado").length;
 
+    const pendingOver24 = pending.filter((s) => hoursSince(s.created_at) >= 24).length;
+    const pendingOver48 = pending.filter((s) => hoursSince(s.created_at) >= 48).length;
+
+    const conversion = total ? (approved.length / total) * 100 : 0;
+
     return {
       total,
       pending: pending.length,
       approved: approved.length,
       refused: refused.length,
       revenue,
-      ticket,
-      avgDecisionHours,
+      conversion,
       pendingOver24,
       pendingOver48,
-      conversion,
-      todayCount: todaySales.length,
       todayValue,
       approvedToday,
     };
   }, [filteredBase]);
 
-  // =========================
-  // Pedidos de Hoje (sempre do TOTAL, independente de filtro)
-  // =========================
   const todaySection = useMemo(() => {
     const { startISO, endISO } = getTodayRangeISO();
     const todayAll = sales
@@ -677,23 +708,9 @@ export default function AdminDashboard() {
 
     const valueToday = todayAll.reduce((acc, s) => acc + (Number(s.total_price) || 0), 0);
 
-    return {
-      list: todayAll,
-      totalToday,
-      pendingToday,
-      approvedToday,
-      refusedToday,
-      valueToday,
-    };
+    return { list: todayAll, totalToday, pendingToday, approvedToday, refusedToday, valueToday };
   }, [sales]);
 
-  // =========================
-  // ✅ Produção por Supervisor (HOJE)
-  // Agora conta "Atendimentos" por:
-  // - qualquer item que teve supervisor atribuído e foi "mexido" hoje:
-  //   (approved_at hoje) OU (updated_at hoje) OU (created_at hoje)
-  // Isso garante que "só abrir e atender" hoje apareça (porque markSupervisorTouch faz update).
-  // =========================
   const supervisorsToday = useMemo(() => {
     const { startISO, endISO } = getTodayRangeISO();
 
@@ -711,7 +728,7 @@ export default function AdminDashboard() {
       return isInToday(getActionTime(s));
     });
 
-    const decidedToday = sales.filter((s) => isInToday(s.approved_at)); // decidiu hoje
+    const decidedToday = sales.filter((s) => isInToday(s.approved_at));
 
     const map = new Map<
       string,
@@ -722,7 +739,6 @@ export default function AdminDashboard() {
         recusas: number;
         decididas: number;
         valorAprovado: number;
-        vendedores: Map<string, number>;
         lastActionAt?: number;
       }
     >();
@@ -738,14 +754,12 @@ export default function AdminDashboard() {
           recusas: 0,
           decididas: 0,
           valorAprovado: 0,
-          vendedores: new Map<string, number>(),
           lastActionAt: 0,
         } as any);
       map.set(key, curr);
       return curr;
     };
 
-    // 1) Atendimentos (tocados hoje)
     touchedToday.forEach((s) => {
       const sup = s?.approved_by_name || s?.approved_by_id;
       if (!sup) return;
@@ -753,14 +767,10 @@ export default function AdminDashboard() {
       const row = touch(sup);
       row.atendimentos += 1;
 
-      const sellerName = String(s?.seller_name || s?.profiles?.email || "Vendedor (não informado)").trim();
-      row.vendedores.set(sellerName, (row.vendedores.get(sellerName) || 0) + 1);
-
       const ts = new Date(getActionTime(s)).getTime();
       row.lastActionAt = Math.max(row.lastActionAt || 0, ts);
     });
 
-    // 2) Decisões (approved_at hoje)
     decidedToday.forEach((s) => {
       const sup = s?.approved_by_name || s?.approved_by_id || "Supervisor (não informado)";
       const row = touch(sup);
@@ -779,13 +789,7 @@ export default function AdminDashboard() {
     });
 
     const list = Array.from(map.values()).map((r) => {
-      const vendedoresTop = Array.from(r.vendedores.entries())
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 3)
-        .map(([name, count]) => ({ name, count }));
-
       const conv = r.atendimentos ? (r.aprovacoes / r.atendimentos) * 100 : 0;
-
       return {
         supervisor: r.supervisor,
         atendimentos: r.atendimentos,
@@ -794,7 +798,6 @@ export default function AdminDashboard() {
         decididas: r.decididas,
         valorAprovado: r.valorAprovado,
         conversao: conv,
-        vendedoresTop,
         lastActionAt: r.lastActionAt || 0,
       };
     });
@@ -807,13 +810,9 @@ export default function AdminDashboard() {
     });
 
     filtered.sort((a, b) => b.atendimentos - a.atendimentos || b.lastActionAt - a.lastActionAt);
-
     return filtered;
   }, [sales, supervisorStatusFilter]);
 
-  // =========================
-  // Gráficos (30 dias)
-  // =========================
   const charts = useMemo(() => {
     const days = 30;
     const pad2 = (n: number) => String(n).padStart(2, "0");
@@ -858,28 +857,6 @@ export default function AdminDashboard() {
 
   const PIE_COLORS = ["#f59e0b", "#22c55e", "#ef4444"];
 
-  // =========================
-  // Ranking: Top vendedores (valor)
-  // =========================
-  const topSellersByValue = useMemo(() => {
-    const map = new Map<string, { name: string; totalValue: number; count: number; approved: number }>();
-    filteredBase.forEach((s) => {
-      const key = resolveSellerKey(s);
-      const curr = map.get(key) || { name: key, totalValue: 0, count: 0, approved: 0 };
-      curr.count += 1;
-      curr.totalValue += Number(s.total_price) || 0;
-      if (s.status === "Aprovado") curr.approved += 1;
-      map.set(key, curr);
-    });
-
-    return Array.from(map.values())
-      .sort((a, b) => b.totalValue - a.totalValue)
-      .slice(0, 6);
-  }, [filteredBase]);
-
-  // =========================
-  // Ações (status/delete)
-  // =========================
   const updateStatus = async (saleId: string, newStatus: string) => {
     try {
       setIsUpdating(saleId);
@@ -889,7 +866,6 @@ export default function AdminDashboard() {
 
       if (newStatus === "Aprovado" || newStatus === "Recusado") {
         payload.approved_at = new Date().toISOString();
-
         if (me?.id) {
           payload.approved_by_id = me.id;
           payload.approved_by_name = me.name;
@@ -906,9 +882,7 @@ export default function AdminDashboard() {
       if (error) throw error;
 
       setSales((prev) => prev.map((s) => (s.id === saleId ? { ...s, ...payload } : s)));
-
       if (selectedSale?.id === saleId) setSelectedSale((prev: any) => ({ ...prev, ...payload }));
-
       alert(`Status atualizado para: ${newStatus}`);
     } catch (error: any) {
       alert("Erro: " + (error?.message || "falha ao atualizar"));
@@ -936,9 +910,6 @@ export default function AdminDashboard() {
     }
   };
 
-  // =========================
-  // Lote (seleção)
-  // =========================
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -963,9 +934,7 @@ export default function AdminDashboard() {
     if (ids.length === 0) return alert("Selecione ao menos 1 item.");
     if (!confirm(`Aplicar status "${status}" em ${ids.length} propostas?`)) return;
 
-    for (const id of ids) {
-      await updateStatus(id, status);
-    }
+    for (const id of ids) await updateStatus(id, status);
     clearSelection();
   };
 
@@ -974,22 +943,16 @@ export default function AdminDashboard() {
     if (ids.length === 0) return alert("Selecione ao menos 1 item.");
     if (!confirm(`Excluir permanentemente ${ids.length} propostas?`)) return;
 
-    for (const id of ids) {
-      await deleteSale(id);
-    }
+    for (const id of ids) await deleteSale(id);
     clearSelection();
   };
 
-  // logout
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.refresh();
     router.replace("/login");
   };
 
-  // =========================
-  // UI
-  // =========================
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-20">
       {selectedSale && (
@@ -1002,7 +965,6 @@ export default function AdminDashboard() {
         />
       )}
 
-      {/* HEADER */}
       <header className="bg-white border-b border-slate-200 px-6 py-4 sticky top-0 z-30">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -1036,7 +998,6 @@ export default function AdminDashboard() {
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-8">
-        {/* TOP KPIs */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
           <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
             <div className="flex items-center justify-between">
@@ -1120,7 +1081,6 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* ✅ PRODUÇÃO DOS SUPERVISORES (HOJE) */}
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden mb-8">
           <div className="p-5 border-b border-slate-100 flex items-center justify-between gap-3">
             <div>
@@ -1128,7 +1088,7 @@ export default function AdminDashboard() {
                 Produção dos Supervisores (Hoje)
               </h3>
               <p className="text-xs text-slate-400 font-bold">
-                Supervisor • atendimentos do dia • aprovações/recusas • top vendedores atendidos
+                Supervisor • atendimentos do dia • aprovações/recusas
               </p>
             </div>
 
@@ -1170,7 +1130,7 @@ export default function AdminDashboard() {
           <div className="p-5">
             {supervisorsToday.length === 0 ? (
               <div className="p-8 text-center text-slate-400 text-sm font-medium">
-                Sem atividade de supervisores hoje (ou approved_by_* ainda não está sendo preenchido).
+                Sem atividade de supervisores hoje
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -1183,7 +1143,6 @@ export default function AdminDashboard() {
                       <th className="px-4 py-3 text-center min-w-[110px]">Recusas</th>
                       <th className="px-4 py-3 text-center min-w-[110px]">Conversão</th>
                       <th className="px-4 py-3 text-right min-w-[150px]">Valor Aprovado</th>
-                      <th className="px-4 py-3 min-w-[260px]">Top Vendedores Atendidos</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -1240,44 +1199,15 @@ export default function AdminDashboard() {
                         <td className="px-4 py-3 text-right text-xs font-black text-slate-900">
                           {formatCurrency(r.valorAprovado)}
                         </td>
-
-                        <td className="px-4 py-3">
-                          {r.vendedoresTop.length === 0 ? (
-                            <span className="text-[11px] font-bold text-slate-400">
-                              — (nenhum vendedor identificado)
-                            </span>
-                          ) : (
-                            <div className="flex flex-wrap gap-2">
-                              {r.vendedoresTop.map((v: any, i: number) => (
-                                <span
-                                  key={i}
-                                  className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase bg-white border border-slate-200 text-slate-700"
-                                  title={v.name}
-                                >
-                                  {String(v.name).includes("@")
-                                    ? String(v.name).split("@")[0]
-                                    : String(v.name)}
-                                  <span className="bg-slate-100 border border-slate-200 text-slate-700 px-2 py-0.5 rounded-full text-[10px] font-black">
-                                    {v.count}
-                                  </span>
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-
-                <p className="text-[11px] text-slate-400 font-bold mt-3">
-                </p>
               </div>
             )}
           </div>
         </div>
 
-        {/* ✅ PEDIDOS DO DIA */}
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden mb-8">
           <div className="p-5 border-b border-slate-100 flex items-center justify-between">
             <div>
@@ -1411,10 +1341,8 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* CHARTS + RANKING */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
-          {/* Charts */}
-          <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="lg:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-5">
               <div className="flex items-center justify-between mb-3">
                 <p className="text-xs font-black uppercase text-slate-500 tracking-widest">
@@ -1433,9 +1361,6 @@ export default function AdminDashboard() {
                   </LineChart>
                 </ResponsiveContainer>
               </div>
-              <p className="text-[11px] text-slate-400 font-bold mt-2">
-                Use filtros para “auditar” períodos.
-              </p>
             </div>
 
             <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-5">
@@ -1483,62 +1408,15 @@ export default function AdminDashboard() {
               </div>
             </div>
           </div>
-
-          {/* Ranking */}
-          <div className="lg:col-span-4 space-y-6">
-            <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-5">
-              <p className="text-xs font-black uppercase text-slate-500 tracking-widest">
-                Top Vendedores (valor)
-              </p>
-              <div className="mt-4 space-y-3">
-                {topSellersByValue.length === 0 ? (
-                  <p className="text-sm text-slate-400 font-medium">Sem dados.</p>
-                ) : (
-                  topSellersByValue.map((s, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl p-3"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-sm font-black text-slate-900 truncate">
-                          {String(s.name).includes("@") ? String(s.name).split("@")[0] : s.name}
-                        </p>
-                        <p className="text-[10px] text-slate-400 font-bold">
-                          Propostas: {s.count} • Aprovadas: {s.approved}
-                        </p>
-                      </div>
-                      <p className="text-sm font-black text-slate-900">{formatCurrency(s.totalValue)}</p>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            <div className="bg-blue-600 rounded-2xl p-5 text-white shadow-lg">
-              <h3 className="font-bold mb-2">Suporte</h3>
-              <p className="text-blue-100 text-xs mb-4 leading-relaxed">
-                Dúvidas ou problemas técnicos? Fale conosco.
-              </p>
-              <a
-                href="https://wa.me/5591999246801?text=Olá,%20preciso%20de%20ajuda%20com%20o%20Painel%20Admin."
-                target="_blank"
-                rel="noopener noreferrer"
-                className="bg-white text-blue-600 px-4 py-2.5 rounded-lg text-xs font-bold w-full hover:bg-blue-50 transition-colors flex items-center justify-center gap-2"
-              >
-                Contatar via WhatsApp
-              </a>
-            </div>
-          </div>
         </div>
 
-        {/* FILTROS */}
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6 space-y-4">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="relative w-full md:w-96">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input
                 type="text"
-                placeholder="Buscar por cliente, cpf, carro, vendedor ou e-mail..."
+                placeholder="Buscar por..."
                 className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:border-black transition-all"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -1627,21 +1505,6 @@ export default function AdminDashboard() {
               >
                 <ArrowUpDown size={14} /> Cliente {sortKey === "client_name" ? `(${sortDir})` : ""}
               </button>
-
-              <button
-                onClick={() => {
-                  setSortKey("created_at");
-                  setSortDir("desc");
-                  setFilterStatus("TODOS");
-                  setSearchTerm("");
-                  setDateFrom("");
-                  setDateTo("");
-                  clearSelection();
-                }}
-                className="px-3 py-2 rounded-lg text-xs font-bold uppercase border border-slate-200 bg-slate-50 text-slate-600 hover:bg-white flex items-center gap-2 w-full md:w-auto justify-center"
-              >
-                <Filter size={14} /> Reset
-              </button>
             </div>
 
             <div className="flex items-center gap-2 w-full lg:w-auto justify-end">
@@ -1653,6 +1516,13 @@ export default function AdminDashboard() {
                 <Loader2 size={14} className={loading ? "animate-spin" : ""} />
                 Atualizar
               </button>
+
+              <Link
+                href="/admin/alterarvalor"
+                className="text-xs bg-amber-50 text-amber-700 px-3 py-2 rounded-lg font-bold hover:bg-amber-100 flex items-center gap-2 border border-amber-100 w-full lg:w-auto justify-center"
+              >
+                <Wallet size={14} /> Alterar Valores
+              </Link>
 
               <Link
                 href="/admin/cars/new"
@@ -1723,18 +1593,10 @@ export default function AdminDashboard() {
           )}
         </div>
 
-        {/* TABELA PRINCIPAL */}
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
           <div className="p-4 border-b border-slate-100 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <h3 className="font-bold text-slate-800">Transações</h3>
-              <span className="text-[10px] font-black uppercase text-slate-400">
-                Página {page}/{totalPages}
-              </span>
-            </div>
-
-            <div className="text-[10px] font-bold text-slate-400">
-              Mostrando <span className="text-slate-800">{filteredBase.length}</span> no recorte
             </div>
           </div>
 
@@ -1790,6 +1652,7 @@ export default function AdminDashboard() {
                               <a
                                 href={`https://wa.me/55${sale.client_phone.replace(/\D/g, "")}`}
                                 target="_blank"
+                                rel="noreferrer"
                                 onClick={(e) => e.stopPropagation()}
                                 className="text-green-600 hover:text-green-800 ml-2"
                                 title="WhatsApp"
@@ -1913,7 +1776,6 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* Paginação */}
           {!loading && filteredBase.length > 0 && (
             <div className="p-4 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between gap-3">
               <div className="text-[11px] text-slate-400 font-bold">
@@ -1943,10 +1805,6 @@ export default function AdminDashboard() {
               </div>
             </div>
           )}
-        </div>
-
-        <div className="mt-4 text-[11px] text-slate-400 font-bold">
-          * Admin: pode ver tudo, decidir, reabrir, excluir e operar em lote.
         </div>
       </main>
     </div>

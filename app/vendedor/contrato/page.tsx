@@ -16,8 +16,8 @@ import {
   AlertTriangle,
 } from "lucide-react";
 
-// --- TELEFONE FIXO +55 (91) ---
-const PHONE_PREFIX_DISPLAY = "+55 (91) ";
+// --- TELEFONE FIXO +55 ---
+const PHONE_PREFIX_DISPLAY = "+55 ";
 
 // Formata SOMENTE os 9 dígitos após o prefixo: 9XXXX-XXXX
 const maskPhoneAfterPrefix = (digitsOnlyAfterPrefix: string) => {
@@ -145,10 +145,8 @@ function PedidoContent() {
       lanceInfo.hasLance && lanceInfo.parcelaFinal > 0 ? lanceInfo.parcelaFinal : parcelaBase;
 
     // Desconto (se existir) — sem mexer no "crédito"
-    // (Mantém só como informação, não vira "total final estimado")
     let desconto = 0;
     if (promo.hasPromo) {
-      // Se quiser aplicar em cima do crédito, usa dados.valor como base:
       const base = dados.valor || 0;
       if (promo.discountPercent > 0) desconto = (base * promo.discountPercent) / 100;
       else if (promo.discountValue > 0) desconto = promo.discountValue;
@@ -161,6 +159,16 @@ function PedidoContent() {
       desconto,
     };
   }, [dados, lanceInfo, promo]);
+
+  // =========================
+  // ✅ ATO/ENTRADA: SEMPRE IGUAL À 1ª PARCELA INTEGRAL (pedido do cliente)
+  // - Se parcela for 0 por algum motivo, tenta fallback em dados.parcela
+  // - Se continuar 0, mantém 0 (mas não deve acontecer se a página anterior enviar parcela_escolhida)
+  // =========================
+  const atoEntrada = useMemo(() => {
+    const p = safeNumber(valoresExibidos.parcelaUsada) || safeNumber(dados.parcela);
+    return p > 0 ? p : 0;
+  }, [valoresExibidos.parcelaUsada, dados.parcela]);
 
   // ✅ agora NÃO faz consulta automática no load
   const [loadingValidacao, setLoadingValidacao] = useState(false);
@@ -180,7 +188,7 @@ function PedidoContent() {
   // ✅ telefone do cliente vindo da outra página (digits p/ SMS e DB)
   const telefoneDigits = sanitizePhoneFromOtherPage(dados.telefone); // "5591..."
 
-  // ✅ telefone formatado p/ exibir no layout antigo: "+55 (91) 9XXXX-XXXX"
+  // ✅ telefone formatado p/ exibir no layout antigo: "+55  9XXXX-XXXX"
   const telefoneTela = telefoneDigits
     ? `${PHONE_PREFIX_DISPLAY}${maskPhoneAfterPrefix(telefoneDigits.slice(4))}`
     : "---";
@@ -188,7 +196,7 @@ function PedidoContent() {
   // ✅ mensagem do SMS
   const SMS_TESTE = (nome: string, protocolo: string) =>
     `Parabéns, ${nome}!🎉 Seu CPF foi aprovado e você está mais perto de conquistar seu carro novo.
-Seja bem vindoa!`;
+Seja bem vindo!`;
 
   const formatMoney = (val: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(val);
@@ -370,8 +378,8 @@ Seja bem vindoa!`;
         prazo_final: valoresExibidos.prazoUsado || 0,
         parcela_final: valoresExibidos.parcelaUsada || 0,
 
-        // ✅ NÃO EXISTE MAIS "TOTAL FINAL ESTIMADO" (removido)
-        // total_final_estimated: ...
+        // ✅ NOVO: ato/entrada sempre igual à 1ª parcela integral
+        ato_entrada: atoEntrada,
       };
 
       const { error } = await supabase.from("sales").insert([payload]);
@@ -385,30 +393,29 @@ Seja bem vindoa!`;
     }
   };
 
-  // ✅ BOTÃO PRINCIPAL: salva no banco sempre; SMS só se REGULAR
-// ✅ BOTÃO PRINCIPAL: salva no banco sempre; SMS SEMPRE envia (independente do CPF)
-const handleEnviarParaAnalise = async () => {
-  if (pedidoSalvo) return;
+  // ✅ BOTÃO PRINCIPAL: salva no banco sempre; SMS SEMPRE envia (independente do CPF)
+  const handleEnviarParaAnalise = async () => {
+    if (pedidoSalvo) return;
 
-  setLoadingEnviar(true);
-  try {
-    const saved = await salvarNoBanco();
-    if (!saved.ok) return;
+    setLoadingEnviar(true);
+    try {
+      const saved = await salvarNoBanco();
+      if (!saved.ok) return;
 
-    // ✅ SEMPRE tenta enviar SMS
-    const okSms = await enviarSms(nomeManual || dados.nome || "cliente");
+      // ✅ SEMPRE tenta enviar SMS
+      const okSms = await enviarSms(nomeManual || dados.nome || "cliente");
 
-    if (okSms) {
-      alert(`✅ Enviado para análise + SMS enviado! (${saved.vendedor || "vendedor"})`);
-    } else {
-      alert(`✅ Enviado para análise. (SMS falhou) (${saved.vendedor || "vendedor"})`);
+      if (okSms) {
+        alert(`✅ Enviado para análise + SMS enviado! (${saved.vendedor || "vendedor"})`);
+      } else {
+        alert(`✅ Enviado para análise. (SMS falhou) (${saved.vendedor || "vendedor"})`);
+      }
+
+      setPedidoSalvo(true);
+    } finally {
+      setLoadingEnviar(false);
     }
-
-    setPedidoSalvo(true);
-  } finally {
-    setLoadingEnviar(false);
-  }
-};
+  };
 
   return (
     <div className="min-h-screen bg-zinc-100 font-sans text-zinc-900 pb-32 md:pb-20 print:bg-white print:p-0">
@@ -435,7 +442,7 @@ const handleEnviarParaAnalise = async () => {
                 onClick={handleEnviarParaAnalise}
                 disabled={loadingEnviar}
                 className="bg-[#f2e14c] text-black px-4 py-2.5 rounded-lg text-xs font-black uppercase hover:bg-[#ffe600] flex items-center gap-2 shadow-lg shadow-yellow-400/20 transition-all hover:scale-105 active:scale-95"
-                title="Salva no painel. Envia SMS apenas se CPF estiver REGULAR."
+                title="Salva no painel. Envia SMS."
               >
                 {loadingEnviar ? <Loader2 className="animate-spin" size={16} /> : <Send size={16} />}
                 <span className="md:inline">{loadingEnviar ? "Enviando..." : "Enviar p/ análise"}</span>
@@ -564,7 +571,7 @@ const handleEnviarParaAnalise = async () => {
                   onClick={handleEnviarParaAnalise}
                   disabled={loadingEnviar}
                   className="print:hidden w-full group relative overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm hover:shadow-lg transition-all"
-                  title="Salva no painel. Envia SMS apenas se CPF estiver REGULAR."
+                  title="Salva no painel. Envia SMS."
                 >
                   <div className="absolute inset-0 bg-gradient-to-r from-[#f2e14c]/0 via-[#f2e14c]/25 to-[#f2e14c]/0 opacity-0 group-hover:opacity-100 transition-opacity" />
 
@@ -590,9 +597,9 @@ const handleEnviarParaAnalise = async () => {
                             CPF: {String(situacaoReceita).toUpperCase()}
                           </span>
 
-<span className="text-[10px] font-black uppercase px-2 py-1 rounded-full border bg-zinc-50 text-zinc-700 border-zinc-200 flex items-center gap-1">
-  <MessageSquare size={12} /> SMS
-</span>
+                          <span className="text-[10px] font-black uppercase px-2 py-1 rounded-full border bg-zinc-50 text-zinc-700 border-zinc-200 flex items-center gap-1">
+                            <MessageSquare size={12} /> SMS
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -613,14 +620,14 @@ const handleEnviarParaAnalise = async () => {
                 </div>
               )}
 
-{!cpfIsRegular && (
-  <div className="print:hidden flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-100">
-    <AlertTriangle size={16} className="text-amber-700 mt-0.5" />
-    <p className="text-[11px] font-bold text-amber-800 uppercase leading-snug">
-      CPF não REGULAR — proposta enviada mesmo assim (SMS enviado).
-    </p>
-  </div>
-)}
+              {!cpfIsRegular && (
+                <div className="print:hidden flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-100">
+                  <AlertTriangle size={16} className="text-amber-700 mt-0.5" />
+                  <p className="text-[11px] font-bold text-amber-800 uppercase leading-snug">
+                    CPF não REGULAR — proposta enviada mesmo assim (SMS enviado).
+                  </p>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 md:grid-cols-4 gap-x-6 gap-y-4 text-xs">
                 <div className="md:col-span-2">
@@ -738,7 +745,8 @@ const handleEnviarParaAnalise = async () => {
                 <div className="flex justify-between items-center p-3 border-b border-zinc-100">
                   <span className="text-xs font-bold text-zinc-500 uppercase">Ato / Entrada</span>
                   <div className="flex-1 border-b border-dotted border-zinc-300 mx-4 relative top-1 hidden md:block"></div>
-                  <span className="font-mono font-bold text-zinc-900">{formatMoney(dados.entrada)}</span>
+                  {/* ✅ AGORA: sempre a 1ª parcela integral */}
+                  <span className="font-mono font-bold text-zinc-900">{formatMoney(atoEntrada)}</span>
                 </div>
 
                 {lanceInfo.hasLance ? (
@@ -779,8 +787,6 @@ const handleEnviarParaAnalise = async () => {
                     </span>
                   </div>
                 ) : null}
-
-                {/* ✅ REMOVIDO: "TOTAL FINAL ESTIMADO" */}
               </div>
 
               {promo.hasPromo ? (

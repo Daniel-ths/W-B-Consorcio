@@ -45,9 +45,9 @@ const validateEmail = (email: string) => {
   return re.test(email);
 };
 
-// --- TELEFONE FIXO +55 (91) ---
-const PHONE_PREFIX_DISPLAY = "+55 (91) ";
-const PHONE_PREFIX_E164 = "+5591";
+// --- TELEFONE FIXO +55  ---
+const PHONE_PREFIX_DISPLAY = "+55";
+const PHONE_PREFIX_E164 = "+55";
 
 const maskPhoneAfterPrefix = (value: string) => {
   const digits = value.replace(/\D/g, "").slice(0, 9);
@@ -980,7 +980,7 @@ export default function CamaroPage() {
                       className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
                         ${errors.clientPhone ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
                       `}
-                      placeholder="+55 (91) 9XXXX-XXXX"
+                      placeholder="+55 XXXX-XXXX"
                     />
                     {errors.clientPhone && (
                       <p className="text-red-500 text-xs mt-1 flex items-center gap-1">

@@ -132,15 +132,15 @@ const CATEGORIES = [
     id: "hatches",
     label: "Hatches",
     carImage:
-      "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/spin.avif",
+      "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/eletricos/onix%20(1).avif",
     link: "/hatches",
     dbKeywords: ["hatch", "onix hatch", "onix", "hb"],
   },
   {
     id: "sedans",
-    label: "Sedans",
+    label: "Sedans", 
     carImage:
-      "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/eletricos/onix%20(1).avif",
+      "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/onixplus.avif",
     link: "/sedans",
     dbKeywords: ["sedan", "onix plus", "cruze", "cruze sedan", "plus"],
   },
@@ -212,15 +212,29 @@ export default function VehicleDiscovery() {
   }, [activeTab]);
 
   // ✅ Filtra DB por keywords (category name + model)
-  const filteredDbVehicles = useMemo(() => {
-    const keywords = currentCategory.dbKeywords || [];
-    if (!keywords.length) return [];
+const filteredDbVehicles = useMemo(() => {
+  // helper: categoria do banco normalizada
+  const cat = (v: DbVehicle) => norm(v.categories?.name || "");
+  const model = (v: DbVehicle) => norm(v.model_name || "");
 
-    return dbVehicles.filter((v) => {
-      const search = norm(`${v.categories?.name || ""} ${v.model_name || ""}`);
-      return keywords.some((k) => search.includes(norm(k)));
-    });
-  }, [dbVehicles, currentCategory]);
+  // ✅ REGRA FORTE para Hatch/Sedan: usa a categoria do banco
+  if (activeTab === "Hatches") {
+    return dbVehicles.filter((v) => cat(v).includes("hatch"));
+  }
+
+  if (activeTab === "Sedans") {
+    return dbVehicles.filter((v) => cat(v).includes("sedan"));
+  }
+
+  // ✅ Demais abas: mantém seu filtro por keywords (categoria + nome)
+  const keywords = currentCategory.dbKeywords || [];
+  if (!keywords.length) return [];
+
+  return dbVehicles.filter((v) => {
+    const search = norm(`${v.categories?.name || ""} ${v.model_name || ""}`);
+    return keywords.some((k) => search.includes(norm(k)));
+  });
+}, [dbVehicles, currentCategory, activeTab]);
 
   // ✅ Dedup DB vs LPs (remove duplicados)
   const dedupedDbVehicles = useMemo(() => {

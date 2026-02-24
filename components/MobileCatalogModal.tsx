@@ -1,16 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { ArrowLeft, X, ChevronRight, Search } from "lucide-react";
 
 // --- CONFIG DA ORDEM / CATEGORIAS ---
+// ✅ FIX: separa Hatch e Sedan (igual os outros)
 const MENU_ORDER = [
   { label: "Elétricos", dbKeywords: ["eletrico", "elétrico", "ev", "bolt"] },
   { label: "SUVs", dbKeywords: ["suv", "tracker", "equinox", "trailblazer", "spin"] },
   { label: "Picapes", dbKeywords: ["picape", "pickup", "montana", "s10", "silverado"] },
-  { label: "Hatches e Sedans", dbKeywords: ["hatch", "sedan", "onix", "cruze", "compacto"] },
+
+  // ✅ dividido:
+  { label: "Hatches", dbKeywords: ["hatch", "onix", "hatchback", "compacto"] },
+  { label: "Sedans", dbKeywords: ["sedan", "cruze", "sedan"] },
+
   { label: "Esportivos", dbKeywords: ["esportivo", "camaro", "corvette", "ss"] },
   { label: "Seminovos", dbKeywords: [] },
 ];
@@ -22,8 +27,7 @@ const ELECTRIC_LP_CARDS = [
   {
     title: "Captiva EV",
     href: "/eletricos/captiva-ev",
-    coverImage:
-      "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/eletricos/222.png",
+    coverImage: "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/eletricos/222.png",
   },
   {
     title: "Equinox EV",
@@ -64,8 +68,7 @@ const SUV_LP_CARDS = [
   {
     title: "Spin",
     href: "/suvs/spin",
-    coverImage:
-      "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/suv/spin/Branco%20Summit.png",
+    coverImage: "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/suv/spin/Branco%20Summit.png",
   },
 ];
 
@@ -73,8 +76,7 @@ const PICKUP_LP_CARDS = [
   {
     title: "S10",
     href: "/picapes/s10",
-    coverImage:
-      "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/s10/Branco%20Summit.png",
+    coverImage: "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/s10/Branco%20Summit.png",
   },
   {
     title: "Silverado",
@@ -116,12 +118,7 @@ function FixedGrid({
   return (
     <div className="grid grid-cols-2 gap-4">
       {cards.map((c) => (
-        <Link
-          key={c.href}
-          href={c.href}
-          onClick={onNavigate}
-          className="block text-center"
-        >
+        <Link key={c.href} href={c.href} onClick={onNavigate} className="block text-center">
           <div className="h-24 bg-gray-50 rounded-xl mb-2 flex items-center justify-center overflow-hidden">
             <img src={c.coverImage} alt={c.title} className="w-full h-full object-contain p-2" />
           </div>
@@ -143,6 +140,9 @@ export default function MobileCatalogModal({ open, onClose }: Props) {
   // busca (opcional) dentro da lista de carros
   const [search, setSearch] = useState("");
 
+  // ✅ FIX SCROLL JUMP: scroll container + trava scroll do body (iOS/Android)
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+
   // reset quando abre/fecha
   useEffect(() => {
     if (!open) {
@@ -151,6 +151,39 @@ export default function MobileCatalogModal({ open, onClose }: Props) {
       setSearch("");
     }
   }, [open]);
+
+  // ✅ Trava scroll do body quando modal abre (evita "puxar pra cima" / bounce)
+  useEffect(() => {
+    if (!open) return;
+
+    const prevOverflow = document.documentElement.style.overflow;
+    const prevOverscroll = (document.documentElement.style as any).overscrollBehaviorY;
+
+    document.documentElement.style.overflow = "hidden";
+    (document.documentElement.style as any).overscrollBehaviorY = "contain";
+
+    // iOS: previne scroll do body quando tenta rolar o modal
+    const prevent = (e: TouchEvent) => {
+      // se o toque NÃO começou dentro do container scrollável, bloqueia
+      if (!scrollRef.current) return;
+      if (!scrollRef.current.contains(e.target as Node)) e.preventDefault();
+    };
+    document.addEventListener("touchmove", prevent, { passive: false });
+
+    return () => {
+      document.documentElement.style.overflow = prevOverflow;
+      (document.documentElement.style as any).overscrollBehaviorY = prevOverscroll || "";
+      document.removeEventListener("touchmove", prevent as any);
+    };
+  }, [open]);
+
+  // ✅ sempre que muda step/categoria, força scroll pro topo do container (evita voltar sozinho)
+  useEffect(() => {
+    if (!open) return;
+    requestAnimationFrame(() => {
+      if (scrollRef.current) scrollRef.current.scrollTop = 0;
+    });
+  }, [open, step, selectedLabel]);
 
   useEffect(() => {
     if (!open) return;
@@ -186,34 +219,53 @@ export default function MobileCatalogModal({ open, onClose }: Props) {
       "Esportivos": SPORT_LP_CARDS.map((c) => norm(c.title)),
       "SUVs": SUV_LP_CARDS.map((c) => norm(c.title)),
       "Picapes": PICKUP_LP_CARDS.map((c) => norm(c.title)),
+      // ✅ Hatches/Sedans sem cards fixos
+      "Hatches": [],
+      "Sedans": [],
     } as Record<string, string[]>;
   }, []);
 
-  const filteredVehicles = useMemo(() => {
-    if (selectedLabel === "Seminovos") return [];
+const filteredVehicles = useMemo(() => {
+  if (selectedLabel === "Seminovos") return [];
 
-    const config = MENU_ORDER.find((c) => c.label === selectedLabel);
-    if (!config) return [];
+  const config = MENU_ORDER.find((c) => c.label === selectedLabel);
+  if (!config) return [];
 
-    const fixedSet = new Set(fixedNames[selectedLabel] || []);
-    const term = search.trim().toLowerCase();
+  const fixedSet = new Set(fixedNames[selectedLabel] || []);
 
-    return vehicles
-      .filter((v) => {
-        const searchString = `${v.categories?.name || ""} ${v.model_name}`.toLowerCase();
-        const matchesCategory = config.dbKeywords.some((k) => searchString.includes(k));
-        const matchesSearch = !term || v.model_name?.toLowerCase().includes(term);
-        return matchesCategory && matchesSearch;
-      })
-      .filter((v) => {
-        const name = norm(v.model_name);
-        if (fixedSet.has(name)) return false;
-        for (const fx of fixedSet) {
-          if (fx && (name.includes(fx) || fx.includes(name))) return false;
-        }
-        return true;
-      });
-  }, [vehicles, selectedLabel, fixedNames, search]);
+  // helpers
+  const cat = (v: any) => norm(v?.categories?.name || "");
+  const model = (v: any) => norm(v?.model_name || "");
+
+  const matchesCategory = (v: any) => {
+    // ✅ REGRA FORTE: Hatch/Sedan vem do BANCO (categories.name)
+    if (selectedLabel === "Hatches") {
+      return cat(v).includes("hatch");
+    }
+    if (selectedLabel === "Sedans") {
+      return cat(v).includes("sedan");
+    }
+
+    // ✅ resto continua por keywords (como você já fazia)
+    const searchString = `${cat(v)} ${model(v)}`; // já normalizado
+    return (config.dbKeywords || []).some((kw) => searchString.includes(norm(kw)));
+  };
+
+  const removeFixedDuplicates = (v: any) => {
+    const name = norm(v.model_name);
+    if (fixedSet.has(name)) return false;
+
+    // mantém sua lógica “fuzzy” contra LP
+    for (const fx of fixedSet) {
+      if (fx && (name.includes(fx) || fx.includes(name))) return false;
+    }
+    return true;
+  };
+
+  return vehicles
+    .filter(matchesCategory)
+    .filter(removeFixedDuplicates);
+}, [selectedLabel, vehicles, fixedNames]);
 
   const fixedCardsForSelected = useMemo(() => {
     if (selectedLabel === "Elétricos") return ELECTRIC_LP_CARDS;
@@ -236,7 +288,11 @@ export default function MobileCatalogModal({ open, onClose }: Props) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[9999] bg-white">
+    <div
+      className="fixed inset-0 z-[9999] bg-white"
+      // ✅ iOS: melhor comportamento de rolagem no modal
+      style={{ WebkitOverflowScrolling: "touch" }}
+    >
       {/* Top bar */}
       <div className="h-14 border-b border-slate-100 flex items-center justify-between px-4">
         <div className="flex items-center gap-2">
@@ -253,26 +309,24 @@ export default function MobileCatalogModal({ open, onClose }: Props) {
           )}
 
           <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-              Catálogo
-            </p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Catálogo</p>
             <p className="text-sm font-black text-slate-900 leading-tight">
               {step === "categories" ? "Categorias" : selectedLabel}
             </p>
           </div>
         </div>
 
-        <button
-          onClick={onClose}
-          className="p-2 rounded-full hover:bg-slate-100"
-          aria-label="Fechar"
-        >
+        <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100" aria-label="Fechar">
           <X size={18} />
         </button>
       </div>
 
       {/* Content */}
-      <div className="h-[calc(100vh-56px)] overflow-y-auto">
+      {/* ✅ FIX: usa dvh (melhor no mobile) + overscroll-contain + touch-pan */}
+      <div
+        ref={scrollRef}
+        className="h-[calc(100dvh-56px)] overflow-y-auto overscroll-contain touch-pan-y"
+      >
         {step === "categories" ? (
           <div className="p-4">
             <div className="grid grid-cols-1 gap-3">
@@ -283,12 +337,8 @@ export default function MobileCatalogModal({ open, onClose }: Props) {
                   className="w-full flex items-center justify-between p-4 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-white transition-colors"
                 >
                   <div className="text-left">
-                    <p className="text-xs font-black uppercase text-slate-900">
-                      {item.label}
-                    </p>
-                    <p className="text-[11px] text-slate-500 font-bold mt-1">
-                      Toque para ver modelos
-                    </p>
+                    <p className="text-xs font-black uppercase text-slate-900">{item.label}</p>
+                    <p className="text-[11px] text-slate-500 font-bold mt-1">Toque para ver modelos</p>
                   </div>
                   <ChevronRight size={18} className="text-slate-400" />
                 </button>
@@ -311,9 +361,7 @@ export default function MobileCatalogModal({ open, onClose }: Props) {
             {selectedLabel === "Seminovos" ? (
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 text-center">
                 <p className="text-sm font-black uppercase text-slate-900">Seminovos</p>
-                <p className="text-xs text-slate-500 font-bold mt-2">
-                  Qualidade certificada Chevrolet
-                </p>
+                <p className="text-xs text-slate-500 font-bold mt-2">Qualidade certificada Chevrolet</p>
                 <Link
                   href="/vendedor/seminovos"
                   onClick={closeAndNavigate}
@@ -331,9 +379,7 @@ export default function MobileCatalogModal({ open, onClose }: Props) {
 
                 {/* DB */}
                 <div className="pt-2">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
-                    Modelos
-                  </p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Modelos</p>
 
                   {loading ? (
                     <div className="grid grid-cols-2 gap-4 animate-pulse">
@@ -346,7 +392,7 @@ export default function MobileCatalogModal({ open, onClose }: Props) {
                       Nenhum modelo encontrado.
                     </div>
                   ) : (
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 gap-4 pb-10">
                       {filteredVehicles.map((car) => (
                         <Link
                           key={car.id}
@@ -359,6 +405,7 @@ export default function MobileCatalogModal({ open, onClose }: Props) {
                               src={(car.image_url || "").trim()}
                               alt={car.model_name}
                               className="w-full h-full object-contain p-2"
+                              loading="lazy"
                             />
                           </div>
                           <p className="text-[11px] font-black uppercase text-slate-900 leading-tight">

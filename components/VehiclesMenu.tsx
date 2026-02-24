@@ -6,11 +6,16 @@ import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 
 // --- CONFIGURAÇÃO DA ORDEM DO MENU ---
+// ✅ FIX: separa "Hatches e Sedans" em duas categorias
 const MENU_ORDER = [
   { label: "Elétricos", dbKeywords: ["eletrico", "elétrico", "ev", "bolt"] },
   { label: "SUVs", dbKeywords: ["suv", "tracker", "equinox", "trailblazer", "spin"] },
   { label: "Picapes", dbKeywords: ["picape", "pickup", "montana", "s10", "silverado"] },
-  { label: "Hatches e Sedans", dbKeywords: ["hatch", "sedan", "onix", "cruze", "compacto"] },
+
+  // ✅ dividido:
+  { label: "Hatches", dbKeywords: ["hatch", "hatchback", "onix", "compacto"] },
+  { label: "Sedans", dbKeywords: ["sedan", "cruze"] },
+
   { label: "Esportivos", dbKeywords: ["esportivo", "camaro", "corvette", "ss"] },
   { label: "Seminovos", dbKeywords: [] },
 ];
@@ -133,7 +138,12 @@ function FixedCardsGrid({
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 w-full">
       {cards.map((card) => (
-        <Link key={card.href} href={card.href} onClick={onClose} className="group block text-center relative">
+        <Link
+          key={card.href}
+          href={card.href}
+          onClick={onClose}
+          className="group block text-center relative"
+        >
           <div className="h-32 bg-gray-50 rounded-lg mb-4 flex items-center justify-center overflow-hidden mix-blend-multiply group-hover:bg-gray-100 transition-colors">
             <img
               src={(card.coverImage || "").trim()}
@@ -191,34 +201,56 @@ export default function VehiclesMenu({ onClose }: VehiclesMenuProps) {
       "Elétricos": ELECTRIC_LP_CARDS.map((c) => norm(c.title)),
       "Esportivos": SPORT_LP_CARDS.map((c) => norm(c.title)),
       "SUVs": SUV_LP_CARDS.map((c) => norm(c.title)),
-      "Picapes": PICKUP_LP_CARDS.map((c) => norm(c.title)), // ✅ ADICIONADO
+      "Picapes": PICKUP_LP_CARDS.map((c) => norm(c.title)),
+
+      // ✅ novas categorias (não têm LP fixo)
+      "Hatches": [],
+      "Sedans": [],
     };
     return byLabel;
   }, []);
 
-  const filteredVehicles = useMemo(() => {
-    if (selectedLabel === "Seminovos") return [];
+const filteredVehicles = useMemo(() => {
+  if (selectedLabel === "Seminovos") return [];
 
-    const config = MENU_ORDER.find((c) => c.label === selectedLabel);
-    if (!config) return [];
+  const config = MENU_ORDER.find((c) => c.label === selectedLabel);
+  if (!config) return [];
 
-    const fixedSet = new Set(fixedNames[selectedLabel] || []);
+  const fixedSet = new Set(fixedNames[selectedLabel] || []);
 
-    return vehicles
-      .filter((v) => {
-        const searchString = `${v.categories?.name || ""} ${v.model_name}`.toLowerCase();
-        return config.dbKeywords.some((keyword) => searchString.includes(keyword));
-      })
-      .filter((v) => {
-        // remove duplicados (se já existe LP)
-        const name = norm(v.model_name);
-        if (fixedSet.has(name)) return false;
-        for (const fx of fixedSet) {
-          if (fx && (name.includes(fx) || fx.includes(name))) return false;
-        }
-        return true;
-      });
-  }, [selectedLabel, vehicles, fixedNames]);
+  // helpers
+  const cat = (v: any) => norm(v?.categories?.name || "");
+  const model = (v: any) => norm(v?.model_name || "");
+
+  const matchesCategory = (v: any) => {
+    // ✅ REGRA FORTE: Hatch/Sedan vem do BANCO (categories.name)
+    if (selectedLabel === "Hatches") {
+      return cat(v).includes("hatch");
+    }
+    if (selectedLabel === "Sedans") {
+      return cat(v).includes("sedan");
+    }
+
+    // ✅ resto continua por keywords (como você já fazia)
+    const searchString = `${cat(v)} ${model(v)}`; // já normalizado
+    return (config.dbKeywords || []).some((kw) => searchString.includes(norm(kw)));
+  };
+
+  const removeFixedDuplicates = (v: any) => {
+    const name = norm(v.model_name);
+    if (fixedSet.has(name)) return false;
+
+    // mantém sua lógica “fuzzy” contra LP
+    for (const fx of fixedSet) {
+      if (fx && (name.includes(fx) || fx.includes(name))) return false;
+    }
+    return true;
+  };
+
+  return vehicles
+    .filter(matchesCategory)
+    .filter(removeFixedDuplicates);
+}, [selectedLabel, vehicles, fixedNames]);
 
   // --- SKELETON LOADING ---
   if (loading)

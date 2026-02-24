@@ -41,9 +41,9 @@ const formatCurrency = (val: number) => {
   }).format(val || 0);
 };
 
-// --- TELEFONE FIXO +55 (91) ---
-const PHONE_PREFIX_DISPLAY = "+55 (91) ";
-const PHONE_PREFIX_E164 = "+5591";
+// --- TELEFONE FIXO +55  ---
+const PHONE_PREFIX_DISPLAY = "+55 ";
+const PHONE_PREFIX_E164 = "+55";
 
 // Formata SOMENTE o que vem depois do prefixo (9 dígitos): 9XXXX-XXXX
 const maskPhoneAfterPrefix = (value: string) => {
@@ -57,7 +57,7 @@ const maskPhoneAfterPrefix = (value: string) => {
 // Extrai os dígitos (9) que o vendedor digitou (após o prefixo)
 const getPhoneDigitsAfterPrefix = (fullValue: string) => {
   const digits = fullValue.replace(/\D/g, "");
-  // Se estiver no formato "+55 (91) 9....", os dígitos começam com 5591
+  // Se estiver no formato "+55 9....", os dígitos começam com 5591
   if (digits.startsWith("5591")) return digits.slice(4).slice(0, 9);
   // fallback: se alguém colar só "9...."
   return digits.slice(0, 9);
@@ -407,7 +407,7 @@ export default function OrderSummary({
                           className={`w-full h-12 px-4 border rounded focus:outline-none transition-all text-sm
                             ${errors.clientPhone ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
                           `}
-                          placeholder="+55 (91) 9XXXX-XXXX"
+                          placeholder="+55 XXXX-XXXX"
                         />
                         {errors.clientPhone && (
                           <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
