@@ -132,32 +132,33 @@ export default function OrderSummary({
   // ✅ AGORA: permite digitar/colar DDD + número completo
   // - mantém prefixo +55 sempre
   // - mascara em "(DD) 9XXXX-XXXX" / "(DD) XXXX-XXXX"
-  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const typed = e.target.value || "";
+const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const typed = e.target.value || "";
 
-    // garante prefixo
-    let rest = typed.startsWith(PHONE_PREFIX_DISPLAY)
-      ? typed.slice(PHONE_PREFIX_DISPLAY.length)
-      : typed.replace(PHONE_PREFIX_DISPLAY, "");
+  // Se o usuário apagar tudo
+  if (typed.trim() === "" || typed === PHONE_PREFIX_DISPLAY) {
+    setClientPhone(PHONE_PREFIX_DISPLAY);
+    return;
+  }
 
-    // se o usuário apagar tudo, mantemos o prefixo
-    const digitsRest = onlyDigits(rest);
+  let digits = typed.replace(/\D/g, "");
 
-    // limitar em DDD(2)+numero(9)=11
-    const national = digitsRest.slice(0, 11);
+  // Remove 55 se colarem junto
+  if (digits.startsWith("55")) digits = digits.slice(2);
 
-    // se ainda não tem nada, fica só +55
-    if (!national) {
-      setClientPhone(PHONE_PREFIX_DISPLAY);
-      if (errors.clientPhone) setErrors({ ...errors, clientPhone: "" });
-      return;
-    }
+  digits = digits.slice(0, 11); // DDD + 9
 
-    const masked = maskPhoneBR(national);
-    setClientPhone(PHONE_PREFIX_DISPLAY + masked);
+  const ddd = digits.slice(0, 2);
+  const num = digits.slice(2);
 
-    if (errors.clientPhone) setErrors({ ...errors, clientPhone: "" });
-  };
+  let formatted = "";
+
+  if (digits.length <= 2) formatted = `(${ddd}`;
+  else if (num.length <= 5) formatted = `(${ddd}) ${num}`;
+  else formatted = `(${ddd}) ${num.slice(0, 5)}-${num.slice(5)}`;
+
+  setClientPhone(PHONE_PREFIX_DISPLAY + formatted);
+};
 
   const handleFinishOrder = async () => {
     let newErrors = { clientName: "", clientCpf: "", clientEmail: "", clientPhone: "" };

@@ -231,18 +231,33 @@ export default function EquinoxEVPage() {
     if (errors.clientCpf) setErrors({ ...errors, clientCpf: "" });
   };
 
-  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const typed = e.target.value;
+const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const typed = e.target.value || "";
 
-    let after = typed.startsWith(PHONE_PREFIX_DISPLAY)
-      ? typed.slice(PHONE_PREFIX_DISPLAY.length)
-      : typed.replace(PHONE_PREFIX_DISPLAY, "");
+  // Se o usuário apagar tudo
+  if (typed.trim() === "" || typed === PHONE_PREFIX_DISPLAY) {
+    setClientPhone(PHONE_PREFIX_DISPLAY);
+    return;
+  }
 
-    const maskedAfter = maskPhoneAfterPrefix(after);
-    setClientPhone(PHONE_PREFIX_DISPLAY + maskedAfter);
+  let digits = typed.replace(/\D/g, "");
 
-    if (errors.clientPhone) setErrors({ ...errors, clientPhone: "" });
-  };
+  // Remove 55 se colarem junto
+  if (digits.startsWith("55")) digits = digits.slice(2);
+
+  digits = digits.slice(0, 11); // DDD + 9
+
+  const ddd = digits.slice(0, 2);
+  const num = digits.slice(2);
+
+  let formatted = "";
+
+  if (digits.length <= 2) formatted = `(${ddd}`;
+  else if (num.length <= 5) formatted = `(${ddd}) ${num}`;
+  else formatted = `(${ddd}) ${num.slice(0, 5)}-${num.slice(5)}`;
+
+  setClientPhone(PHONE_PREFIX_DISPLAY + formatted);
+};
 
   // ✅ todos CTAs chamam isso (não navega mais pro analise direto)
   const goPrimary = () => scrollToId(orderSectionId);

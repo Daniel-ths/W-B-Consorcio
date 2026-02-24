@@ -243,30 +243,33 @@ export default function S10Page() {
   };
 
   // ✅ agora permite DDD + número completo
-  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const typed = e.target.value || "";
+const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const typed = e.target.value || "";
 
-    // garante prefixo
-    let rest = typed.startsWith(PHONE_PREFIX_DISPLAY)
-      ? typed.slice(PHONE_PREFIX_DISPLAY.length)
-      : typed.replace(PHONE_PREFIX_DISPLAY, "");
+  // Se o usuário apagar tudo
+  if (typed.trim() === "" || typed === PHONE_PREFIX_DISPLAY) {
+    setClientPhone(PHONE_PREFIX_DISPLAY);
+    return;
+  }
 
-    const digitsRest = onlyDigits(rest);
+  let digits = typed.replace(/\D/g, "");
 
-    // limitar em DDD(2)+numero(9)=11
-    const national = digitsRest.slice(0, 11);
+  // Remove 55 se colarem junto
+  if (digits.startsWith("55")) digits = digits.slice(2);
 
-    // se apagou tudo, mantém só +55
-    if (!national) {
-      setClientPhone(PHONE_PREFIX_DISPLAY);
-      if (errors.clientPhone) setErrors({ ...errors, clientPhone: "" });
-      return;
-    }
+  digits = digits.slice(0, 11); // DDD + 9
 
-    setClientPhone(PHONE_PREFIX_DISPLAY + maskPhoneBR(national));
+  const ddd = digits.slice(0, 2);
+  const num = digits.slice(2);
 
-    if (errors.clientPhone) setErrors({ ...errors, clientPhone: "" });
-  };
+  let formatted = "";
+
+  if (digits.length <= 2) formatted = `(${ddd}`;
+  else if (num.length <= 5) formatted = `(${ddd}) ${num}`;
+  else formatted = `(${ddd}) ${num.slice(0, 5)}-${num.slice(5)}`;
+
+  setClientPhone(PHONE_PREFIX_DISPLAY + formatted);
+};
 
   // ✅ todos CTAs chamam isso (não navega mais pro analise direto)
   const goPrimary = () => scrollToId(orderSectionId);

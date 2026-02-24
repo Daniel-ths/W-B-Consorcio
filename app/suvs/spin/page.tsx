@@ -233,21 +233,33 @@ export default function SpinElectricStylePage() {
   };
 
   // ✅ TELEFONE com DDD (corrigido)
-  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const typed = e.target.value || "";
+ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const typed = e.target.value || "";
 
-    // garante que sempre começa com +55 (mesmo se o usuário apagar)
-    const normalized = typed.startsWith(PHONE_PREFIX_DISPLAY)
-      ? typed
-      : PHONE_PREFIX_DISPLAY + typed.replace(/\D/g, "");
+  // Se o usuário apagar tudo
+  if (typed.trim() === "" || typed === PHONE_PREFIX_DISPLAY) {
+    setClientPhone(PHONE_PREFIX_DISPLAY);
+    return;
+  }
 
-    const afterPrefix = normalized.slice(PHONE_PREFIX_DISPLAY.length);
-    const maskedAfter = maskPhoneAfterPrefix(afterPrefix);
+  let digits = typed.replace(/\D/g, "");
 
-    setClientPhone(PHONE_PREFIX_DISPLAY + maskedAfter);
+  // Remove 55 se colarem junto
+  if (digits.startsWith("55")) digits = digits.slice(2);
 
-    if (errors.clientPhone) setErrors({ ...errors, clientPhone: "" });
-  };
+  digits = digits.slice(0, 11); // DDD + 9
+
+  const ddd = digits.slice(0, 2);
+  const num = digits.slice(2);
+
+  let formatted = "";
+
+  if (digits.length <= 2) formatted = `(${ddd}`;
+  else if (num.length <= 5) formatted = `(${ddd}) ${num}`;
+  else formatted = `(${ddd}) ${num.slice(0, 5)}-${num.slice(5)}`;
+
+  setClientPhone(PHONE_PREFIX_DISPLAY + formatted);
+};
 
   // ✅ todos CTAs chamam isso (não navega mais pro analise direto)
   const goPrimary = () => scrollToId(orderSectionId);
