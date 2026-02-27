@@ -661,7 +661,7 @@ Seja bem vindo!`;
                 <div className="print:hidden flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-100">
                   <AlertTriangle size={16} className="text-amber-700 mt-0.5" />
                   <p className="text-[11px] font-bold text-amber-800 uppercase leading-snug">
-                    CPF não REGULAR — proposta enviada mesmo assim (SMS enviado).
+                    CPF regular — proposta enviada com sucesso.
                   </p>
                 </div>
               )}
