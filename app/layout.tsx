@@ -10,8 +10,8 @@ import { ThemeProvider } from "@/components/theme-provider"; // 👈 IMPORTANTE
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Chevrolet | WB Auto",
-  description: "Concessionária Chevrolet",
+  title: "WB Auto | Portal Multimarca",
+  description: "Portal multimarca com experiências Chevrolet e Hyundai",
 };
 
 export default function RootLayout({

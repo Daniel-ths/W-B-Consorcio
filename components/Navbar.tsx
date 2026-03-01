@@ -18,14 +18,21 @@ import {
 } from "lucide-react";
 import VehiclesMenu from "./VehiclesMenu";
 import MobileCatalogModal from "./MobileCatalogModal"; // ✅ NOVO
+import { detectBrandFromPath, withBrandPath } from "@/lib/brand";
 
 // =====================================================================
 // 🔧 ÁREA DE CONFIGURAÇÃO DE IMAGENS
 // =====================================================================
-const LOGO_NAVBAR =
-  "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/chevrolet-logo.svg";
-const LOGO_SIDEBAR =
-  "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/parceirologo.png";
+const BRAND_ASSETS = {
+  chevrolet: {
+    logoNavbar: "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/chevrolet-logo.svg",
+    logoSidebar: "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/parceirologo.png",
+  },
+  hyundai: {
+    logoNavbar: "https://upload.wikimedia.org/wikipedia/commons/4/44/Hyundai_Motor_Company_logo.svg",
+    logoSidebar: "https://upload.wikimedia.org/wikipedia/commons/4/44/Hyundai_Motor_Company_logo.svg",
+  },
+};
 // =====================================================================
 
 export default function Navbar() {
@@ -44,6 +51,8 @@ export default function Navbar() {
 
   const router = useRouter();
   const pathname = usePathname();
+  const activeBrand = detectBrandFromPath(pathname);
+  const brandAssets = BRAND_ASSETS[activeBrand];
 
   // 👇 evita bug de closure (listener comparando com user antigo)
   const currentUserIdRef = useRef<string | null>(null);
@@ -231,7 +240,7 @@ export default function Navbar() {
         {/* CENTRO */}
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
           <Link
-            href="/"
+            href={withBrandPath("/", activeBrand)}
             onClick={() => {
               setMenuAberto(null);
               setCatalogOpen(false);
@@ -239,7 +248,7 @@ export default function Navbar() {
             className="block"
           >
             <img
-              src={LOGO_NAVBAR}
+              src={brandAssets.logoNavbar}
               alt="Logo"
               className="h-6 lg:h-8 w-auto object-contain hover:opacity-80 transition-opacity"
             />
@@ -248,6 +257,10 @@ export default function Navbar() {
 
         {/* DIREITA */}
         <div className="flex items-center gap-4">
+          <div className="hidden md:flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest">
+            <Link href="/chevrolet" className={`px-2 py-1 rounded ${activeBrand === "chevrolet" ? "bg-black text-white" : "text-gray-500"}`}>Chevrolet</Link>
+            <Link href="/hyundai" className={`px-2 py-1 rounded ${activeBrand === "hyundai" ? "bg-black text-white" : "text-gray-500"}`}>Hyundai</Link>
+          </div>
           <div className="hidden lg:block">
             {loading ? (
               <div className="w-8 h-8 rounded-full bg-gray-200 animate-pulse" />
@@ -347,7 +360,7 @@ export default function Navbar() {
         }`}
       >
         <div className="flex justify-between items-center p-6 border-b border-gray-100 h-20">
-          <img src={LOGO_SIDEBAR} alt="Logo" className="h-12 w-auto object-contain" />
+          <img src={brandAssets.logoSidebar} alt="Logo" className="h-12 w-auto object-contain" />
           <button
             onClick={() => setSidebarOpen(false)}
             className="p-2 bg-gray-50 rounded-full hover:bg-gray-100 text-gray-500 hover:text-black transition-colors"
