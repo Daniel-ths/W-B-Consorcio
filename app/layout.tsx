@@ -2,16 +2,14 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 
-import Navbar from "@/components/Navbar";
-import FooterWrapper from "@/components/FooterWrapper";
 import { AuthProvider } from "@/contexts/AuthContext";
-import { ThemeProvider } from "@/components/theme-provider"; // 👈 IMPORTANTE
+import { ThemeProvider } from "@/components/theme-provider";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Chevrolet | WB Auto",
-  description: "Concessionária Chevrolet",
+  title: "WB Auto",
+  description: "Concessionária",
 };
 
 export default function RootLayout({
@@ -20,18 +18,10 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" suppressHydrationWarning>
       <body
-        className={`${inter.className} flex flex-col min-h-screen bg-white text-gray-900 dark:bg-zinc-950 dark:text-white transition-colors`}
+        className={`${inter.className} min-h-screen bg-white text-gray-900 dark:bg-zinc-950 dark:text-white transition-colors`}
       >
         <ThemeProvider>
-          <AuthProvider>
-            <Navbar />
-
-            <main className="flex-grow">
-              {children}
-            </main>
-
-            <FooterWrapper />
-          </AuthProvider>
+          <AuthProvider>{children}</AuthProvider>
         </ThemeProvider>
       </body>
     </html>

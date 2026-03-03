@@ -1077,10 +1077,16 @@ export default function AdminPage() {
     fetchVehicles();
   }
 
-  async function fetchVehicles() {
-    const { data: vecs } = await supabase.from("vehicles").select("*, categories(name)").order("created_at", { ascending: false });
-    if (vecs) setVehicleList(vecs);
-  }
+async function fetchVehicles() {
+  const { data: vecs, error } = await supabase
+    .from("vehicles")
+    .select("*, categories(name)")
+    .eq("brand", "chevrolet") // ✅ ISOLA O ADMIN DA CHEVROLET
+    .order("created_at", { ascending: false });
+
+  if (error) console.error("fetchVehicles error:", error);
+  if (vecs) setVehicleList(vecs);
+}
 
   // --- FUNÇÃO CENTRAL DE ABERTURA DA BIBLIOTECA ---
   const openLibraryFor = (callback: (url: string) => void) => {
@@ -1349,20 +1355,21 @@ export default function AdminPage() {
 
       const defaultSeatUrl = finalSeatTypes.length > 0 ? finalSeatTypes[0].image : seatsUrl;
 
-      const payload = {
-        model_name: formData.model_name,
-        slug: formData.slug,
-        price_start: parseMoney(price),
-        category_id: Number(formData.category_id),
-        is_visible: isVisible,
-        transmission_type: transmissionType,
-        image_url: mainUrl,
-        interior_images: { dash: dashUrl, dash_desc: dashDesc, seats: defaultSeatUrl, seats_desc: seatsDesc },
-        exterior_colors: finalColors,
-        wheels: finalWheels,
-        seat_types: finalSeatTypes,
-        accessories: finalAccessories,
-      };
+const payload = {
+  brand: "chevrolet", // ✅ FIXA A MARCA NO CADASTRO/EDIÇÃO
+  model_name: formData.model_name,
+  slug: formData.slug,
+  price_start: parseMoney(price),
+  category_id: Number(formData.category_id),
+  is_visible: isVisible,
+  transmission_type: transmissionType,
+  image_url: mainUrl,
+  interior_images: { dash: dashUrl, dash_desc: dashDesc, seats: defaultSeatUrl, seats_desc: seatsDesc },
+  exterior_colors: finalColors,
+  wheels: finalWheels,
+  seat_types: finalSeatTypes,
+  accessories: finalAccessories,
+};
 
       if (editingId) {
         const { error } = await supabase.from("vehicles").update(payload).eq("id", editingId);
@@ -1402,10 +1409,11 @@ export default function AdminPage() {
         else if (item.type === "acc_int") finalAccessories.push({ ...cleanItem, type: "interior" });
       }
 
-      const { error } = await supabase
-        .from("vehicles")
-        .update({ wheels: finalWheels, seat_types: finalSeatTypes, accessories: finalAccessories })
-        .ilike("model_name", `${baseName}%`);
+const { error } = await supabase
+  .from("vehicles")
+  .update({ wheels: finalWheels, seat_types: finalSeatTypes, accessories: finalAccessories })
+  .eq("brand", "chevrolet") // ✅ NÃO ENCOSTA NA HYUNDAI
+  .ilike("model_name", `${baseName}%`);
 
       if (error) throw error;
       alert(`Sucesso! Copiado para todos os ${baseName}.`);

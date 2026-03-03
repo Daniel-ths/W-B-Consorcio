@@ -1525,7 +1525,7 @@ export default function AdminDashboard() {
               </Link>
 
               <Link
-                href="/admin/cars/new"
+                href="/admin/cars/choose-brand"
                 className="text-xs bg-blue-50 text-blue-600 px-3 py-2 rounded-lg font-bold hover:bg-blue-100 flex items-center gap-2 border border-blue-100 w-full lg:w-auto justify-center"
               >
                 <Plus size={14} /> Add Veículo

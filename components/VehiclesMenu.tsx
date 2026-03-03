@@ -67,19 +67,19 @@ const SUV_LP_CARDS: Array<{
 }> = [
   {
     title: "Equinox Turbo",
-    href: "/suvs/equinox-turbo", // ajuste se sua rota for outra
+    href: "/suvs/equinox-turbo",
     coverImage:
       "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/suv/Equinox-turbo/Verde%20Cacti.png",
   },
   {
     title: "Trailblazer",
-    href: "/suvs/trailblazer", // ajuste se sua rota for outra
+    href: "/suvs/trailblazer",
     coverImage:
       "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/suv/Trailblazer/Preto%20Ouro%20Negro.png",
   },
   {
     title: "Spin",
-    href: "/suvs/spin", // ajuste se sua rota for outra
+    href: "/suvs/spin",
     coverImage:
       "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/suv/spin/Branco%20Summit.png",
   },
@@ -94,17 +94,15 @@ const PICKUP_LP_CARDS: Array<{
 }> = [
   {
     title: "S10",
-    href: "/picapes/s10", // ajuste se sua rota for outra
+    href: "/picapes/s10",
     coverImage:
       "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/s10/Branco%20Summit.png",
-    // priceStart: 0,
   },
   {
     title: "Silverado",
-    href: "/picapes/silverado", // ajuste se sua rota for outra
+    href: "/picapes/silverado",
     coverImage:
       "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/caminhonete/silverado/ver.png",
-    // priceStart: 0,
   },
 ];
 
@@ -177,22 +175,33 @@ export default function VehiclesMenu({ onClose }: VehiclesMenuProps) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let mounted = true;
+
     async function fetchData() {
       try {
+        // ✅ ISOLAMENTO CHEVROLET
+        // IMPORTANTE: brand no banco deve ser exatamente "chevrolet"
         const { data: vecs } = await supabase
           .from("vehicles")
           .select("*, categories(name)")
           .eq("is_visible", true)
+          .eq("brand", "chevrolet") // ✅ AQUI resolve a mistura
           .order("price_start", { ascending: true });
 
+        if (!mounted) return;
         if (vecs) setVehicles(vecs);
       } catch (error) {
         console.error("Erro ao buscar menu:", error);
       } finally {
+        if (!mounted) return;
         setTimeout(() => setLoading(false), 500);
       }
     }
+
     fetchData();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   // nomes das LPs pra remover duplicados no grid do DB
@@ -202,57 +211,46 @@ export default function VehiclesMenu({ onClose }: VehiclesMenuProps) {
       "Esportivos": SPORT_LP_CARDS.map((c) => norm(c.title)),
       "SUVs": SUV_LP_CARDS.map((c) => norm(c.title)),
       "Picapes": PICKUP_LP_CARDS.map((c) => norm(c.title)),
-
-      // ✅ novas categorias (não têm LP fixo)
       "Hatches": [],
       "Sedans": [],
     };
     return byLabel;
   }, []);
 
-const filteredVehicles = useMemo(() => {
-  if (selectedLabel === "Seminovos") return [];
+  const filteredVehicles = useMemo(() => {
+    if (selectedLabel === "Seminovos") return [];
 
-  const config = MENU_ORDER.find((c) => c.label === selectedLabel);
-  if (!config) return [];
+    const config = MENU_ORDER.find((c) => c.label === selectedLabel);
+    if (!config) return [];
 
-  const fixedSet = new Set(fixedNames[selectedLabel] || []);
+    const fixedSet = new Set(fixedNames[selectedLabel] || []);
 
-  // helpers
-  const cat = (v: any) => norm(v?.categories?.name || "");
-  const model = (v: any) => norm(v?.model_name || "");
+    const cat = (v: any) => norm(v?.categories?.name || "");
+    const model = (v: any) => norm(v?.model_name || "");
 
-  const matchesCategory = (v: any) => {
-    // ✅ REGRA FORTE: Hatch/Sedan vem do BANCO (categories.name)
-    if (selectedLabel === "Hatches") {
-      return cat(v).includes("hatch");
-    }
-    if (selectedLabel === "Sedans") {
-      return cat(v).includes("sedan");
-    }
+    const matchesCategory = (v: any) => {
+      if (selectedLabel === "Hatches") return cat(v).includes("hatch");
+      if (selectedLabel === "Sedans") return cat(v).includes("sedan");
 
-    // ✅ resto continua por keywords (como você já fazia)
-    const searchString = `${cat(v)} ${model(v)}`; // já normalizado
-    return (config.dbKeywords || []).some((kw) => searchString.includes(norm(kw)));
-  };
+      const searchString = `${cat(v)} ${model(v)}`;
+      return (config.dbKeywords || []).some((kw) =>
+        searchString.includes(norm(kw))
+      );
+    };
 
-  const removeFixedDuplicates = (v: any) => {
-    const name = norm(v.model_name);
-    if (fixedSet.has(name)) return false;
+    const removeFixedDuplicates = (v: any) => {
+      const name = norm(v.model_name);
+      if (fixedSet.has(name)) return false;
 
-    // mantém sua lógica “fuzzy” contra LP
-    for (const fx of fixedSet) {
-      if (fx && (name.includes(fx) || fx.includes(name))) return false;
-    }
-    return true;
-  };
+      for (const fx of fixedSet) {
+        if (fx && (name.includes(fx) || fx.includes(name))) return false;
+      }
+      return true;
+    };
 
-  return vehicles
-    .filter(matchesCategory)
-    .filter(removeFixedDuplicates);
-}, [selectedLabel, vehicles, fixedNames]);
+    return vehicles.filter(matchesCategory).filter(removeFixedDuplicates);
+  }, [selectedLabel, vehicles, fixedNames]);
 
-  // --- SKELETON LOADING ---
   if (loading)
     return (
       <div className="w-full bg-white border-t border-gray-200 shadow-xl pt-16">
@@ -296,7 +294,13 @@ const filteredVehicles = useMemo(() => {
                     : "text-gray-500 hover:bg-gray-50"
                 }`}
             >
-              <span className={item.label === "Seminovos" ? "border-l-4 border-transparent pl-0" : ""}>
+              <span
+                className={
+                  item.label === "Seminovos"
+                    ? "border-l-4 border-transparent pl-0"
+                    : ""
+                }
+              >
                 {item.label}
               </span>
               {selectedLabel === item.label && <ArrowRight size={16} />}
@@ -307,7 +311,6 @@ const filteredVehicles = useMemo(() => {
         {/* DIREITA: CONTEÚDO */}
         <div className="w-3/4 pl-12 flex items-center justify-center">
           {selectedLabel === "Seminovos" ? (
-            // BANNER SEMINOVOS
             <div className="animate-in fade-in slide-in-from-left-4 duration-300 w-full flex justify-center">
               <div className="w-full max-w-2xl bg-gray-50 p-12 text-center rounded-sm">
                 <img
@@ -334,7 +337,7 @@ const filteredVehicles = useMemo(() => {
             </div>
           ) : (
             <div className="w-full animate-in fade-in slide-in-from-left-4 duration-300">
-              {/* ✅ FIXOS POR CATEGORIA */}
+              {/* FIXOS POR CATEGORIA */}
               {selectedLabel === "Elétricos" ? (
                 <div className="mb-10">
                   <FixedCardsGrid cards={ELECTRIC_LP_CARDS} onClose={onClose} />
@@ -359,7 +362,7 @@ const filteredVehicles = useMemo(() => {
                 </div>
               ) : null}
 
-              {/* GRID NORMAL DO BANCO (sem duplicados) */}
+              {/* GRID DO BANCO */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 w-full">
                 {filteredVehicles.length > 0 ? (
                   filteredVehicles.map((car) => (
@@ -391,7 +394,7 @@ const filteredVehicles = useMemo(() => {
                     </Link>
                   ))
                 ) : (
-                  <div className="col-span-full text-center py-20 text-gray-400"></div>
+                  <div className="col-span-full text-center py-20 text-gray-400" />
                 )}
               </div>
             </div>
