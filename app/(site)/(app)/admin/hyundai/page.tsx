@@ -1,29 +1,15 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabase";
-import {
-  Plus,
-  Save,
-  Trash2,
-  Pencil,
-  Loader2,
-  Eye,
-  EyeOff,
-  UploadCloud,
-  X,
-  Image as ImageIcon,
-} from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-
-type BrandKey = "hyundai";
-const BRAND: BrandKey = "hyundai";
+import { supabase } from "@/lib/supabase";
 
 type VersionItem = {
   id: string;
   title: string;
   subtitle: string;
-  priceFormatted: string;
+  price: number;
   note?: string;
   heroLabel?: string;
 };
@@ -32,1077 +18,602 @@ type ColorVariant = {
   id: string;
   name: string;
   internal?: string;
-  extraPriceFormatted: string;
+  extraPrice?: number; // 0 ou >0
   swatch: string; // hex
-  file: File | null; // ✅ upload do carro nessa cor
-  preview: string | null; // preview local ou url existente
+  image_url: string; // ✅ PNG do carro nessa cor (fundo transparente)
 };
 
 type SpecGroup = {
   id: string;
-  title: string;
-  description?: string;
-  itemsText: string; // 1 por linha
+  title: string; // ex: "ESTILO EXTERIOR"
+  description?: string; // aparece ao expandir
+  items?: string[];
 };
 
-type AccessoryItem = {
-  id: string;
-  name: string;
-  type: "exterior" | "interior";
-  priceFormatted: string;
-  file: File | null;
-  preview: string | null;
+type VehicleRow = {
+  id: number;
+  model_name: string;
+  slug: string;
+  image_url?: string | null;
+  brand?: string | null;
+  is_visible?: boolean | null;
+  price_start?: number | null;
+
+  versions?: VersionItem[] | null;
+  colors?: ColorVariant[] | null; // ✅ tem que estar como colors
+  spec_groups?: SpecGroup[] | null;
+  highlights?: string[] | null;
 };
 
-const slugify = (v: string) =>
-  String(v || "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9 ]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-+|-+$/g, "");
+const HY_BLUE = "#00A3C8";
 
-const formatMoneyInput = (val: string) => {
-  const numbers = String(val || "").replace(/\D/g, "");
-  return new Intl.NumberFormat("pt-BR", {
+const money = (v: number) =>
+  new Intl.NumberFormat("pt-BR", {
     style: "currency",
     currency: "BRL",
-  }).format(Number(numbers) / 100);
-};
+    maximumFractionDigits: 0,
+  }).format(Number(v || 0));
 
-const parseMoney = (val: string) => {
-  if (!val) return 0;
-  return Number(String(val).replace(/[^0-9,-]+/g, "").replace(",", "."));
-};
+export default function HyundaiVehicleSlugPage() {
+  const params = useParams(); // ✅ sem genérico (evita treta de types)
+  const router = useRouter();
 
-async function uploadToSupabase(file: File | null, path: string, existingUrl: string | null) {
-  if (!file) return existingUrl;
+  const slug = useMemo(() => {
+    const raw = (params as any)?.slug;
+    return raw ? String(raw) : "";
+  }, [params]);
 
-  const cleanPath = path.replace(/[^a-zA-Z0-9\-\/]/g, "_").toLowerCase();
-  const fileExt = file.name.split(".").pop()?.toLowerCase() || "png";
-  const fileName = `${Date.now()}_${Math.random().toString(36).slice(2)}.${fileExt}`;
-  const finalPath = `${cleanPath}/${fileName}`;
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+  const [vehicle, setVehicle] = useState<VehicleRow | null>(null);
 
-  const { error } = await supabase.storage
-    .from("cars")
-    .upload(finalPath, file, { cacheControl: "3600", upsert: false });
+  // 1 = versão | 2 = cor
+  const [step, setStep] = useState<1 | 2>(1);
 
-  if (error) {
-    console.error("UPLOAD ERROR:", error);
-    return existingUrl;
-  }
+  const [selectedVersionId, setSelectedVersionId] = useState<string>("");
+  const [selectedColorId, setSelectedColorId] = useState<string>("");
 
-  const { data } = supabase.storage.from("cars").getPublicUrl(finalPath);
-  return data.publicUrl;
-}
+  const [openSpecId, setOpenSpecId] = useState<string | null>(null);
 
-function ImageUpload({
-  label,
-  previewUrl,
-  setFile,
-  accept,
-}: {
-  label: string;
-  previewUrl: string | null;
-  setFile: (f: File | null, url: string | null) => void;
-  accept?: string;
-}) {
-  return (
-    <div className="w-full">
-      <label className="block text-[10px] font-extrabold uppercase text-gray-500 mb-1">
-        {label}
-      </label>
-
-      <div
-        className={`relative h-32 rounded-xl border-2 border-dashed transition-all flex items-center justify-center overflow-hidden
-        ${
-          previewUrl
-            ? "border-green-500 bg-green-50/30"
-            : "border-gray-300 hover:border-sky-400 hover:bg-sky-50/40"
-        }`}
-      >
-        <input
-          type="file"
-          accept={accept || "image/*"}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) setFile(f, URL.createObjectURL(f));
-            e.target.value = "";
-          }}
-        />
-
-        {previewUrl ? (
-          <>
-            <img src={previewUrl} className="w-full h-full object-contain p-2" />
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                setFile(null, null);
-              }}
-              className="absolute top-2 right-2 bg-red-600 text-white p-2 rounded-full shadow active:scale-95 transition-transform"
-              title="Remover"
-            >
-              <X size={14} />
-            </button>
-          </>
-        ) : (
-          <div className="text-center text-gray-400">
-            <UploadCloud className="mx-auto mb-2" size={26} />
-            <div className="text-xs font-bold">Clique para enviar</div>
-            <div className="text-[10px] mt-1">PNG recomendado</div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-export default function HyundaiAdminPage() {
-  const [categories, setCategories] = useState<any[]>([]);
-  const [vehicles, setVehicles] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  const [editingId, setEditingId] = useState<number | null>(null);
-
-  const [modelName, setModelName] = useState("");
-  const [slug, setSlug] = useState("");
-  const [categoryId, setCategoryId] = useState("");
-  const [price, setPrice] = useState("R$ 0,00");
-  const [isVisible, setIsVisible] = useState(true);
-
-  // ✅ Imagem "default" (opcional) — pode ser a cor principal
-  const [mainImg, setMainImg] = useState<{ file: File | null; url: string | null }>({
-    file: null,
-    url: null,
-  });
-
-  // ✅ novos blocos
-  const [highlightsText, setHighlightsText] = useState("");
-  const [versions, setVersions] = useState<VersionItem[]>([]);
-  const [colorVariants, setColorVariants] = useState<ColorVariant[]>([]);
-  const [specGroups, setSpecGroups] = useState<SpecGroup[]>([]);
-  const [accessories, setAccessories] = useState<AccessoryItem[]>([]);
+  // animação imagem (troca por key)
+  const [imgKey, setImgKey] = useState(0);
 
   useEffect(() => {
-    loadInitial();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (!slug) return;
+    let mounted = true;
 
-  async function loadInitial() {
-    const { data: cats, error: catsErr } = await supabase.from("categories").select("*").order("name");
-    if (catsErr) console.error(catsErr);
-    if (cats) setCategories(cats);
+    (async () => {
+      setLoading(true);
+      setErr(null);
+      setVehicle(null);
 
-    await fetchHyundaiVehicles();
-  }
+      try {
+        const { data, error } = await supabase
+          .from("vehicles")
+          .select(
+            "id, model_name, slug, image_url, brand, is_visible, price_start, versions, colors, spec_groups, highlights"
+          )
+          .eq("brand", "hyundai")
+          .eq("slug", slug)
+          .maybeSingle();
 
-  async function fetchHyundaiVehicles() {
-    const { data, error } = await supabase
-      .from("vehicles")
-      .select("*, categories(name)")
-      .order("created_at", { ascending: false });
-
-    if (error) console.error(error);
-    const onlyHyundai = (data || []).filter((v: any) => String(v.brand || "chevrolet") === BRAND);
-    setVehicles(onlyHyundai);
-  }
-
-  const groupedByCategory = useMemo(() => {
-    return vehicles.reduce((acc: any, v: any) => {
-      const cat = v.categories?.name || "Outros";
-      if (!acc[cat]) acc[cat] = [];
-      acc[cat].push(v);
-      return acc;
-    }, {});
-  }, [vehicles]);
-
-  const resetForm = () => {
-    setEditingId(null);
-    setModelName("");
-    setSlug("");
-    setCategoryId("");
-    setPrice("R$ 0,00");
-    setIsVisible(true);
-    setMainImg({ file: null, url: null });
-
-    setHighlightsText("");
-    setVersions([]);
-    setColorVariants([]);
-    setSpecGroups([]);
-    setAccessories([]);
-  };
-
-  const startEditing = (v: any) => {
-    setEditingId(v.id);
-    setModelName(v.model_name || "");
-    setSlug(v.slug || "");
-    setCategoryId(String(v.category_id || ""));
-    setPrice(formatMoneyInput(String(v.price_start || 0) + "00"));
-    setIsVisible(v.is_visible !== false);
-    setMainImg({ file: null, url: v.image_url || null });
-
-    const h = Array.isArray(v.highlights) ? v.highlights : [];
-    setHighlightsText(h.join("\n"));
-
-    const vs = Array.isArray(v.versions) ? v.versions : [];
-    setVersions(
-      vs.map((x: any) => ({
-        id: x.id || crypto.randomUUID(),
-        title: x.title || "",
-        subtitle: x.subtitle || "",
-        priceFormatted: formatMoneyInput(String(x.price || 0) + "00"),
-        note: x.note || "",
-        heroLabel: x.heroLabel || "",
-      }))
-    );
-
-    // ✅ agora cores viram "variants" com imagem
-    const cv = Array.isArray(v.color_variants) ? v.color_variants : [];
-    setColorVariants(
-      cv.map((x: any) => ({
-        id: x.id || crypto.randomUUID(),
-        name: x.name || "",
-        internal: x.internal || "",
-        extraPriceFormatted: formatMoneyInput(String(x.extraPrice || 0) + "00"),
-        swatch: x.swatch || "#dddddd",
-        file: null,
-        preview: x.image_url || null,
-      }))
-    );
-
-    const sg = Array.isArray(v.spec_groups) ? v.spec_groups : [];
-    setSpecGroups(
-      sg.map((x: any) => ({
-        id: x.id || crypto.randomUUID(),
-        title: x.title || "",
-        description: x.description || "",
-        itemsText: Array.isArray(x.items) ? x.items.join("\n") : "",
-      }))
-    );
-
-    const list = Array.isArray(v.accessories) ? v.accessories : [];
-    setAccessories(
-      list.map((a: any) => ({
-        id: a.id || crypto.randomUUID(),
-        name: a.name || "",
-        type: a.type === "interior" ? "interior" : "exterior",
-        priceFormatted: formatMoneyInput(String(a.price || 0) + "00"),
-        file: null,
-        preview: a.image || null,
-      }))
-    );
-
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  // ===== Versions
-  const addVersion = () => {
-    setVersions((p) => [
-      ...p,
-      { id: crypto.randomUUID(), title: "", subtitle: "", priceFormatted: "R$ 0,00", note: "", heroLabel: "Exterior" },
-    ]);
-  };
-  const updateVersion = (id: string, patch: Partial<VersionItem>) => {
-    setVersions((p) => p.map((x) => (x.id === id ? { ...x, ...patch } : x)));
-  };
-  const removeVersion = (id: string) => setVersions((p) => p.filter((x) => x.id !== id));
-
-  // ===== Color Variants (com imagem)
-  const addColorVariant = () => {
-    setColorVariants((p) => [
-      ...p,
-      {
-        id: crypto.randomUUID(),
-        name: "",
-        internal: "",
-        extraPriceFormatted: "R$ 0,00",
-        swatch: "#dddddd",
-        file: null,
-        preview: null,
-      },
-    ]);
-  };
-  const updateColorVariant = (id: string, patch: Partial<ColorVariant>) => {
-    setColorVariants((p) => p.map((x) => (x.id === id ? { ...x, ...patch } : x)));
-  };
-  const removeColorVariant = (id: string) => setColorVariants((p) => p.filter((x) => x.id !== id));
-
-  // ===== Spec Groups
-  const addSpecGroup = () => {
-    setSpecGroups((p) => [...p, { id: crypto.randomUUID(), title: "", description: "", itemsText: "" }]);
-  };
-  const updateSpecGroup = (id: string, patch: Partial<SpecGroup>) => {
-    setSpecGroups((p) => p.map((x) => (x.id === id ? { ...x, ...patch } : x)));
-  };
-  const removeSpecGroup = (id: string) => setSpecGroups((p) => p.filter((x) => x.id !== id));
-
-  // ===== Accessories
-  const addAccessory = () => {
-    setAccessories((prev) => [
-      ...prev,
-      { id: crypto.randomUUID(), name: "", type: "exterior", priceFormatted: "R$ 0,00", file: null, preview: null },
-    ]);
-  };
-  const removeAccessory = (id: string) => setAccessories((prev) => prev.filter((x) => x.id !== id));
-  const updateAccessory = (id: string, patch: Partial<AccessoryItem>) => {
-    setAccessories((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
-  };
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!modelName.trim()) return alert("Preencha o modelo.");
-    if (!categoryId) return alert("Selecione a categoria.");
-    if (!slug.trim()) return alert("Slug obrigatório.");
-
-    // ✅ regra nova: se existir cor cadastrada, cada uma precisa ter imagem
-    const hasColors = colorVariants.length > 0;
-    if (hasColors) {
-      const missing = colorVariants.find((c) => c.name.trim() && !c.preview && !c.file);
-      if (missing) return alert("Cada cor precisa de uma imagem do carro (PNG) nessa cor.");
-    }
-
-    setLoading(true);
-    try {
-      const cat = categories.find((c) => String(c.id) === String(categoryId));
-      const basePath = `${BRAND}/${cat?.slug || "categoria"}/${slugify(slug)}`;
-
-      // imagem principal (opcional)
-      const mainUrl = await uploadToSupabase(mainImg.file, `${basePath}/capa`, mainImg.url);
-
-      // accessories
-      const finalAccessories: any[] = [];
-      for (const a of accessories) {
-        if (!a.name.trim()) continue;
-        const safeName = slugify(a.name) || "acessorio";
-        const img = await uploadToSupabase(a.file, `${basePath}/acessorios/${a.type}/${safeName}`, a.preview);
-        finalAccessories.push({
-          id: a.id,
-          name: a.name,
-          type: a.type,
-          price: parseMoney(a.priceFormatted),
-          image: img,
-        });
-      }
-
-      // highlights
-      const finalHighlights = highlightsText.split("\n").map((s) => s.trim()).filter(Boolean);
-
-      // versions
-      const finalVersions = versions
-        .map((v) => ({
-          id: v.id,
-          title: (v.title || "").trim(),
-          subtitle: (v.subtitle || "").trim(),
-          price: parseMoney(v.priceFormatted),
-          note: (v.note || "").trim(),
-          heroLabel: (v.heroLabel || "").trim(),
-        }))
-        .filter((v) => v.title);
-
-      // ✅ color variants com upload da imagem por cor
-      const finalColorVariants: any[] = [];
-      for (const c of colorVariants) {
-        if (!c.name.trim()) continue;
-        const safeColor = slugify(c.name) || "cor";
-        const imgUrl = await uploadToSupabase(c.file, `${basePath}/cores/${safeColor}`, c.preview);
-
-        if (!imgUrl) throw new Error(`A cor "${c.name}" está sem imagem.`);
-        finalColorVariants.push({
-          id: c.id,
-          name: c.name.trim(),
-          internal: (c.internal || "").trim(),
-          extraPrice: parseMoney(c.extraPriceFormatted),
-          swatch: c.swatch || "#dddddd",
-          image_url: imgUrl, // ✅ ESSENCIAL
-        });
-      }
-
-      // spec groups
-      const finalSpecGroups = specGroups
-        .map((g) => ({
-          id: g.id,
-          title: (g.title || "").trim(),
-          description: (g.description || "").trim(),
-          items: (g.itemsText || "").split("\n").map((s) => s.trim()).filter(Boolean),
-        }))
-        .filter((g) => g.title);
-
-      const payload: any = {
-        brand: BRAND,
-        model_name: modelName.trim(),
-        slug: slugify(slug),
-        category_id: Number(categoryId),
-        price_start: parseMoney(price),
-        is_visible: isVisible,
-
-        // ✅ imagem principal pode ser a "default"
-        image_url: mainUrl || null,
-
-        accessories: finalAccessories,
-        highlights: finalHighlights,
-        versions: finalVersions,
-        color_variants: finalColorVariants, // ✅ TROCOU
-        spec_groups: finalSpecGroups,
-      };
-
-      if (editingId) {
-        const { error } = await supabase.from("vehicles").update(payload).eq("id", editingId);
         if (error) throw error;
-        alert("Veículo Hyundai atualizado!");
-      } else {
-        const { error } = await supabase.from("vehicles").insert(payload);
-        if (error) throw error;
-        alert("Veículo Hyundai cadastrado!");
+        if (!mounted) return;
+
+        if (!data) {
+          setErr("Veículo não encontrado.");
+          return;
+        }
+        if ((data as any).is_visible === false) {
+          setErr("Este veículo está oculto.");
+          return;
+        }
+
+        const v = data as VehicleRow;
+
+        const safeVersions = Array.isArray(v.versions) ? v.versions : [];
+        const safeColors = Array.isArray(v.colors) ? v.colors : []; // ✅ colors
+
+        setVehicle(v);
+        setSelectedVersionId(safeVersions[0]?.id || "");
+        setSelectedColorId(safeColors[0]?.id || "");
+        setImgKey((k) => k + 1);
+      } catch (e: any) {
+        if (!mounted) return;
+        setErr(e?.message || "Erro ao carregar veículo.");
+      } finally {
+        if (!mounted) return;
+        setLoading(false);
       }
+    })();
 
-      await fetchHyundaiVehicles();
-      resetForm();
-    } catch (err: any) {
-      alert("Erro: " + (err?.message || "desconhecido"));
-    } finally {
-      setLoading(false);
-    }
+    return () => {
+      mounted = false;
+    };
+  }, [slug]);
+
+  const versions = useMemo<VersionItem[]>(
+    () => (Array.isArray(vehicle?.versions) ? (vehicle!.versions as VersionItem[]) : []),
+    [vehicle]
+  );
+
+  const colorVariants = useMemo<ColorVariant[]>(
+    () => (Array.isArray(vehicle?.colors) ? (vehicle!.colors as ColorVariant[]) : []),
+    [vehicle]
+  );
+
+  const specGroups = useMemo<SpecGroup[]>(
+    () => (Array.isArray(vehicle?.spec_groups) ? (vehicle!.spec_groups as SpecGroup[]) : []),
+    [vehicle]
+  );
+
+  const highlights = useMemo<string[]>(
+    () => (Array.isArray(vehicle?.highlights) ? (vehicle!.highlights as string[]) : []),
+    [vehicle]
+  );
+
+  const selectedVersion = useMemo(
+    () => versions.find((v) => v.id === selectedVersionId) || versions[0] || null,
+    [versions, selectedVersionId]
+  );
+
+  const selectedColor = useMemo(
+    () => colorVariants.find((c) => c.id === selectedColorId) || colorVariants[0] || null,
+    [colorVariants, selectedColorId]
+  );
+
+  // imagem atual (cor -> fallback vehicle.image_url)
+  const currentImageUrl = useMemo(() => {
+    return selectedColor?.image_url || vehicle?.image_url || null;
+  }, [selectedColor?.image_url, vehicle?.image_url]);
+
+  useEffect(() => {
+    setImgKey((k) => k + 1);
+  }, [selectedColorId]);
+
+  const totalPrice = useMemo(() => {
+    const base = selectedVersion?.price ?? vehicle?.price_start ?? 0;
+    const extra = selectedColor?.extraPrice || 0;
+    return base + extra;
+  }, [selectedVersion?.price, vehicle?.price_start, selectedColor?.extraPrice]);
+
+  const Title = vehicle?.model_name || "Hyundai";
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-white pt-24 px-6 text-sm font-bold text-gray-500">
+        Carregando…
+      </div>
+    );
   }
 
-  async function handleDelete(id: number) {
-    if (!confirm("Apagar este veículo?")) return;
-    setLoading(true);
-    try {
-      const { error } = await supabase.from("vehicles").delete().eq("id", id);
-      if (error) throw error;
-      await fetchHyundaiVehicles();
-      if (editingId === id) resetForm();
-    } catch (err: any) {
-      alert("Erro ao apagar: " + (err?.message || "desconhecido"));
-    } finally {
-      setLoading(false);
-    }
-  }
+  if (err) {
+    return (
+      <div className="min-h-screen bg-white pt-24 px-6">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-sm font-bold text-red-600">{err}</div>
 
-  return (
-    <div className="min-h-screen bg-gray-50 pb-32 px-4">
-      <div className="max-w-5xl mx-auto">
-        {/* HEADER */}
-        <div className="pt-4">
-          <div className="flex items-center justify-between gap-3 mb-6">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-sky-600">Admin — Hyundai</p>
-              <h1 className="text-2xl font-black text-gray-900">Builder Hyundai</h1>
-              <p className="text-sm text-gray-500">
-                Agora: versões, <b>cores com imagem do carro</b>, itens de série e acessórios.
-              </p>
-            </div>
-
-            <Link
-              href="/admin"
-              className="text-xs font-black uppercase px-4 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 active:scale-[0.99] transition"
+          <div className="mt-6 flex gap-3">
+            <button
+              onClick={() => router.back()}
+              className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-semibold hover:bg-gray-50"
             >
-              Voltar ao Admin
+              Voltar
+            </button>
+            <Link
+              href="/hyundai/veiculos"
+              className="px-4 py-2 rounded-lg bg-black text-white text-sm font-semibold hover:bg-gray-800"
+            >
+              Ver catálogo
             </Link>
           </div>
+        </div>
+      </div>
+    );
+  }
 
-          <div className="mb-6 rounded-2xl border border-sky-100 bg-gradient-to-r from-sky-600 to-cyan-500 p-5 text-white shadow-sm">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+  if (!vehicle) return null;
+
+  const basePriceDisplay = selectedVersion?.price ?? vehicle.price_start ?? 0;
+
+  // ✅ cor do fundo (tint) — se não tiver cor selecionada usa cinza neutro
+  const heroTint = selectedColor?.swatch || "#d8d8d8";
+
+  return (
+    <div className="min-h-screen bg-[#f5f2ef]">
+      {/* ✅ Sem styled-jsx: CSS global com classes bem específicas */}
+      <style>{`
+        @keyframes hyVeh_fadeUp {
+          from { opacity: 0; transform: translateY(8px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes hyVeh_imgPop {
+          from { opacity: 0.25; transform: translateY(6px) scale(0.995); }
+          to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .hyVeh_animFadeUp { animation: hyVeh_fadeUp 260ms ease-out both; }
+        .hyVeh_animImg    { animation: hyVeh_imgPop 260ms ease-out both; }
+
+        .hyVeh_heroBg {
+          position: relative;
+          background: var(--tint);
+          overflow: hidden;
+        }
+        .hyVeh_heroBg::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          background:
+            radial-gradient(120% 90% at 15% 25%, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0.05) 55%, rgba(0,0,0,0.08) 100%),
+            radial-gradient(90% 70% at 80% 35%, rgba(0,0,0,0.12) 0%, rgba(0,0,0,0.02) 55%, rgba(255,255,255,0.00) 100%);
+          pointer-events: none;
+        }
+        .hyVeh_heroBg::after {
+          content: "";
+          position: absolute;
+          inset: 0;
+          background-image:
+            repeating-linear-gradient(
+              45deg,
+              rgba(255,255,255,0.08) 0px,
+              rgba(255,255,255,0.08) 2px,
+              rgba(255,255,255,0.00) 2px,
+              rgba(255,255,255,0.00) 7px
+            );
+          opacity: 0.35;
+          mix-blend-mode: overlay;
+          pointer-events: none;
+        }
+      `}</style>
+
+      {/* topo */}
+      <div className="bg-white border-b border-black/5">
+        <div className="max-w-[1200px] mx-auto px-6 pt-6 pb-3">
+          <div className="text-[12px] text-gray-500">
+            <span className="mr-1">🏠</span>
+            <span
+              className="hover:underline cursor-pointer"
+              onClick={() => router.push("/hyundai")}
+            >
+              Início
+            </span>{" "}
+            · <span className="font-medium text-gray-700">Monte o seu</span>
+          </div>
+
+          {/* stepper */}
+          <div className="mt-4">
+            <div className="grid grid-cols-3 gap-8 items-end">
               <div>
-                <div className="text-[10px] font-black uppercase tracking-widest text-white/80">Regra</div>
-                <div className="text-base font-black">
-                  <span className="underline">Cada cor precisa do PNG do carro</span> naquela cor (fundo transparente).
+                <div className="text-[11px] font-semibold text-gray-500">Passo 1</div>
+                <div className="mt-1 flex items-center gap-3">
+                  <button
+                    onClick={() => setStep(1)}
+                    className={`text-[12px] font-semibold ${
+                      step === 1 ? "text-[var(--hy)]" : "text-gray-700"
+                    }`}
+                    style={{ ["--hy" as any]: HY_BLUE }}
+                  >
+                    {Title}
+                  </button>
+                  <button
+                    className="text-[12px] text-gray-500 hover:underline"
+                    onClick={() => setStep(1)}
+                  >
+                    Alterar
+                  </button>
                 </div>
-                <div className="text-sm text-white/85 mt-1">
-                  Assim o configurador troca a imagem quando o usuário muda a cor.
+                <div className="mt-2 h-[3px] w-full bg-black/10">
+                  <div className="h-[3px] w-[25%]" style={{ background: HY_BLUE }} />
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={resetForm}
-                className="shrink-0 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-white text-sky-700 font-black text-xs uppercase hover:bg-white/90 active:scale-[0.99] transition"
-              >
-                <Plus size={14} />
-                Novo veículo
-              </button>
+              <div>
+                <div className="text-[11px] font-semibold text-gray-500">Passo 2</div>
+                <div className="mt-1 flex items-center gap-3">
+                  <button
+                    onClick={() => setStep(1)}
+                    className="text-[12px] font-semibold text-gray-700 hover:underline"
+                  >
+                    Selecione a versão
+                  </button>
+                </div>
+                <div className="mt-2 h-[3px] w-full bg-black/10">
+                  <div
+                    className="h-[3px] transition-all duration-300"
+                    style={{
+                      width: step === 1 ? "0%" : "100%",
+                      background: HY_BLUE,
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="text-[11px] font-semibold text-gray-500">Passo 3</div>
+                <div className="mt-1 text-[12px] font-semibold text-gray-700">
+                  Selecione a cor
+                </div>
+                <div className="mt-2 h-[3px] w-full bg-black/10" />
+              </div>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* LISTA */}
-        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-6 mb-8">
-          <div className="flex items-end justify-between gap-3 mb-4">
-            <h2 className="text-lg font-black text-gray-900">Veículos Hyundai ({vehicles.length})</h2>
+      {/* conteúdo */}
+      <div className="max-w-[1200px] mx-auto px-6 py-8">
+        <div className="grid grid-cols-12 gap-8 items-start">
+          {/* coluna esquerda */}
+          <div className="col-span-12 lg:col-span-4 hyVeh_animFadeUp">
+            {step === 1 ? (
+              <>
+                <div className="text-[12px] text-gray-700 font-semibold mb-4">
+                  {versions.length} versão(ões) cadastrada(s)
+                </div>
 
-            <button
-              type="button"
-              onClick={resetForm}
-              className="text-xs font-black uppercase px-4 py-2 rounded-xl bg-black text-white hover:bg-gray-800 active:scale-[0.99] transition"
-            >
-              <Plus size={14} className="inline -mt-0.5 mr-2" />
-              Novo
-            </button>
+                {versions.length === 0 ? (
+                  <div className="text-sm text-gray-600 bg-white border border-black/10 rounded-md p-4">
+                    Nenhuma versão cadastrada no builder.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {versions.map((v) => {
+                      const active = v.id === selectedVersionId;
+                      return (
+                        <button
+                          key={v.id}
+                          onClick={() => setSelectedVersionId(v.id)}
+                          className={`w-full text-left border rounded-md bg-white px-4 py-3 transition-all duration-200 ${
+                            active
+                              ? "border-black/30"
+                              : "border-black/10 hover:border-black/20"
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="mt-1 h-3 w-3 rounded-full border border-black/30 flex items-center justify-center">
+                              {active ? <div className="h-2 w-2 rounded-full bg-black" /> : null}
+                            </div>
+
+                            <div className="flex-1">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="text-[13px] font-semibold text-gray-900">
+                                  {v.title}
+                                </div>
+                                <div className="text-[12px] font-semibold text-gray-900">
+                                  {money(v.price)}
+                                </div>
+                              </div>
+
+                              {v.subtitle ? (
+                                <div className="mt-1 text-[11px] text-gray-600">
+                                  {v.subtitle}
+                                </div>
+                              ) : null}
+                              {v.note ? (
+                                <div className="mt-2 text-[11px] text-gray-600 leading-snug">
+                                  {v.note}
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="text-[12px] text-gray-700 font-semibold mb-4">
+                  {colorVariants.length} cores disponíveis
+                </div>
+
+                {colorVariants.length === 0 ? (
+                  <div className="text-sm text-gray-600 bg-white border border-black/10 rounded-md p-4">
+                    Nenhuma cor cadastrada no builder.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4">
+                    {colorVariants.map((c) => {
+                      const active = c.id === selectedColorId;
+                      return (
+                        <button
+                          key={c.id}
+                          onClick={() => setSelectedColorId(c.id)}
+                          className={`text-left bg-white border transition-all duration-200 ${
+                            active
+                              ? "border-[#0F3C66] ring-2 ring-[#0F3C66]/10"
+                              : "border-black/10 hover:border-black/20"
+                          }`}
+                          style={{ borderRadius: 0 }}
+                          title={c.image_url ? "Trocar cor (troca imagem)" : "Cor sem imagem"}
+                        >
+                          <div className="p-3">
+                            <div className="text-[11px] font-semibold text-gray-900">
+                              {c.name}
+                            </div>
+                            <div className="text-[10px] text-gray-600">
+                              {c.internal ? `Cor interna: ${c.internal}` : "\u00A0"}
+                            </div>
+                            <div className="mt-2 text-[11px] font-semibold text-gray-900">
+                              {c.extraPrice ? `+ ${money(c.extraPrice)}` : "+ R$ 0,00"}
+                            </div>
+                          </div>
+
+                          <div
+                            className="h-[86px] border-t border-black/10"
+                            style={{ background: c.swatch || "#ddd" }}
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
-          {Object.keys(groupedByCategory).length === 0 ? (
-            <div className="text-sm text-gray-500">Nenhum veículo Hyundai ainda.</div>
-          ) : (
-            <div className="space-y-6">
-              {Object.keys(groupedByCategory).map((cat) => (
-                <div key={cat}>
-                  <div className="text-[10px] font-black uppercase tracking-widest text-gray-400 border-b pb-2 mb-3">
-                    {cat}
-                  </div>
+          {/* coluna direita */}
+          <div className="col-span-12 lg:col-span-8 hyVeh_animFadeUp">
+            <div className="text-[14px] text-gray-700">
+              <span className="font-semibold">{Title}</span>
+              {selectedVersion?.title ? (
+                <>
+                  <span className="mx-2">•</span>
+                  <span className="font-semibold">{selectedVersion.title}</span>
+                </>
+              ) : null}
+              {step === 2 && selectedColor?.name ? (
+                <>
+                  <span className="mx-2">•</span>
+                  <span className="font-semibold">{selectedColor.name}</span>
+                  <span className="mx-4 font-bold text-gray-900">{money(totalPrice)}</span>
+                </>
+              ) : (
+                <span className="mx-4 font-bold text-gray-900">{money(basePriceDisplay)}</span>
+              )}
+            </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {groupedByCategory[cat].map((v: any) => (
-                      <div
-                        key={v.id}
-                        className={`border rounded-xl p-4 flex gap-3 items-center bg-white hover:shadow-sm transition-shadow ${
-                          v.is_visible === false ? "opacity-60" : ""
-                        }`}
-                      >
-                        <div className="w-16 h-16 rounded-lg border bg-white overflow-hidden shrink-0 flex items-center justify-center">
-                          {v.image_url ? (
-                            <img src={v.image_url} className="w-full h-full object-contain p-1" />
-                          ) : (
-                            <ImageIcon size={18} className="text-gray-400" />
-                          )}
-                        </div>
+            <div className="mt-3 bg-white border border-black/10 rounded-md overflow-hidden">
+              <div
+                className="h-[280px] hyVeh_heroBg relative"
+                style={{ ["--tint" as any]: heroTint }}
+              >
+                <div className="absolute top-3 left-3 z-[2]">
+                  <span className="inline-flex items-center px-2 py-1 text-[11px] font-semibold bg-white/85 border border-black/10 rounded">
+                    {selectedVersion?.heroLabel || "Exterior"}
+                  </span>
+                </div>
 
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-black text-gray-900 truncate">{v.model_name}</h3>
-                            {v.is_visible === false ? (
-                              <span className="text-[10px] font-black uppercase px-2 py-1 rounded-full bg-red-50 text-red-700 border border-red-200 inline-flex items-center gap-1">
-                                <EyeOff size={12} /> Oculto
-                              </span>
-                            ) : (
-                              <span className="text-[10px] font-black uppercase px-2 py-1 rounded-full bg-green-50 text-green-700 border border-green-200 inline-flex items-center gap-1">
-                                <Eye size={12} /> Visível
-                              </span>
-                            )}
-                          </div>
+                <div className="h-full flex items-center justify-center relative z-[2]">
+                  {currentImageUrl ? (
+                    <img
+                      key={imgKey}
+                      src={currentImageUrl}
+                      alt={vehicle.model_name}
+                      className="w-[86%] h-[86%] object-contain hyVeh_animImg"
+                      draggable={false}
+                    />
+                  ) : (
+                    <div className="text-xs font-bold text-gray-500">Sem imagem</div>
+                  )}
+                </div>
+              </div>
 
-                          <div className="text-xs text-gray-500 font-mono mt-1">
-                            {formatMoneyInput(String(v.price_start || 0) + "00")}
-                          </div>
+              <div className="p-6">
+                <h2 className="text-[22px] font-semibold text-gray-900">
+                  Especificações do seu Hyundai
+                </h2>
 
-                          <div className="text-[10px] font-bold text-gray-400 mt-1">/{v.slug}</div>
-                        </div>
-
-                        <div className="flex items-center gap-1">
-                          {/* ✅ nunca use "app/admin..." em href */}
-                          <Link
-                            href={`/admin/hyundai/veiculos/${v.slug}`}
-                            target="_blank"
-                            className="p-2 rounded-full hover:bg-slate-50 text-slate-700"
-                            title="Ver no admin"
-                          >
-                            <Eye size={18} />
-                          </Link>
-
-                          <button
-                            type="button"
-                            onClick={() => startEditing(v)}
-                            className="p-2 rounded-full hover:bg-sky-50 text-sky-600 active:scale-95 transition-transform"
-                            title="Editar"
-                          >
-                            <Pencil size={18} />
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(v.id)}
-                            className="p-2 rounded-full hover:bg-red-50 text-red-600 active:scale-95 transition-transform"
-                            title="Apagar"
-                          >
-                            <Trash2 size={18} />
-                          </button>
-                        </div>
+                {highlights.length > 0 ? (
+                  <div className="mt-4 space-y-3 text-[12px] text-gray-700">
+                    {highlights.map((txt, idx) => (
+                      <div key={idx} className="flex gap-2">
+                        <span>•</span>
+                        <span>{txt}</span>
                       </div>
                     ))}
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* FORM */}
-        <form
-          onSubmit={handleSubmit}
-          className={`bg-white border border-gray-200 rounded-2xl shadow-sm p-6 space-y-8 ${
-            editingId ? "ring-2 ring-sky-100" : ""
-          }`}
-        >
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-black text-gray-900">
-                {editingId ? "Editando veículo" : "Novo veículo"} — Hyundai
-              </h2>
-              <p className="text-xs text-gray-500">Regras: cada cor cadastrada precisa da imagem do carro.</p>
-            </div>
-
-            {editingId && (
-              <button
-                type="button"
-                onClick={resetForm}
-                className="text-xs font-black uppercase px-4 py-2 rounded-xl border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 active:scale-[0.99] transition"
-              >
-                <X size={14} className="inline -mt-0.5 mr-2" />
-                Cancelar edição
-              </button>
-            )}
-          </div>
-
-          {/* BASE */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="md:col-span-2">
-              <label className="text-[10px] font-black uppercase text-gray-500">Modelo</label>
-              <input
-                value={modelName}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setModelName(v);
-                  if (!editingId) setSlug(slugify(v));
-                }}
-                className="w-full mt-1 h-11 px-3 border rounded-xl outline-none focus:ring-2 focus:ring-sky-200"
-                placeholder="Ex: Creta"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="text-[10px] font-black uppercase text-gray-500">Slug</label>
-              <input
-                value={slug}
-                onChange={(e) => setSlug(e.target.value)}
-                className="w-full mt-1 h-11 px-3 border rounded-xl outline-none focus:ring-2 focus:ring-sky-200"
-                placeholder="creta"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="text-[10px] font-black uppercase text-gray-500">Categoria</label>
-              <select
-                value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                className="w-full mt-1 h-11 px-3 border rounded-xl bg-white outline-none focus:ring-2 focus:ring-sky-200"
-                required
-              >
-                <option value="">Selecione...</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="text-[10px] font-black uppercase text-gray-500">Preço base</label>
-              <input
-                value={price}
-                onChange={(e) => setPrice(formatMoneyInput(e.target.value))}
-                className="w-full mt-1 h-11 px-3 border rounded-xl outline-none focus:ring-2 focus:ring-sky-200"
-                required
-              />
-            </div>
-
-            <div className="flex items-end">
-              <button
-                type="button"
-                onClick={() => setIsVisible((p) => !p)}
-                className={`w-full h-11 px-4 rounded-xl font-black uppercase text-xs border transition-all active:scale-[0.99]
-                ${
-                  isVisible
-                    ? "bg-green-50 border-green-200 text-green-700 hover:bg-green-100"
-                    : "bg-red-50 border-red-200 text-red-700 hover:bg-red-100"
-                }`}
-              >
-                {isVisible ? (
-                  <span className="inline-flex items-center gap-2">
-                    <Eye size={16} /> Visível
-                  </span>
                 ) : (
-                  <span className="inline-flex items-center gap-2">
-                    <EyeOff size={16} /> Oculto
-                  </span>
+                  <div className="mt-3 text-[12px] text-gray-500">
+                    (Sem destaques cadastrados no builder.)
+                  </div>
                 )}
-              </button>
+
+                <h3 className="mt-8 text-[18px] font-semibold text-gray-900">
+                  Itens de série
+                </h3>
+
+                <div className="mt-3 border border-black/10 rounded-md overflow-hidden bg-white">
+                  {specGroups.length === 0 ? (
+                    <div className="px-4 py-4 text-sm text-gray-500">
+                      Nenhuma seção cadastrada no builder.
+                    </div>
+                  ) : (
+                    specGroups.map((g) => {
+                      const opened = openSpecId === g.id;
+                      const items = Array.isArray(g.items) ? g.items : [];
+                      return (
+                        <div key={g.id} className="border-b border-black/10 last:border-b-0">
+                          <button
+                            type="button"
+                            onClick={() => setOpenSpecId((prev) => (prev === g.id ? null : g.id))}
+                            className="w-full flex items-center justify-between px-4 py-3 hover:bg-black/[0.02] transition"
+                          >
+                            <span className="text-[11px] font-semibold text-gray-800">
+                              {g.title}
+                            </span>
+                            <span
+                              className={`text-[16px] font-semibold text-gray-600 transition-transform duration-200 ${
+                                opened ? "rotate-45" : "rotate-0"
+                              }`}
+                            >
+                              +
+                            </span>
+                          </button>
+
+                          <div
+                            className={`grid transition-all duration-300 ease-out ${
+                              opened ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+                            }`}
+                          >
+                            <div className="overflow-hidden">
+                              <div className="px-4 pb-4 text-[12px] text-gray-700">
+                                {g.description ? (
+                                  <div className="text-gray-600 mb-3 leading-relaxed">
+                                    {g.description}
+                                  </div>
+                                ) : null}
+
+                                {items.length > 0 ? (
+                                  <div className="space-y-2">
+                                    {items.map((it, idx) => (
+                                      <div key={idx} className="flex gap-2">
+                                        <span className="text-gray-400">•</span>
+                                        <span>{it}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <div className="text-gray-500">(Sem itens nesta seção.)</div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
             </div>
           </div>
+        </div>
+      </div>
 
-          <ImageUpload
-            label="Imagem principal (opcional — pode ser a cor principal)"
-            previewUrl={mainImg.url}
-            setFile={(f, url) => setMainImg({ file: f, url })}
-            accept="image/*"
-          />
-
-          {/* HIGHLIGHTS */}
-          <div className="border-t pt-6">
-            <div className="flex items-center justify-between gap-3 mb-3">
-              <h3 className="text-sm font-black uppercase text-gray-800">Destaques (bullets)</h3>
-              <span className="text-[10px] font-black uppercase text-gray-400">1 por linha</span>
-            </div>
-            <textarea
-              value={highlightsText}
-              onChange={(e) => setHighlightsText(e.target.value)}
-              className="w-full min-h-[110px] border rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-sky-200"
-              placeholder={"Ex:\nDRL em LED\nPainel digital\nSmart Key"}
-            />
-          </div>
-
-          {/* VERSÕES */}
-          <div className="border-t pt-6">
-            <div className="flex items-center justify-between gap-3 mb-4">
-              <h3 className="text-sm font-black uppercase text-gray-800">Versões</h3>
-              <button
-                type="button"
-                onClick={addVersion}
-                className="text-xs font-black uppercase px-4 py-2 rounded-xl bg-black text-white hover:bg-gray-800 active:scale-[0.99] transition"
-              >
-                <Plus size={14} className="inline -mt-0.5 mr-2" />
-                Adicionar versão
-              </button>
-            </div>
-
-            {versions.length === 0 ? (
-              <div className="text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-xl p-4">
-                Nenhuma versão ainda.
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {versions.map((v) => (
-                  <div key={v.id} className="border border-gray-200 rounded-2xl p-4 bg-gray-50/30">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                      <div className="md:col-span-2">
-                        <label className="text-[10px] font-black uppercase text-gray-500">Título</label>
-                        <input
-                          value={v.title}
-                          onChange={(e) => updateVersion(v.id, { title: e.target.value })}
-                          className="w-full mt-1 h-10 px-3 border rounded-xl bg-white outline-none focus:ring-2 focus:ring-sky-200"
-                          placeholder="Ex: Limited"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] font-black uppercase text-gray-500">Preço</label>
-                        <input
-                          value={v.priceFormatted}
-                          onChange={(e) => updateVersion(v.id, { priceFormatted: formatMoneyInput(e.target.value) })}
-                          className="w-full mt-1 h-10 px-3 border rounded-xl bg-white outline-none focus:ring-2 focus:ring-sky-200"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] font-black uppercase text-gray-500">Hero label</label>
-                        <input
-                          value={v.heroLabel || ""}
-                          onChange={(e) => updateVersion(v.id, { heroLabel: e.target.value })}
-                          className="w-full mt-1 h-10 px-3 border rounded-xl bg-white outline-none focus:ring-2 focus:ring-sky-200"
-                          placeholder="Exterior"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
-                      <div>
-                        <label className="text-[10px] font-black uppercase text-gray-500">Subtítulo</label>
-                        <input
-                          value={v.subtitle}
-                          onChange={(e) => updateVersion(v.id, { subtitle: e.target.value })}
-                          className="w-full mt-1 h-10 px-3 border rounded-xl bg-white outline-none focus:ring-2 focus:ring-sky-200"
-                          placeholder="2026/2027 - Motor..."
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] font-black uppercase text-gray-500">Nota/descrição</label>
-                        <input
-                          value={v.note || ""}
-                          onChange={(e) => updateVersion(v.id, { note: e.target.value })}
-                          className="w-full mt-1 h-10 px-3 border rounded-xl bg-white outline-none focus:ring-2 focus:ring-sky-200"
-                          placeholder="Texto curto"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="mt-3 flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => removeVersion(v.id)}
-                        className="h-10 px-4 rounded-xl font-black uppercase text-xs border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
-                      >
-                        <Trash2 size={16} className="inline -mt-0.5 mr-2" />
-                        Remover
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* CORES COM IMAGEM */}
-          <div className="border-t pt-6">
-            <div className="flex items-center justify-between gap-3 mb-2">
-              <div>
-                <h3 className="text-sm font-black uppercase text-gray-800">Cores (cada cor tem imagem)</h3>
-                <p className="text-xs text-gray-500 mt-1">
-                  Para cada cor: escolha o HEX e envie o <b>PNG do carro nessa cor</b>.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={addColorVariant}
-                className="text-xs font-black uppercase px-4 py-2 rounded-xl bg-black text-white hover:bg-gray-800 active:scale-[0.99] transition"
-              >
-                <Plus size={14} className="inline -mt-0.5 mr-2" />
-                Adicionar cor
-              </button>
-            </div>
-
-            {colorVariants.length === 0 ? (
-              <div className="text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-xl p-4">
-                Nenhuma cor ainda.
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {colorVariants.map((c) => (
-                  <div key={c.id} className="border border-gray-200 rounded-2xl p-4 bg-gray-50/30">
-                    <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
-                      <div className="md:col-span-2">
-                        <label className="text-[10px] font-black uppercase text-gray-500">Nome</label>
-                        <input
-                          value={c.name}
-                          onChange={(e) => updateColorVariant(c.id, { name: e.target.value })}
-                          className="w-full mt-1 h-10 px-3 border rounded-xl bg-white outline-none focus:ring-2 focus:ring-sky-200"
-                          placeholder="Ex: Branco Atlas"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] font-black uppercase text-gray-500">Interno</label>
-                        <input
-                          value={c.internal || ""}
-                          onChange={(e) => updateColorVariant(c.id, { internal: e.target.value })}
-                          className="w-full mt-1 h-10 px-3 border rounded-xl bg-white outline-none focus:ring-2 focus:ring-sky-200"
-                          placeholder="Ex: Preto Ebony"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] font-black uppercase text-gray-500">Extra (+)</label>
-                        <input
-                          value={c.extraPriceFormatted}
-                          onChange={(e) =>
-                            updateColorVariant(c.id, { extraPriceFormatted: formatMoneyInput(e.target.value) })
-                          }
-                          className="w-full mt-1 h-10 px-3 border rounded-xl bg-white outline-none focus:ring-2 focus:ring-sky-200"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] font-black uppercase text-gray-500">Cor (hex)</label>
-                        <input
-                          type="color"
-                          value={c.swatch || "#dddddd"}
-                          onChange={(e) => updateColorVariant(c.id, { swatch: e.target.value })}
-                          className="w-full mt-1 h-10 px-2 border rounded-xl bg-white"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="mt-3">
-                      <ImageUpload
-                        label="Imagem do carro nessa cor (PNG transparente)"
-                        previewUrl={c.preview}
-                        setFile={(f, url) => updateColorVariant(c.id, { file: f, preview: url })}
-                        accept="image/png,image/*"
-                      />
-                    </div>
-
-                    <div className="mt-3 flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => removeColorVariant(c.id)}
-                        className="h-10 px-4 rounded-xl font-black uppercase text-xs border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
-                      >
-                        <Trash2 size={16} className="inline -mt-0.5 mr-2" />
-                        Remover
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* ITENS DE SÉRIE (GRUPOS) */}
-          <div className="border-t pt-6">
-            <div className="flex items-center justify-between gap-3 mb-4">
-              <h3 className="text-sm font-black uppercase text-gray-800">Itens de série (seções)</h3>
-              <button
-                type="button"
-                onClick={addSpecGroup}
-                className="text-xs font-black uppercase px-4 py-2 rounded-xl bg-black text-white hover:bg-gray-800 active:scale-[0.99] transition"
-              >
-                <Plus size={14} className="inline -mt-0.5 mr-2" />
-                Adicionar seção
-              </button>
-            </div>
-
-            {specGroups.length === 0 ? (
-              <div className="text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-xl p-4">
-                Nenhuma seção ainda.
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {specGroups.map((g) => (
-                  <div key={g.id} className="border border-gray-200 rounded-2xl p-4 bg-gray-50/30">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-[10px] font-black uppercase text-gray-500">Título</label>
-                        <input
-                          value={g.title}
-                          onChange={(e) => updateSpecGroup(g.id, { title: e.target.value })}
-                          className="w-full mt-1 h-10 px-3 border rounded-xl bg-white outline-none focus:ring-2 focus:ring-sky-200"
-                          placeholder="Ex: ESTILO EXTERIOR"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] font-black uppercase text-gray-500">
-                          Descrição (aparece ao expandir)
-                        </label>
-                        <input
-                          value={g.description || ""}
-                          onChange={(e) => updateSpecGroup(g.id, { description: e.target.value })}
-                          className="w-full mt-1 h-10 px-3 border rounded-xl bg-white outline-none focus:ring-2 focus:ring-sky-200"
-                          placeholder="Texto curto explicando a seção"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="mt-3">
-                      <label className="text-[10px] font-black uppercase text-gray-500">Itens (1 por linha)</label>
-                      <textarea
-                        value={g.itemsText}
-                        onChange={(e) => updateSpecGroup(g.id, { itemsText: e.target.value })}
-                        className="w-full mt-1 min-h-[120px] border rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-sky-200"
-                        placeholder={"Ex:\nFaróis full LED\nRodas aro 17\n..."}
-                      />
-                    </div>
-
-                    <div className="mt-3 flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => removeSpecGroup(g.id)}
-                        className="h-10 px-4 rounded-xl font-black uppercase text-xs border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
-                      >
-                        <Trash2 size={16} className="inline -mt-0.5 mr-2" />
-                        Remover
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* ACESSÓRIOS */}
-          <div className="border-t pt-6">
-            <div className="flex items-center justify-between gap-3 mb-4">
-              <h3 className="text-sm font-black uppercase text-gray-800">Acessórios do veículo</h3>
-              <button
-                type="button"
-                onClick={addAccessory}
-                className="text-xs font-black uppercase px-4 py-2 rounded-xl bg-black text-white hover:bg-gray-800 active:scale-[0.99] transition"
-              >
-                <Plus size={14} className="inline -mt-0.5 mr-2" />
-                Adicionar
-              </button>
-            </div>
-
-            {accessories.length === 0 ? (
-              <div className="text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-xl p-4">
-                Nenhum acessório ainda. Clique em “Adicionar”.
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {accessories.map((a) => (
-                  <div key={a.id} className="border border-gray-200 rounded-2xl p-4 bg-gray-50/30">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-start">
-                      <div className="md:col-span-2">
-                        <label className="text-[10px] font-black uppercase text-gray-500">Nome</label>
-                        <input
-                          value={a.name}
-                          onChange={(e) => updateAccessory(a.id, { name: e.target.value })}
-                          className="w-full mt-1 h-10 px-3 border rounded-xl bg-white outline-none focus:ring-2 focus:ring-sky-200"
-                          placeholder="Ex: Sensor de estacionamento"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] font-black uppercase text-gray-500">Tipo</label>
-                        <select
-                          value={a.type}
-                          onChange={(e) => updateAccessory(a.id, { type: e.target.value as any })}
-                          className="w-full mt-1 h-10 px-3 border rounded-xl bg-white outline-none focus:ring-2 focus:ring-sky-200"
-                        >
-                          <option value="exterior">Exterior</option>
-                          <option value="interior">Interior</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] font-black uppercase text-gray-500">Preço (+)</label>
-                        <input
-                          value={a.priceFormatted}
-                          onChange={(e) => updateAccessory(a.id, { priceFormatted: formatMoneyInput(e.target.value) })}
-                          className="w-full mt-1 h-10 px-3 border rounded-xl bg-white outline-none focus:ring-2 focus:ring-sky-200"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-                      <div className="md:col-span-2">
-                        <ImageUpload
-                          label="Imagem do acessório"
-                          previewUrl={a.preview}
-                          setFile={(f, url) => updateAccessory(a.id, { file: f, preview: url })}
-                        />
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => removeAccessory(a.id)}
-                        className="h-11 px-4 rounded-xl font-black uppercase text-xs border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 active:scale-[0.99] transition"
-                      >
-                        <Trash2 size={16} className="inline -mt-0.5 mr-2" />
-                        Remover
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+      {/* barra inferior */}
+      <div className="sticky bottom-0 left-0 right-0 bg-white border-t border-black/10">
+        <div className="max-w-[1200px] mx-auto px-6 py-3 flex items-center justify-between">
+          <button
+            onClick={() => (step === 1 ? router.push("/hyundai/veiculos") : setStep(1))}
+            className="text-[12px] font-semibold text-gray-700 hover:underline"
+          >
+            ‹ {step === 1 ? "Alterar modelo" : "Alterar versão"}
+          </button>
 
           <button
-            disabled={loading}
-            type="submit"
-            className="w-full h-12 rounded-2xl bg-sky-600 hover:bg-sky-700 text-white font-black uppercase text-sm tracking-wider flex items-center justify-center gap-2 disabled:opacity-60 active:scale-[0.99] transition"
+            onClick={() => {
+              if (step === 1) setStep(2);
+              else window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            className="px-4 py-2 text-[12px] font-semibold text-white rounded transition-transform active:scale-[0.99] disabled:opacity-60"
+            style={{ background: "#0F3C66" }}
+            disabled={step === 1 && versions.length === 0}
+            title={step === 1 && versions.length === 0 ? "Cadastre versões no builder" : ""}
           >
-            {loading ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
-            {loading ? "Salvando..." : editingId ? "Salvar alterações" : "Cadastrar veículo Hyundai"}
+            {step === 1 ? "Escolha a cor" : "Concluir"}
           </button>
-        </form>
+        </div>
       </div>
     </div>
   );
