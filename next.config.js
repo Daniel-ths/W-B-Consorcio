@@ -11,6 +11,7 @@ const nextConfig = {
   },
 
   images: {
+    unoptimized: true,
     remotePatterns: [
       { protocol: "https", hostname: "qkpfsisyaohpdetyhtjd.supabase.co" },
       { protocol: "https", hostname: "placehold.co" },
