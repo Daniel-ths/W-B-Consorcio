@@ -55,10 +55,11 @@ const money = (v: number) =>
     maximumFractionDigits: 0,
   }).format(Number(v || 0));
 
-export default function HyundaiVehicleSlugPage() {
-  const params = useParams<{ slug: string }>();
+export default function BrandHomepagePage() {
+  const params = useParams<{ brand: string }>();
   const router = useRouter();
-  const slug = useMemo(() => String(params?.slug || ""), [params]);
+  const brand = useMemo(() => String(params?.brand || "").toLowerCase(), [params]);
+  const brandPath = `/${brand}`;
 
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -76,7 +77,11 @@ export default function HyundaiVehicleSlugPage() {
   const [imgKey, setImgKey] = useState(0);
 
   useEffect(() => {
-    if (!slug) return;
+    if (!brand) {
+      setErr("Marca inválida.");
+      setLoading(false);
+      return;
+    }
     let mounted = true;
 
     (async () => {
@@ -90,8 +95,10 @@ export default function HyundaiVehicleSlugPage() {
           .select(
             "id, model_name, slug, image_url, brand, is_visible, price_start, versions, colors, spec_groups, highlights"
           )
-          .eq("brand", "hyundai")
-          .eq("slug", slug)
+          .eq("brand", brand)
+          .eq("is_visible", true)
+          .order("id", { ascending: true })
+          .limit(1)
           .maybeSingle();
 
         if (error) throw error;
@@ -128,7 +135,7 @@ export default function HyundaiVehicleSlugPage() {
     return () => {
       mounted = false;
     };
-  }, [slug]);
+  }, [brand]);
 
   const versions = useMemo<VersionItem[]>(
     () => (Array.isArray(vehicle?.versions) ? (vehicle!.versions as VersionItem[]) : []),
@@ -175,7 +182,7 @@ export default function HyundaiVehicleSlugPage() {
     return base + extra;
   }, [selectedVersion?.price, vehicle?.price_start, selectedColor?.extraPrice]);
 
-  const Title = vehicle?.model_name || "Hyundai";
+  const Title = vehicle?.model_name || brand.toUpperCase();
 
   if (loading) {
     return (
@@ -199,7 +206,7 @@ export default function HyundaiVehicleSlugPage() {
               Voltar
             </button>
             <Link
-              href="/hyundai/veiculos"
+              href={brandPath}
               className="px-4 py-2 rounded-lg bg-black text-white text-sm font-semibold hover:bg-gray-800"
             >
               Ver catálogo
@@ -283,7 +290,7 @@ export default function HyundaiVehicleSlugPage() {
         <div className="max-w-[1200px] mx-auto px-6 pt-6 pb-3">
           <div className="text-[12px] text-gray-500">
             <span className="mr-1">🏠</span>
-            <span className="hover:underline cursor-pointer" onClick={() => router.push("/hyundai")}>
+            <span className="hover:underline cursor-pointer" onClick={() => router.push(brandPath)}>
               Início
             </span>{" "}
             · <span className="font-medium text-gray-700">Monte o seu</span>
@@ -570,7 +577,7 @@ export default function HyundaiVehicleSlugPage() {
       <div className="sticky bottom-0 left-0 right-0 bg-white border-t border-black/10">
         <div className="max-w-[1200px] mx-auto px-6 py-3 flex items-center justify-between">
           <button
-            onClick={() => (step === 1 ? router.push("/hyundai/veiculos") : setStep(1))}
+            onClick={() => (step === 1 ? router.push(brandPath) : setStep(1))}
             className="text-[12px] font-semibold text-gray-700 hover:underline"
           >
             ‹ {step === 1 ? "Alterar modelo" : "Alterar versão"}
