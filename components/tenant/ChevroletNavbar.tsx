@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+
 import {
   User,
   Menu,
@@ -120,7 +122,7 @@ export default function Navbar() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
+} = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
       if (!mounted) return;
 
       const u = session?.user ?? null;

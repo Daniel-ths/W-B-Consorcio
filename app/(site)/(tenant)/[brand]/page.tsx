@@ -85,14 +85,24 @@ export default function HyundaiVehicleSlugPage() {
       setVehicle(null);
 
       try {
-        const { data, error } = await supabase
-          .from("vehicles")
-          .select(
-            "id, model_name, slug, image_url, brand, is_visible, price_start, versions, colors, spec_groups, highlights"
-          )
-          .eq("brand", "hyundai")
-          .eq("slug", slug)
-          .maybeSingle();
+const { data, error } = await supabase
+  .from("vehicles")
+  .select(`
+    id,
+    model_name,
+    slug,
+    image_url,
+    brand,
+    is_visible,
+    price_start,
+    versions,
+    colors:exterior_colors,
+    spec_groups,
+    highlights
+  `)
+  .eq("brand", "hyundai")
+  .eq("slug", slug)
+  .maybeSingle();
 
         if (error) throw error;
         if (!mounted) return;
@@ -135,10 +145,10 @@ export default function HyundaiVehicleSlugPage() {
     [vehicle]
   );
 
-  const colorVariants = useMemo<ColorVariant[]>(
-    () => (Array.isArray(vehicle?.colors) ? (vehicle!.colors as ColorVariant[]) : []),
-    [vehicle]
-  );
+const colorVariants = useMemo<ColorVariant[]>(
+  () => (Array.isArray(vehicle?.colors) ? (vehicle?.colors as ColorVariant[]) : []),
+  [vehicle?.colors]
+);
 
   const specGroups = useMemo<SpecGroup[]>(
     () => (Array.isArray(vehicle?.spec_groups) ? (vehicle!.spec_groups as SpecGroup[]) : []),

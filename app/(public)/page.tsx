@@ -1,7 +1,8 @@
 "use client";
-
+export const dynamic = "force-dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+
 
 type BrandKey = "chevrolet" | "hyundai";
 type Brand = { key: BrandKey; name: string; logo: string };
@@ -20,8 +21,8 @@ export default function ChooseBrandPage() {
       },
       {
         key: "hyundai",
-        name: "Hyundai",
-        logo: "https://upload.wikimedia.org/wikipedia/commons/2/20/Hyundai_logo.svg",
+        name: "MANUTENÇÃO",
+        logo: "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/avatars/580b585b2edbce24c47b2c77.png",
       },
     ],
     []
@@ -59,12 +60,12 @@ export default function ChooseBrandPage() {
       {/* ===== Conteúdo ===== */}
       <div className="relative z-10 min-h-screen flex items-center justify-center px-4 sm:px-6">
         <div className="w-full max-w-lg sm:max-w-xl md:max-w-4xl">
-          {/* Header: menor no mobile, mais elegante */}
+          {/* Header */}
           <div className="mb-8 sm:mb-10 text-center">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-zinc-200/70 dark:border-white/10 bg-white/70 dark:bg-white/5 backdrop-blur">
               <span className="h-1.5 w-1.5 rounded-full bg-zinc-900/70 dark:bg-white/70" />
               <span className="text-[10px] sm:text-[11px] tracking-[0.28em] uppercase text-zinc-600 dark:text-zinc-300">
-                WB AUTO
+                Nacional Consórcios
               </span>
             </div>
 
@@ -72,13 +73,12 @@ export default function ChooseBrandPage() {
               Escolha a marca
             </h1>
 
-            {/* texto só a partir de sm (mobile mais limpo) */}
             <p className="hidden sm:block mt-3 text-sm text-zinc-600 dark:text-zinc-300">
               Você pode alternar entre marcas a qualquer momento.
             </p>
           </div>
 
-          {/* Cards: mobile 1 coluna, desktop 2 colunas */}
+          {/* Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
             {brands.map((b, idx) => (
               <button
@@ -93,7 +93,6 @@ export default function ChooseBrandPage() {
                   active:scale-[0.99] md:hover:-translate-y-1
                 "
               >
-                {/* brilho hover (só no md pra não pesar no mobile) */}
                 <div className="pointer-events-none absolute inset-0 opacity-0 md:group-hover:opacity-100 transition-opacity duration-300">
                   <div className="absolute -top-20 -right-20 h-56 w-56 rounded-full bg-zinc-200/50 dark:bg-white/10 blur-3xl" />
                 </div>
@@ -118,64 +117,63 @@ export default function ChooseBrandPage() {
                     </div>
                   </div>
 
-                  {/* tecla 1/2 só desktop */}
                   <div className="hidden md:block text-xs text-zinc-500 dark:text-zinc-400">
-                    {idx === 0 ? "1" : "2"}
+                    {idx === 0 ? "" : ""}
                   </div>
                 </div>
 
-                {/* underline micro */}
                 <div className="h-[2px] w-full bg-zinc-900/5 dark:bg-white/10" />
                 <div className="h-[2px] w-0 md:group-hover:w-full transition-all duration-500 bg-zinc-900/20 dark:bg-white/20" />
 
-                {/* ring hover */}
                 <div className="pointer-events-none absolute inset-0 rounded-[26px] sm:rounded-[28px] ring-0 md:group-hover:ring-2 ring-zinc-900/10 dark:ring-white/15 transition-all" />
               </button>
             ))}
           </div>
 
-          {/* Hint: aparece só no desktop */}
+          {/* Hint (desktop) */}
           <div className="hidden md:block mt-10 text-center text-[11px] text-zinc-500 dark:text-zinc-400">
             
           </div>
         </div>
       </div>
 
-      {/* ===== Overlay de entrada ===== */}
+      {/* ===== Overlay de entrada (CENTRALIZADO MOBILE) ===== */}
       <div
-        className={`fixed inset-0 z-[9999] flex items-center justify-center transition-all duration-500 ${
+        className={`fixed inset-0 z-[9999] transition-all duration-500 ${
           entering ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
         }`}
       >
         <div className="absolute inset-0 bg-white/75 dark:bg-black/70 backdrop-blur-xl" />
 
-        <div className="relative z-10 flex flex-col items-center gap-4 px-6 text-center">
-          {entering?.logo && (
-            <div className="h-16 w-16 sm:h-20 sm:w-20 rounded-3xl border border-zinc-200/70 dark:border-white/10 bg-white/85 dark:bg-white/10 flex items-center justify-center">
-              <img
-                src={entering.logo}
-                alt={entering.name}
-                className="h-8 sm:h-10 w-auto object-contain"
-              />
+        <div className="relative z-10 grid place-items-center min-h-[100svh] p-6">
+          <div className="w-full max-w-xs sm:max-w-sm flex flex-col items-center gap-4 text-center">
+            {entering?.logo && (
+              <div className="h-16 w-16 sm:h-20 sm:w-20 rounded-3xl border border-zinc-200/70 dark:border-white/10 bg-white/85 dark:bg-white/10 flex items-center justify-center">
+                <img
+                  src={entering.logo}
+                  alt={entering.name}
+                  className="h-8 sm:h-10 w-auto object-contain"
+                />
+              </div>
+            )}
+
+            <div className="text-[10px] sm:text-xs tracking-[0.28em] uppercase text-zinc-500 dark:text-zinc-300">
+              Entrando
             </div>
-          )}
 
-          <div className="text-[10px] sm:text-xs tracking-[0.28em] uppercase text-zinc-500 dark:text-zinc-300">
-            Entrando
-          </div>
+            <div className="text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight">
+              {entering?.name}
+            </div>
 
-          <div className="text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight">
-            {entering?.name}
-          </div>
-
-          <div className="h-1 w-48 sm:w-64 rounded-full bg-zinc-200 dark:bg-white/10 overflow-hidden">
-            <div className="h-full w-0 bg-zinc-900/40 dark:bg-white/35 loading-bar" />
+            <div className="h-1 w-48 sm:w-64 rounded-full bg-zinc-200 dark:bg-white/10 overflow-hidden">
+              <div className="h-full w-0 bg-zinc-900/40 dark:bg-white/35 loading-bar" />
+            </div>
           </div>
         </div>
       </div>
 
+      {/* ===== CSS ===== */}
       <style jsx global>{`
-        /* grid background */
         .bg-grid {
           background-image: linear-gradient(
               to right,
@@ -198,7 +196,6 @@ export default function ChooseBrandPage() {
             );
         }
 
-        /* blobs (reduzidos no mobile) */
         .blob {
           position: absolute;
           width: 520px;
@@ -214,7 +211,6 @@ export default function ChooseBrandPage() {
           mix-blend-mode: screen;
         }
 
-        /* mobile: blobs menores e mais leves */
         @media (max-width: 640px) {
           .blob {
             width: 360px;

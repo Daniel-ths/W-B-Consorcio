@@ -1351,7 +1351,9 @@ export default function AdminDashboard() {
                 <span className="text-[10px] font-bold text-slate-400">Total/dia</span>
               </div>
               <div className="h-44">
+                <div style={{ width: "100%", height: 320 }}></div>
                 <ResponsiveContainer width="100%" height="100%">
+                  
                   <LineChart data={charts.lineData}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="date" tick={{ fontSize: 10 }} />
