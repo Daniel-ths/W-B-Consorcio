@@ -4,21 +4,30 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
-type Props = {
-  onClose?: () => void;
-};
+type Props = { onClose?: () => void };
 
 type VehicleRow = {
   id: string | number;
   model_name: string;
   slug: string;
+
   image_url?: string | null;
+  catalog_cover_url?: string | null;
+
   is_visible?: boolean | null;
   brand?: string | null;
 };
 
 const HY_BLUE = "#00A3C8";
+const HY_VEHICLE_PUBLIC_BASE = "/hyundai/veiculos";
 
+/* ====== SPECS manuais ====== */
+const HYUNDAI_SPECS_BY_SLUG: Record<
+  string,
+  { motor?: string; transmissao?: string; potencia?: string; torque?: string }
+> = {};
+
+/* ====== helpers ====== */
 function norm(s: string) {
   return (s || "")
     .toLowerCase()
@@ -34,20 +43,27 @@ function guessCategory(modelName: string): "SUV" | "HATCHBACK" | "SEDAN" | "UTIL
   if (m.includes("hb20")) return "HATCHBACK";
   if (m.includes("hr")) return "UTILITARIO";
 
-  if (
-    m.includes("tucson") ||
-    m.includes("creta") ||
-    m.includes("kona") ||
-    m.includes("palisade") ||
-    m.includes("ioniq")
-  ) {
+  if (m.includes("tucson") || m.includes("creta") || m.includes("kona") || m.includes("palisade") || m.includes("ioniq")) {
     return "SUV";
   }
-
   return "SUV";
 }
 
 type Tab = "TODOS" | "SUV" | "HATCHBACK" | "SEDAN" | "UTILITARIO";
+
+/** ✅ garante URL “usável” (remove espaços, encode e trim) */
+function safeImgUrl(url: string | null | undefined) {
+  const u = String(url || "").trim();
+  if (!u) return "";
+  // 1) troca espaços (muito comum em URL de storage)
+  const noSpaces = u.replace(/\s/g, "%20");
+  // 2) encode geral (não quebra querystring normal)
+  try {
+    return encodeURI(noSpaces);
+  } catch {
+    return noSpaces;
+  }
+}
 
 export default function HyundaiVehiclesMenu({ onClose }: Props) {
   const [loading, setLoading] = useState(true);
@@ -58,6 +74,9 @@ export default function HyundaiVehiclesMenu({ onClose }: Props) {
 
   const PAGE_SIZE = 6;
   const [page, setPage] = useState(0);
+
+  // ✅ guarda quais veículos tiveram erro de imagem (pra fallback automático)
+  const [imgFailed, setImgFailed] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     let mounted = true;
@@ -71,7 +90,7 @@ export default function HyundaiVehiclesMenu({ onClose }: Props) {
 
         const { data, error } = await supabase
           .from("vehicles")
-          .select("id, model_name, slug, image_url, brand, is_visible")
+          .select("id, model_name, slug, image_url, catalog_cover_url, brand, is_visible")
           .eq("is_visible", true)
           .eq("brand", BRAND)
           .order("created_at", { ascending: false });
@@ -116,7 +135,6 @@ export default function HyundaiVehiclesMenu({ onClose }: Props) {
     return list.filter((v) => guessCategory(v.model_name) === activeTab);
   }, [list, activeTab]);
 
-  // ✅ destaque sempre pega o primeiro da LISTA FILTRADA (fica mais coerente com a aba)
   const featured = useMemo(() => filteredAll[0] || null, [filteredAll]);
 
   const totalPages = useMemo(() => {
@@ -142,31 +160,36 @@ export default function HyundaiVehiclesMenu({ onClose }: Props) {
       <div className="mt-9 flex items-center justify-center gap-3">
         {Array.from({ length: dots }).map((_, i) => {
           const active = i === activeIndex;
-          if (active) {
-            return (
-              <span
-                key={i}
-                className="h-[7px] w-[68px] rounded-full bg-gray-600"
-                aria-hidden="true"
-              />
-            );
-          }
-          return (
-            <span
-              key={i}
-              className="h-[7px] w-[7px] rounded-full bg-gray-400"
-              aria-hidden="true"
-            />
+          return active ? (
+            <span key={i} className="h-[7px] w-[68px] rounded-full bg-gray-600" aria-hidden="true" />
+          ) : (
+            <span key={i} className="h-[7px] w-[7px] rounded-full bg-gray-400" aria-hidden="true" />
           );
         })}
       </div>
     );
   };
 
+  /** ✅ imagem do menu com fallback: catalog_cover_url -> image_url */
+  const getMenuImage = (v: VehicleRow) => {
+    const key = String(v.id);
+    const cover = safeImgUrl(v.catalog_cover_url);
+    const main = safeImgUrl(v.image_url);
+
+    // se já falhou, força fallback
+    if (imgFailed[key]) return main || cover || "";
+    return cover || main || "";
+  };
+
+  const onImgError = (v: VehicleRow) => {
+    const key = String(v.id);
+    setImgFailed((prev) => ({ ...prev, [key]: true }));
+  };
+
   if (loading) return <div className="p-4 text-xs font-bold text-slate-500">Carregando...</div>;
   if (errorMsg) return <div className="p-4 text-xs font-bold text-red-600">{errorMsg}</div>;
 
-  if (list.length === 0)
+  if (list.length === 0) {
     return (
       <div className="p-4 text-xs font-bold text-slate-500">
         Nenhum veículo visível no banco.
@@ -175,63 +198,72 @@ export default function HyundaiVehiclesMenu({ onClose }: Props) {
         </div>
       </div>
     );
+  }
+
+  const featuredSpecs = featured ? HYUNDAI_SPECS_BY_SLUG[String(featured.slug || "")] : undefined;
 
   return (
     <div className="bg-white">
-      {/* ✅ Container fixo e centralizado (faz ficar “igual print”) */}
       <div className="mx-auto w-full max-w-[1400px] px-10 py-8">
         <div className="flex items-start">
-          {/* ===================== ESQUERDA (destaque) ===================== */}
+          {/* ESQUERDA */}
           <div className="w-[62%] pr-10">
             {featured && (
               <Link
-                href={`/admin/hyundai/veiculos/${featured.slug}`} // ✅ rota nova
+                href={`${HY_VEHICLE_PUBLIC_BASE}/${featured.slug}`}
                 onClick={() => onClose?.()}
                 className="block select-none"
               >
-                {/* título grande */}
                 <div className="text-[46px] leading-none font-medium text-gray-900 tracking-tight mt-1">
                   {featured.model_name}
                 </div>
 
-                {/* carro grande */}
                 <div className="mt-6 w-full h-[395px] flex items-center">
-                  {featured.image_url ? (
+                  {getMenuImage(featured) ? (
                     <img
-                      src={featured.image_url}
+                      src={getMenuImage(featured)}
                       alt={featured.model_name}
                       className="w-[92%] h-full object-contain"
                       draggable={false}
+                      onError={() => onImgError(featured)}
                     />
-                  ) : null}
+                  ) : (
+                    <div className="text-xs font-bold text-gray-400">Sem imagem (capa / image_url)</div>
+                  )}
                 </div>
 
-                {/* specs (você preenche depois) */}
                 <div className="mt-10 grid grid-cols-4 gap-14">
                   <div>
                     <div className="text-[11px] text-gray-500">Motor</div>
-                    <div className="mt-2 text-[15px] font-semibold text-gray-900 leading-snug">—</div>
+                    <div className="mt-2 text-[15px] font-semibold text-gray-900 leading-snug">
+                      {featuredSpecs?.motor || "1.0 Turbo TGDI flex (3 cilindros)"}
+                    </div>
                   </div>
                   <div>
                     <div className="text-[11px] text-gray-500">Transmissão</div>
-                    <div className="mt-2 text-[15px] font-semibold text-gray-900 leading-snug">—</div>
+                    <div className="mt-2 text-[15px] font-semibold text-gray-900 leading-snug">
+                      {featuredSpecs?.transmissao || "automática de 6 marchas"}
+                    </div>
                   </div>
                   <div>
                     <div className="text-[11px] text-gray-500">Potência máxima</div>
-                    <div className="mt-2 text-[15px] font-semibold text-gray-900 leading-snug">—</div>
+                    <div className="mt-2 text-[15px] font-semibold text-gray-900 leading-snug">
+                      {featuredSpecs?.potencia || "120 cv (etanol) / 115 cv (gasolina) a 6.000 rpm"}
+                    </div>
                   </div>
                   <div>
                     <div className="text-[11px] text-gray-500">Torque máximo</div>
-                    <div className="mt-2 text-[15px] font-semibold text-gray-900 leading-snug">—</div>
+                    <div className="mt-2 text-[15px] font-semibold text-gray-900 leading-snug">
+                      {featuredSpecs?.torque || "17,5 kgfm entre 1.500 e 4.500 rpm"}
+                    </div>
                   </div>
                 </div>
               </Link>
             )}
           </div>
 
-          {/* ===================== DIREITA (tabs + grid) ===================== */}
+          {/* DIREITA */}
           <div className="w-[38%] pl-2">
-            {/* Tabs: mais “secas”, com underline fino */}
             <div className="flex items-center gap-12 text-[12px] uppercase tracking-wide text-gray-800 mt-2">
               {(["TODOS", "SUV", "HATCHBACK", "SEDAN", "UTILITARIO"] as const).map((t) => {
                 const active = activeTab === t;
@@ -241,7 +273,8 @@ export default function HyundaiVehiclesMenu({ onClose }: Props) {
                     onClick={() => setActiveTab(t)}
                     className={`relative pb-2 font-medium ${active ? "text-gray-900" : "text-gray-800"}`}
                   >
-                    {t} <span className="text-gray-500 font-normal">({(counts as any)[t] || 0})</span>
+                    {t}{" "}
+                    <span className="text-gray-500 font-normal">({(counts as any)[t] || 0})</span>
                     {active && (
                       <span
                         className="absolute left-0 right-0 -bottom-[2px] h-[2px]"
@@ -253,7 +286,6 @@ export default function HyundaiVehiclesMenu({ onClose }: Props) {
               })}
             </div>
 
-            {/* Grid + setas (setas agora ficam no MEIO do bloco) */}
             <div className="relative mt-10">
               <button
                 type="button"
@@ -273,40 +305,44 @@ export default function HyundaiVehiclesMenu({ onClose }: Props) {
                 <span className="text-4xl leading-none">›</span>
               </button>
 
-              {/* cards 3x2 com espaçamento mais parecido */}
               <div className="grid grid-cols-3 gap-x-14 gap-y-16">
-                {gridItems.map((v) => (
-<Link
-  key={String(v.id)}
-  href={`/hyundai/veiculos/${v.slug}`}
-  onClick={() => onClose?.()}
-  className="group text-center"
->
-                    <div className="h-[112px] flex items-center justify-center">
-                      {v.image_url ? (
-                        <img
-                          src={v.image_url}
-                          alt={v.model_name}
-                          className="w-full h-full object-contain"
-                          draggable={false}
-                        />
-                      ) : null}
-                    </div>
+                {gridItems.map((v) => {
+                  const img = getMenuImage(v);
+                  return (
+                    <Link
+                      key={String(v.id)}
+                      href={`${HY_VEHICLE_PUBLIC_BASE}/${v.slug}`}
+                      onClick={() => onClose?.()}
+                      className="group text-center"
+                    >
+                      <div className="h-[112px] flex items-center justify-center">
+                        {img ? (
+                          <img
+                            src={img}
+                            alt={v.model_name}
+                            className="w-full h-full object-contain"
+                            draggable={false}
+                            onError={() => onImgError(v)}
+                          />
+                        ) : (
+                          <div className="text-[10px] font-bold text-gray-300">sem imagem</div>
+                        )}
+                      </div>
 
-                    <div className="mt-4 text-[15px] font-medium text-gray-900 group-hover:opacity-80">
-                      {v.model_name}
-                    </div>
-                  </Link>
-                ))}
+                      <div className="mt-4 text-[15px] font-medium text-gray-900 group-hover:opacity-80">
+                        {v.model_name}
+                      </div>
+                    </Link>
+                  );
+                })}
               </div>
 
               {renderPager()}
             </div>
 
-            {/* se quiser “igual print”, pode REMOVER esse link abaixo */}
             <div className="mt-8">
               <Link
-                href="/hyundai/veiculos"
+                href={HY_VEHICLE_PUBLIC_BASE}
                 onClick={() => onClose?.()}
                 className="text-sm font-semibold"
                 style={{ color: HY_BLUE }}

@@ -1,50 +1,83 @@
 "use client";
 export const dynamic = "force-dynamic";
-import { useEffect, useMemo, useState } from "react";
+
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-
 type BrandKey = "chevrolet" | "hyundai";
-type Brand = { key: BrandKey; name: string; logo: string };
+type Brand = { key: BrandKey; name: string; logo: string; disabled?: boolean };
 
 export default function ChooseBrandPage() {
   const router = useRouter();
   const [entering, setEntering] = useState<Brand | null>(null);
+
+  // refs pra limpar timeouts corretamente
+  const navTimeoutRef = useRef<number | null>(null);
+  const resetTimeoutRef = useRef<number | null>(null);
 
   const brands = useMemo<Brand[]>(
     () => [
       {
         key: "chevrolet",
         name: "Chevrolet",
-        logo:
-          "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/chevrolet-logo.svg",
+        logo: "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/chevrolet-logo.svg",
       },
       {
         key: "hyundai",
-        name: "MANUTENÇÃO",
+        name: "Hyundai",
         logo: "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/avatars/580b585b2edbce24c47b2c77.png",
+        // se quiser bloquear por enquanto:
+        // disabled: true,
       },
     ],
     []
   );
 
+  const clearTimers = () => {
+    if (navTimeoutRef.current) window.clearTimeout(navTimeoutRef.current);
+    if (resetTimeoutRef.current) window.clearTimeout(resetTimeoutRef.current);
+    navTimeoutRef.current = null;
+    resetTimeoutRef.current = null;
+  };
+
   const go = (b: Brand) => {
     if (entering) return;
+    if (b.disabled) return;
+
     setEntering(b);
-    setTimeout(() => router.push(`/${b.key}`), 520);
+    clearTimers();
+
+    // navega após animação
+    navTimeoutRef.current = window.setTimeout(() => {
+      router.push(`/${b.key}`);
+    }, 520);
+
+    // failsafe: se por algum motivo não navegar, volta o overlay
+    resetTimeoutRef.current = window.setTimeout(() => {
+      setEntering(null);
+      clearTimers();
+    }, 5000);
   };
 
   // atalhos (desktop)
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (entering) return;
+
       if (e.key === "1") go(brands[0]);
       if (e.key === "2") go(brands[1]);
       if (e.key === "Enter") go(brands[0]);
     };
+
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [brands, entering]);
+
+  // cleanup ao desmontar
+  useEffect(() => {
+    return () => clearTimers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <main className="min-h-screen w-full overflow-hidden bg-white text-zinc-900 dark:bg-zinc-950 dark:text-white">
@@ -80,18 +113,20 @@ export default function ChooseBrandPage() {
 
           {/* Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
-            {brands.map((b, idx) => (
+            {brands.map((b) => (
               <button
                 key={b.key}
                 onClick={() => go(b)}
-                className="
+                disabled={!!b.disabled}
+                className={`
                   group relative w-full overflow-hidden
                   rounded-[26px] sm:rounded-[28px]
                   border border-zinc-200/70 dark:border-white/10
                   bg-white/75 dark:bg-white/5 backdrop-blur-md
                   transition-transform duration-300
                   active:scale-[0.99] md:hover:-translate-y-1
-                "
+                  ${b.disabled ? "opacity-60 cursor-not-allowed" : ""}
+                `}
               >
                 <div className="pointer-events-none absolute inset-0 opacity-0 md:group-hover:opacity-100 transition-opacity duration-300">
                   <div className="absolute -top-20 -right-20 h-56 w-56 rounded-full bg-zinc-200/50 dark:bg-white/10 blur-3xl" />
@@ -112,13 +147,9 @@ export default function ChooseBrandPage() {
                         {b.name}
                       </div>
                       <div className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                        Entrar
+                        {b.disabled ? "Em breve" : "Entrar"}
                       </div>
                     </div>
-                  </div>
-
-                  <div className="hidden md:block text-xs text-zinc-500 dark:text-zinc-400">
-                    {idx === 0 ? "" : ""}
                   </div>
                 </div>
 
@@ -128,11 +159,6 @@ export default function ChooseBrandPage() {
                 <div className="pointer-events-none absolute inset-0 rounded-[26px] sm:rounded-[28px] ring-0 md:group-hover:ring-2 ring-zinc-900/10 dark:ring-white/15 transition-all" />
               </button>
             ))}
-          </div>
-
-          {/* Hint (desktop) */}
-          <div className="hidden md:block mt-10 text-center text-[11px] text-zinc-500 dark:text-zinc-400">
-            
           </div>
         </div>
       </div>
@@ -175,25 +201,13 @@ export default function ChooseBrandPage() {
       {/* ===== CSS ===== */}
       <style jsx global>{`
         .bg-grid {
-          background-image: linear-gradient(
-              to right,
-              rgba(0, 0, 0, 0.35) 1px,
-              transparent 1px
-            ),
+          background-image: linear-gradient(to right, rgba(0, 0, 0, 0.35) 1px, transparent 1px),
             linear-gradient(to bottom, rgba(0, 0, 0, 0.35) 1px, transparent 1px);
           background-size: 56px 56px;
         }
         .dark .bg-grid {
-          background-image: linear-gradient(
-              to right,
-              rgba(255, 255, 255, 0.35) 1px,
-              transparent 1px
-            ),
-            linear-gradient(
-              to bottom,
-              rgba(255, 255, 255, 0.35) 1px,
-              transparent 1px
-            );
+          background-image: linear-gradient(to right, rgba(255, 255, 255, 0.35) 1px, transparent 1px),
+            linear-gradient(to bottom, rgba(255, 255, 255, 0.35) 1px, transparent 1px);
         }
 
         .blob {

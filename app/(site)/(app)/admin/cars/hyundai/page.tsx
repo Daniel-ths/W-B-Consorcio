@@ -5,13 +5,6 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
-type SpecGroup = {
-  id: string;
-  title: string; // ex: "ESTILO EXTERIOR"
-  description?: string;
-  items?: string[];
-};
-
 type VersionItem = {
   id: string;
   title: string;
@@ -19,19 +12,22 @@ type VersionItem = {
   price: number;
   note?: string;
   heroLabel?: string;
-
-  // ✅ NOVO: itens de série / destaques POR VERSÃO (se você estiver salvando assim)
-  spec_groups?: SpecGroup[] | null;
-  highlights?: string[] | null;
 };
 
 type ColorVariant = {
   id: string;
   name: string;
   internal?: string;
-  extraPrice?: number;
-  swatch: string;
-  image_url: string;
+  extraPrice?: number; // 0 ou >0
+  swatch: string; // hex
+  image_url: string; // ✅ PNG do carro nessa cor (fundo transparente)
+};
+
+type SpecGroup = {
+  id: string;
+  title: string; // ex: "ESTILO EXTERIOR"
+  description?: string; // aparece ao expandir
+  items?: string[];
 };
 
 type VehicleRow = {
@@ -44,9 +40,9 @@ type VehicleRow = {
   price_start?: number | null;
 
   versions?: VersionItem[] | null;
-  colors?: ColorVariant[] | null;
-  spec_groups?: SpecGroup[] | null; // fallback global
-  highlights?: string[] | null;     // fallback global
+  colors?: ColorVariant[] | null; // ✅ tem que estar como colors
+  spec_groups?: SpecGroup[] | null;
+  highlights?: string[] | null;
 };
 
 const HY_BLUE = "#00A3C8";
@@ -58,38 +54,33 @@ const money = (v: number) =>
     maximumFractionDigits: 0,
   }).format(Number(v || 0));
 
-function normalizeArray<T>(val: any): T[] {
-  // já é array
-  if (Array.isArray(val)) return val as T[];
-
-  // às vezes vem string JSON
-  if (typeof val === "string") {
-    try {
-      const parsed = JSON.parse(val);
-      if (Array.isArray(parsed)) return parsed as T[];
-    } catch {}
-  }
-
-  return [];
-}
-
 export default function HyundaiVehicleSlugPage() {
-  const params = useParams();
+  const params = useParams(); // ✅ sem genérico
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
+  // ✅ SOLUÇÃO: slug pode vir por params, query (?slug=) ou pelo pathname
   const slug = useMemo(() => {
     const raw = (params as any)?.slug;
 
+    // 1) params.slug
     if (Array.isArray(raw)) return raw[0] ? String(raw[0]) : "";
     if (raw) return String(raw);
 
+    // 2) query ?slug=
     const q = searchParams?.get("slug");
     if (q) return String(q);
 
-    const parts = String(pathname || "").split("/").filter(Boolean);
+    // 3) pathname: pega o último segmento válido
+    // ex: /hyundai/veiculos/hb20 -> hb20
+    // ex: /hyundai/monte-o-seu/hb20 -> hb20
+    const parts = String(pathname || "")
+      .split("/")
+      .filter(Boolean);
+
     const last = parts[parts.length - 1] || "";
+    // evita retornar "veiculos" ou "monte-o-seu" como slug
     if (last && last !== "veiculos" && last !== "monte-o-seu" && last !== "hyundai") return last;
 
     return "";
@@ -99,16 +90,21 @@ export default function HyundaiVehicleSlugPage() {
   const [err, setErr] = useState<string | null>(null);
   const [vehicle, setVehicle] = useState<VehicleRow | null>(null);
 
+  // 1 = versão | 2 = cor
   const [step, setStep] = useState<1 | 2>(1);
+
   const [selectedVersionId, setSelectedVersionId] = useState<string>("");
   const [selectedColorId, setSelectedColorId] = useState<string>("");
+
   const [openSpecId, setOpenSpecId] = useState<string | null>(null);
 
+  // animação imagem (troca por key)
   const [imgKey, setImgKey] = useState(0);
 
   useEffect(() => {
     let mounted = true;
 
+    // ✅ NÃO trava em "carregando": se não tem slug, cai no err e para
     if (!slug) {
       setErr("Veículo não encontrado (slug ausente na URL).");
       setVehicle(null);
@@ -118,6 +114,7 @@ export default function HyundaiVehicleSlugPage() {
       };
     }
 
+    // ✅ timeout de segurança
     const timeoutId = window.setTimeout(() => {
       if (!mounted) return;
       setErr("Demorou demais para carregar. Tente novamente.");
@@ -153,11 +150,10 @@ export default function HyundaiVehicleSlugPage() {
 
         const v = data as VehicleRow;
 
-        const safeVersions = normalizeArray<VersionItem>(v.versions);
-        const safeColors = normalizeArray<ColorVariant>(v.colors);
+        const safeVersions = Array.isArray(v.versions) ? v.versions : [];
+        const safeColors = Array.isArray(v.colors) ? v.colors : []; // ✅ colors
 
         setVehicle(v);
-
         setSelectedVersionId(safeVersions[0]?.id || "");
         setSelectedColorId(safeColors[0]?.id || "");
         setImgKey((k) => k + 1);
@@ -178,41 +174,34 @@ export default function HyundaiVehicleSlugPage() {
   }, [slug]);
 
   const versions = useMemo<VersionItem[]>(
-    () => normalizeArray<VersionItem>(vehicle?.versions),
+    () => (Array.isArray(vehicle?.versions) ? (vehicle!.versions as VersionItem[]) : []),
     [vehicle]
   );
 
   const colorVariants = useMemo<ColorVariant[]>(
-    () => normalizeArray<ColorVariant>(vehicle?.colors),
+    () => (Array.isArray(vehicle?.colors) ? (vehicle!.colors as ColorVariant[]) : []),
     [vehicle]
   );
 
-  const selectedVersion = useMemo(() => {
-    return versions.find((v) => v.id === selectedVersionId) || versions[0] || null;
-  }, [versions, selectedVersionId]);
+  const specGroups = useMemo<SpecGroup[]>(
+    () => (Array.isArray(vehicle?.spec_groups) ? (vehicle!.spec_groups as SpecGroup[]) : []),
+    [vehicle]
+  );
 
-  const selectedColor = useMemo(() => {
-    return colorVariants.find((c) => c.id === selectedColorId) || colorVariants[0] || null;
-  }, [colorVariants, selectedColorId]);
+  const highlights = useMemo<string[]>(
+    () => (Array.isArray(vehicle?.highlights) ? (vehicle!.highlights as string[]) : []),
+    [vehicle]
+  );
 
-  // ✅ PRINCIPAL CORREÇÃO:
-  // Itens de série agora vem da versão selecionada (se existir), senão cai no global do veículo
-  const specGroups = useMemo<SpecGroup[]>(() => {
-    const fromVersion = normalizeArray<SpecGroup>((selectedVersion as any)?.spec_groups);
-    if (fromVersion.length) return fromVersion;
+  const selectedVersion = useMemo(
+    () => versions.find((v) => v.id === selectedVersionId) || versions[0] || null,
+    [versions, selectedVersionId]
+  );
 
-    const fromVehicle = normalizeArray<SpecGroup>(vehicle?.spec_groups);
-    return fromVehicle;
-  }, [selectedVersion, vehicle]);
-
-  // ✅ Destaques também pode ser por versão (opcional), com fallback no veículo
-  const highlights = useMemo<string[]>(() => {
-    const fromVersion = normalizeArray<string>((selectedVersion as any)?.highlights);
-    if (fromVersion.length) return fromVersion;
-
-    const fromVehicle = normalizeArray<string>(vehicle?.highlights);
-    return fromVehicle;
-  }, [selectedVersion, vehicle]);
+  const selectedColor = useMemo(
+    () => colorVariants.find((c) => c.id === selectedColorId) || colorVariants[0] || null,
+    [colorVariants, selectedColorId]
+  );
 
   const currentImageUrl = useMemo(() => {
     return selectedColor?.image_url || vehicle?.image_url || null;
@@ -229,11 +218,6 @@ export default function HyundaiVehicleSlugPage() {
   }, [selectedVersion?.price, vehicle?.price_start, selectedColor?.extraPrice]);
 
   const Title = vehicle?.model_name || "Hyundai";
-
-  // quando troca versão, fecha accordion (pra não ficar aberto com ID que não existe na nova versão)
-  useEffect(() => {
-    setOpenSpecId(null);
-  }, [selectedVersionId]);
 
   if (loading) {
     return (
@@ -330,6 +314,7 @@ export default function HyundaiVehicleSlugPage() {
             · <span className="font-medium text-gray-700">Monte o seu</span>
           </div>
 
+          {/* stepper */}
           <div className="mt-4">
             <div className="grid grid-cols-3 gap-8 items-end">
               <div>
@@ -526,13 +511,7 @@ export default function HyundaiVehicleSlugPage() {
 
                 <div className="mt-3 border border-black/10 rounded-md overflow-hidden bg-white">
                   {specGroups.length === 0 ? (
-                    <div className="px-4 py-4 text-sm text-gray-500">
-                      Nenhuma seção cadastrada no builder.
-                      <div className="mt-1 text-[11px] text-gray-400">
-                        Dica: salve em <span className="font-mono">versions[].spec_groups</span> (por versão) ou em{" "}
-                        <span className="font-mono">vehicle.spec_groups</span> (global).
-                      </div>
-                    </div>
+                    <div className="px-4 py-4 text-sm text-gray-500">Nenhuma seção cadastrada no builder.</div>
                   ) : (
                     specGroups.map((g) => {
                       const opened = openSpecId === g.id;

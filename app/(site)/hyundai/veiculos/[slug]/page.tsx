@@ -1,10 +1,16 @@
-// app/hyundai/veiculos/[slug]/page.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+
+type SpecGroup = {
+  id: string;
+  title: string; // ex: "ESTILO EXTERIOR"
+  description?: string;
+  items?: string[];
+};
 
 type VersionItem = {
   id: string;
@@ -13,22 +19,19 @@ type VersionItem = {
   price: number;
   note?: string;
   heroLabel?: string;
+
+  // ✅ NOVO: itens de série / destaques POR VERSÃO (se você estiver salvando assim)
+  spec_groups?: SpecGroup[] | null;
+  highlights?: string[] | null;
 };
 
 type ColorVariant = {
   id: string;
   name: string;
   internal?: string;
-  extraPrice?: number; // 0 ou >0
-  swatch: string; // hex
-  image_url: string; // ✅ PNG do carro nessa cor (fundo transparente)
-};
-
-type SpecGroup = {
-  id: string;
-  title: string; // ex: "ESTILO EXTERIOR"
-  description?: string; // aparece ao expandir
-  items?: string[];
+  extraPrice?: number;
+  swatch: string;
+  image_url: string;
 };
 
 type VehicleRow = {
@@ -41,9 +44,9 @@ type VehicleRow = {
   price_start?: number | null;
 
   versions?: VersionItem[] | null;
-  colors?: ColorVariant[] | null; // ✅ tem que estar como colors
-  spec_groups?: SpecGroup[] | null;
-  highlights?: string[] | null;
+  colors?: ColorVariant[] | null;
+  spec_groups?: SpecGroup[] | null; // fallback global
+  highlights?: string[] | null;     // fallback global
 };
 
 const HY_BLUE = "#00A3C8";
@@ -55,29 +58,71 @@ const money = (v: number) =>
     maximumFractionDigits: 0,
   }).format(Number(v || 0));
 
+function normalizeArray<T>(val: any): T[] {
+  // já é array
+  if (Array.isArray(val)) return val as T[];
+
+  // às vezes vem string JSON
+  if (typeof val === "string") {
+    try {
+      const parsed = JSON.parse(val);
+      if (Array.isArray(parsed)) return parsed as T[];
+    } catch {}
+  }
+
+  return [];
+}
+
 export default function HyundaiVehicleSlugPage() {
-  const params = useParams<{ slug: string }>();
+  const params = useParams();
   const router = useRouter();
-  const slug = useMemo(() => String(params?.slug || ""), [params]);
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const slug = useMemo(() => {
+    const raw = (params as any)?.slug;
+
+    if (Array.isArray(raw)) return raw[0] ? String(raw[0]) : "";
+    if (raw) return String(raw);
+
+    const q = searchParams?.get("slug");
+    if (q) return String(q);
+
+    const parts = String(pathname || "").split("/").filter(Boolean);
+    const last = parts[parts.length - 1] || "";
+    if (last && last !== "veiculos" && last !== "monte-o-seu" && last !== "hyundai") return last;
+
+    return "";
+  }, [params, pathname, searchParams]);
 
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [vehicle, setVehicle] = useState<VehicleRow | null>(null);
 
-  // 1 = versão | 2 = cor
   const [step, setStep] = useState<1 | 2>(1);
-
   const [selectedVersionId, setSelectedVersionId] = useState<string>("");
   const [selectedColorId, setSelectedColorId] = useState<string>("");
-
   const [openSpecId, setOpenSpecId] = useState<string | null>(null);
 
-  // animação imagem (troca por key)
   const [imgKey, setImgKey] = useState(0);
 
   useEffect(() => {
-    if (!slug) return;
     let mounted = true;
+
+    if (!slug) {
+      setErr("Veículo não encontrado (slug ausente na URL).");
+      setVehicle(null);
+      setLoading(false);
+      return () => {
+        mounted = false;
+      };
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      if (!mounted) return;
+      setErr("Demorou demais para carregar. Tente novamente.");
+      setLoading(false);
+    }, 12000);
 
     (async () => {
       setLoading(true);
@@ -85,24 +130,14 @@ export default function HyundaiVehicleSlugPage() {
       setVehicle(null);
 
       try {
-const { data, error } = await supabase
-  .from("vehicles")
-  .select(`
-    id,
-    model_name,
-    slug,
-    image_url,
-    brand,
-    is_visible,
-    price_start,
-    versions,
-    colors:exterior_colors,
-    spec_groups,
-    highlights
-  `)
-  .eq("brand", "hyundai")
-  .eq("slug", slug)
-  .maybeSingle();
+        const { data, error } = await supabase
+          .from("vehicles")
+          .select(
+            "id, model_name, slug, image_url, brand, is_visible, price_start, versions, colors, spec_groups, highlights"
+          )
+          .eq("brand", "hyundai")
+          .eq("slug", slug)
+          .maybeSingle();
 
         if (error) throw error;
         if (!mounted) return;
@@ -118,8 +153,8 @@ const { data, error } = await supabase
 
         const v = data as VehicleRow;
 
-        const safeVersions = Array.isArray(v.versions) ? v.versions : [];
-        const safeColors = Array.isArray(v.colors) ? v.colors : []; // ✅ AQUI: colors
+        const safeVersions = normalizeArray<VersionItem>(v.versions);
+        const safeColors = normalizeArray<ColorVariant>(v.colors);
 
         setVehicle(v);
 
@@ -131,46 +166,54 @@ const { data, error } = await supabase
         setErr(e?.message || "Erro ao carregar veículo.");
       } finally {
         if (!mounted) return;
+        window.clearTimeout(timeoutId);
         setLoading(false);
       }
     })();
 
     return () => {
       mounted = false;
+      window.clearTimeout(timeoutId);
     };
   }, [slug]);
 
   const versions = useMemo<VersionItem[]>(
-    () => (Array.isArray(vehicle?.versions) ? (vehicle!.versions as VersionItem[]) : []),
+    () => normalizeArray<VersionItem>(vehicle?.versions),
     [vehicle]
   );
 
-const colorVariants = useMemo<ColorVariant[]>(
-  () => (Array.isArray(vehicle?.colors) ? (vehicle?.colors as ColorVariant[]) : []),
-  [vehicle?.colors]
-);
-
-  const specGroups = useMemo<SpecGroup[]>(
-    () => (Array.isArray(vehicle?.spec_groups) ? (vehicle!.spec_groups as SpecGroup[]) : []),
+  const colorVariants = useMemo<ColorVariant[]>(
+    () => normalizeArray<ColorVariant>(vehicle?.colors),
     [vehicle]
   );
 
-  const highlights = useMemo<string[]>(
-    () => (Array.isArray(vehicle?.highlights) ? (vehicle!.highlights as string[]) : []),
-    [vehicle]
-  );
+  const selectedVersion = useMemo(() => {
+    return versions.find((v) => v.id === selectedVersionId) || versions[0] || null;
+  }, [versions, selectedVersionId]);
 
-  const selectedVersion = useMemo(
-    () => versions.find((v) => v.id === selectedVersionId) || versions[0] || null,
-    [versions, selectedVersionId]
-  );
+  const selectedColor = useMemo(() => {
+    return colorVariants.find((c) => c.id === selectedColorId) || colorVariants[0] || null;
+  }, [colorVariants, selectedColorId]);
 
-  const selectedColor = useMemo(
-    () => colorVariants.find((c) => c.id === selectedColorId) || colorVariants[0] || null,
-    [colorVariants, selectedColorId]
-  );
+  // ✅ PRINCIPAL CORREÇÃO:
+  // Itens de série agora vem da versão selecionada (se existir), senão cai no global do veículo
+  const specGroups = useMemo<SpecGroup[]>(() => {
+    const fromVersion = normalizeArray<SpecGroup>((selectedVersion as any)?.spec_groups);
+    if (fromVersion.length) return fromVersion;
 
-  // imagem atual (cor -> fallback vehicle.image_url)
+    const fromVehicle = normalizeArray<SpecGroup>(vehicle?.spec_groups);
+    return fromVehicle;
+  }, [selectedVersion, vehicle]);
+
+  // ✅ Destaques também pode ser por versão (opcional), com fallback no veículo
+  const highlights = useMemo<string[]>(() => {
+    const fromVersion = normalizeArray<string>((selectedVersion as any)?.highlights);
+    if (fromVersion.length) return fromVersion;
+
+    const fromVehicle = normalizeArray<string>(vehicle?.highlights);
+    return fromVehicle;
+  }, [selectedVersion, vehicle]);
+
   const currentImageUrl = useMemo(() => {
     return selectedColor?.image_url || vehicle?.image_url || null;
   }, [selectedColor?.image_url, vehicle?.image_url]);
@@ -186,6 +229,11 @@ const colorVariants = useMemo<ColorVariant[]>(
   }, [selectedVersion?.price, vehicle?.price_start, selectedColor?.extraPrice]);
 
   const Title = vehicle?.model_name || "Hyundai";
+
+  // quando troca versão, fecha accordion (pra não ficar aberto com ID que não existe na nova versão)
+  useEffect(() => {
+    setOpenSpecId(null);
+  }, [selectedVersionId]);
 
   if (loading) {
     return (
@@ -223,45 +271,28 @@ const colorVariants = useMemo<ColorVariant[]>(
   if (!vehicle) return null;
 
   const basePriceDisplay = selectedVersion?.price ?? vehicle.price_start ?? 0;
-
-  // ✅ cor do fundo (tint) — se não tiver cor selecionada usa cinza neutro
   const heroTint = selectedColor?.swatch || "#d8d8d8";
 
   return (
     <div className="min-h-screen bg-[#f5f2ef]">
-      <style jsx>{`
-        @keyframes fadeUp {
-          from {
-            opacity: 0;
-            transform: translateY(8px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
+      <style>{`
+        @keyframes hyVeh_fadeUp {
+          from { opacity: 0; transform: translateY(8px); }
+          to   { opacity: 1; transform: translateY(0); }
         }
-        @keyframes imgPop {
-          from {
-            opacity: 0.25;
-            transform: translateY(6px) scale(0.995);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0) scale(1);
-          }
+        @keyframes hyVeh_imgPop {
+          from { opacity: 0.25; transform: translateY(6px) scale(0.995); }
+          to   { opacity: 1; transform: translateY(0) scale(1); }
         }
-        .anim-fadeUp {
-          animation: fadeUp 260ms ease-out both;
-        }
-        .anim-img {
-          animation: imgPop 260ms ease-out both;
-        }
-        .hero-bg {
+        .hyVeh_animFadeUp { animation: hyVeh_fadeUp 260ms ease-out both; }
+        .hyVeh_animImg    { animation: hyVeh_imgPop 260ms ease-out both; }
+
+        .hyVeh_heroBg {
           position: relative;
           background: var(--tint);
           overflow: hidden;
         }
-        .hero-bg::before {
+        .hyVeh_heroBg::before {
           content: "";
           position: absolute;
           inset: 0;
@@ -270,7 +301,7 @@ const colorVariants = useMemo<ColorVariant[]>(
             radial-gradient(90% 70% at 80% 35%, rgba(0,0,0,0.12) 0%, rgba(0,0,0,0.02) 55%, rgba(255,255,255,0.00) 100%);
           pointer-events: none;
         }
-        .hero-bg::after {
+        .hyVeh_heroBg::after {
           content: "";
           position: absolute;
           inset: 0;
@@ -299,20 +330,13 @@ const colorVariants = useMemo<ColorVariant[]>(
             · <span className="font-medium text-gray-700">Monte o seu</span>
           </div>
 
-          {/* stepper */}
           <div className="mt-4">
             <div className="grid grid-cols-3 gap-8 items-end">
               <div>
                 <div className="text-[11px] font-semibold text-gray-500">Passo 1</div>
                 <div className="mt-1 flex items-center gap-3">
-                  <button
-                    onClick={() => setStep(1)}
-                    className={`text-[12px] font-semibold ${
-                      step === 1 ? "text-[var(--hy)]" : "text-gray-700"
-                    }`}
-                    style={{ ["--hy" as any]: HY_BLUE }}
-                  >
-                    {Title}
+                  <button onClick={() => setStep(1)} className="text-[12px] font-semibold text-gray-700 hover:underline">
+                    Selecione a versão
                   </button>
                   <button className="text-[12px] text-gray-500 hover:underline" onClick={() => setStep(1)}>
                     Alterar
@@ -326,28 +350,19 @@ const colorVariants = useMemo<ColorVariant[]>(
               <div>
                 <div className="text-[11px] font-semibold text-gray-500">Passo 2</div>
                 <div className="mt-1 flex items-center gap-3">
-                  <button
-                    onClick={() => setStep(1)}
-                    className="text-[12px] font-semibold text-gray-700 hover:underline"
-                  >
-                    Selecione a versão
+                  <button onClick={() => setStep(1)} className="text-[12px] font-semibold text-gray-700 hover:underline">
+                    Selecione a cor
                   </button>
                 </div>
                 <div className="mt-2 h-[3px] w-full bg-black/10">
                   <div
                     className="h-[3px] transition-all duration-300"
-                    style={{
-                      width: step === 1 ? "0%" : "100%",
-                      background: HY_BLUE,
-                    }}
+                    style={{ width: step === 1 ? "0%" : "100%", background: HY_BLUE }}
                   />
                 </div>
               </div>
 
               <div>
-                <div className="text-[11px] font-semibold text-gray-500">Passo 3</div>
-                <div className="mt-1 text-[12px] font-semibold text-gray-700">Selecione a cor</div>
-                <div className="mt-2 h-[3px] w-full bg-black/10" />
               </div>
             </div>
           </div>
@@ -357,13 +372,11 @@ const colorVariants = useMemo<ColorVariant[]>(
       {/* conteúdo */}
       <div className="max-w-[1200px] mx-auto px-6 py-8">
         <div className="grid grid-cols-12 gap-8 items-start">
-          {/* coluna esquerda */}
-          <div className="col-span-12 lg:col-span-4 anim-fadeUp">
+          {/* esquerda */}
+          <div className="col-span-12 lg:col-span-4 hyVeh_animFadeUp">
             {step === 1 ? (
               <>
-                <div className="text-[12px] text-gray-700 font-semibold mb-4">
-                  {versions.length} versão(ões) cadastrada(s)
-                </div>
+                <div className="text-[12px] text-gray-700 font-semibold mb-4">{versions.length} versão(ões) cadastrada(s)</div>
 
                 {versions.length === 0 ? (
                   <div className="text-sm text-gray-600 bg-white border border-black/10 rounded-md p-4">
@@ -393,9 +406,7 @@ const colorVariants = useMemo<ColorVariant[]>(
                               </div>
 
                               {v.subtitle ? <div className="mt-1 text-[11px] text-gray-600">{v.subtitle}</div> : null}
-                              {v.note ? (
-                                <div className="mt-2 text-[11px] text-gray-600 leading-snug">{v.note}</div>
-                              ) : null}
+                              {v.note ? <div className="mt-2 text-[11px] text-gray-600 leading-snug">{v.note}</div> : null}
                             </div>
                           </div>
                         </button>
@@ -406,9 +417,7 @@ const colorVariants = useMemo<ColorVariant[]>(
               </>
             ) : (
               <>
-                <div className="text-[12px] text-gray-700 font-semibold mb-4">
-                  {colorVariants.length} cores disponíveis
-                </div>
+                <div className="text-[12px] text-gray-700 font-semibold mb-4">{colorVariants.length} cores disponíveis</div>
 
                 {colorVariants.length === 0 ? (
                   <div className="text-sm text-gray-600 bg-white border border-black/10 rounded-md p-4">
@@ -423,27 +432,20 @@ const colorVariants = useMemo<ColorVariant[]>(
                           key={c.id}
                           onClick={() => setSelectedColorId(c.id)}
                           className={`text-left bg-white border transition-all duration-200 ${
-                            active
-                              ? "border-[#0F3C66] ring-2 ring-[#0F3C66]/10"
-                              : "border-black/10 hover:border-black/20"
+                            active ? "border-[#0F3C66] ring-2 ring-[#0F3C66]/10" : "border-black/10 hover:border-black/20"
                           }`}
                           style={{ borderRadius: 0 }}
                           title={c.image_url ? "Trocar cor (troca imagem)" : "Cor sem imagem"}
                         >
                           <div className="p-3">
                             <div className="text-[11px] font-semibold text-gray-900">{c.name}</div>
-                            <div className="text-[10px] text-gray-600">
-                              {c.internal ? `Cor interna: ${c.internal}` : "\u00A0"}
-                            </div>
+                            <div className="text-[10px] text-gray-600">{c.internal ? `Cor interna: ${c.internal}` : "\u00A0"}</div>
                             <div className="mt-2 text-[11px] font-semibold text-gray-900">
                               {c.extraPrice ? `+ ${money(c.extraPrice)}` : "+ R$ 0,00"}
                             </div>
                           </div>
 
-                          <div
-                            className="h-[86px] border-t border-black/10"
-                            style={{ background: c.swatch || "#ddd" }}
-                          />
+                          <div className="h-[86px] border-t border-black/10" style={{ background: c.swatch || "#ddd" }} />
                         </button>
                       );
                     })}
@@ -453,8 +455,8 @@ const colorVariants = useMemo<ColorVariant[]>(
             )}
           </div>
 
-          {/* coluna direita */}
-          <div className="col-span-12 lg:col-span-8 anim-fadeUp">
+          {/* direita */}
+          <div className="col-span-12 lg:col-span-8 hyVeh_animFadeUp">
             <div className="text-[14px] text-gray-700">
               <span className="font-semibold">{Title}</span>
               {selectedVersion?.title ? (
@@ -475,7 +477,7 @@ const colorVariants = useMemo<ColorVariant[]>(
             </div>
 
             <div className="mt-3 bg-white border border-black/10 rounded-md overflow-hidden">
-              <div className="h-[280px] hero-bg relative" style={{ ["--tint" as any]: heroTint }}>
+              <div className="h-[280px] hyVeh_heroBg relative" style={{ ["--tint" as any]: heroTint }}>
                 <div className="absolute top-3 left-3 z-[2]">
                   <span className="inline-flex items-center px-2 py-1 text-[11px] font-semibold bg-white/85 border border-black/10 rounded">
                     {selectedVersion?.heroLabel || "Exterior"}
@@ -488,7 +490,7 @@ const colorVariants = useMemo<ColorVariant[]>(
                       key={imgKey}
                       src={currentImageUrl}
                       alt={vehicle.model_name}
-                      className="w-[86%] h-[86%] object-contain anim-img"
+                      className="w-[86%] h-[86%] object-contain hyVeh_animImg"
                       draggable={false}
                     />
                   ) : (
@@ -517,7 +519,13 @@ const colorVariants = useMemo<ColorVariant[]>(
 
                 <div className="mt-3 border border-black/10 rounded-md overflow-hidden bg-white">
                   {specGroups.length === 0 ? (
-                    <div className="px-4 py-4 text-sm text-gray-500">Nenhuma seção cadastrada no builder.</div>
+                    <div className="px-4 py-4 text-sm text-gray-500">
+                      Nenhuma seção cadastrada no builder.
+                      <div className="mt-1 text-[11px] text-gray-400">
+                        Dica: salve em <span className="font-mono">versions[].spec_groups</span> (por versão) ou em{" "}
+                        <span className="font-mono">vehicle.spec_groups</span> (global).
+                      </div>
+                    </div>
                   ) : (
                     specGroups.map((g) => {
                       const opened = openSpecId === g.id;
@@ -539,16 +547,10 @@ const colorVariants = useMemo<ColorVariant[]>(
                             </span>
                           </button>
 
-                          <div
-                            className={`grid transition-all duration-300 ease-out ${
-                              opened ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
-                            }`}
-                          >
+                          <div className={`grid transition-all duration-300 ease-out ${opened ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
                             <div className="overflow-hidden">
                               <div className="px-4 pb-4 text-[12px] text-gray-700">
-                                {g.description ? (
-                                  <div className="text-gray-600 mb-3 leading-relaxed">{g.description}</div>
-                                ) : null}
+                                {g.description ? <div className="text-gray-600 mb-3 leading-relaxed">{g.description}</div> : null}
 
                                 {items.length > 0 ? (
                                   <div className="space-y-2">

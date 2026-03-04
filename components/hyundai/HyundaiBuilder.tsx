@@ -1,28 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
-import { supabase } from "@/lib/supabase";
-
-type SpecGroup = {
-  id: string;
-  title: string; // ex: "ESTILO EXTERIOR"
-  description?: string;
-  items?: string[];
-};
 
 type VersionItem = {
   id: string;
   title: string;
-  subtitle: string;
+  subtitle?: string;
   price: number;
   note?: string;
   heroLabel?: string;
-
-  // ✅ NOVO: itens de série / destaques POR VERSÃO (se você estiver salvando assim)
-  spec_groups?: SpecGroup[] | null;
-  highlights?: string[] | null;
 };
 
 type ColorVariant = {
@@ -34,19 +20,23 @@ type ColorVariant = {
   image_url: string;
 };
 
-type VehicleRow = {
-  id: number;
+type SpecGroup = {
+  id: string;
+  title: string;
+  description?: string;
+  items?: string[];
+};
+
+export type VehicleRow = {
+  id: any;
   model_name: string;
   slug: string;
   image_url?: string | null;
-  brand?: string | null;
-  is_visible?: boolean | null;
   price_start?: number | null;
-
   versions?: VersionItem[] | null;
   colors?: ColorVariant[] | null;
-  spec_groups?: SpecGroup[] | null; // fallback global
-  highlights?: string[] | null;     // fallback global
+  spec_groups?: SpecGroup[] | null;
+  highlights?: string[] | null;
 };
 
 const HY_BLUE = "#00A3C8";
@@ -58,169 +48,73 @@ const money = (v: number) =>
     maximumFractionDigits: 0,
   }).format(Number(v || 0));
 
-function normalizeArray<T>(val: any): T[] {
-  // já é array
-  if (Array.isArray(val)) return val as T[];
+export default function HyundaiBuilder({
+  vehicle,
+  onFinish,
+}: {
+  vehicle: VehicleRow;
+  onFinish?: (payload: {
+    vehicle_id: any;
+    slug: string;
+    model_name: string;
+    version: VersionItem | null;
+    color: ColorVariant | null;
+    totalPrice: number;
+    image_url: string | null;
+  }) => void;
+}) {
+  const versions = useMemo<VersionItem[]>(
+    () => (Array.isArray(vehicle?.versions) ? vehicle.versions : []),
+    [vehicle]
+  );
 
-  // às vezes vem string JSON
-  if (typeof val === "string") {
-    try {
-      const parsed = JSON.parse(val);
-      if (Array.isArray(parsed)) return parsed as T[];
-    } catch {}
-  }
+  const colors = useMemo<ColorVariant[]>(
+    () => (Array.isArray(vehicle?.colors) ? vehicle.colors : []),
+    [vehicle]
+  );
 
-  return [];
-}
+  const specGroups = useMemo<SpecGroup[]>(
+    () => (Array.isArray(vehicle?.spec_groups) ? vehicle.spec_groups : []),
+    [vehicle]
+  );
 
-export default function HyundaiVehicleSlugPage() {
-  const params = useParams();
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-
-  const slug = useMemo(() => {
-    const raw = (params as any)?.slug;
-
-    if (Array.isArray(raw)) return raw[0] ? String(raw[0]) : "";
-    if (raw) return String(raw);
-
-    const q = searchParams?.get("slug");
-    if (q) return String(q);
-
-    const parts = String(pathname || "").split("/").filter(Boolean);
-    const last = parts[parts.length - 1] || "";
-    if (last && last !== "veiculos" && last !== "monte-o-seu" && last !== "hyundai") return last;
-
-    return "";
-  }, [params, pathname, searchParams]);
-
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
-  const [vehicle, setVehicle] = useState<VehicleRow | null>(null);
+  const highlights = useMemo<string[]>(
+    () => (Array.isArray(vehicle?.highlights) ? vehicle.highlights : []),
+    [vehicle]
+  );
 
   const [step, setStep] = useState<1 | 2>(1);
-  const [selectedVersionId, setSelectedVersionId] = useState<string>("");
-  const [selectedColorId, setSelectedColorId] = useState<string>("");
+  const [selectedVersionId, setSelectedVersionId] = useState<string>(versions[0]?.id || "");
+  const [selectedColorId, setSelectedColorId] = useState<string>(colors[0]?.id || "");
   const [openSpecId, setOpenSpecId] = useState<string | null>(null);
-
   const [imgKey, setImgKey] = useState(0);
 
   useEffect(() => {
-    let mounted = true;
+    setStep(1);
+    setSelectedVersionId(versions[0]?.id || "");
+    setSelectedColorId(colors[0]?.id || "");
+    setOpenSpecId(null);
+    setImgKey((k) => k + 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vehicle?.slug]);
 
-    if (!slug) {
-      setErr("Veículo não encontrado (slug ausente na URL).");
-      setVehicle(null);
-      setLoading(false);
-      return () => {
-        mounted = false;
-      };
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      if (!mounted) return;
-      setErr("Demorou demais para carregar. Tente novamente.");
-      setLoading(false);
-    }, 12000);
-
-    (async () => {
-      setLoading(true);
-      setErr(null);
-      setVehicle(null);
-
-      try {
-        const { data, error } = await supabase
-          .from("vehicles")
-          .select(
-            "id, model_name, slug, image_url, brand, is_visible, price_start, versions, colors, spec_groups, highlights"
-          )
-          .eq("brand", "hyundai")
-          .eq("slug", slug)
-          .maybeSingle();
-
-        if (error) throw error;
-        if (!mounted) return;
-
-        if (!data) {
-          setErr("Veículo não encontrado.");
-          return;
-        }
-        if ((data as any).is_visible === false) {
-          setErr("Este veículo está oculto.");
-          return;
-        }
-
-        const v = data as VehicleRow;
-
-        const safeVersions = normalizeArray<VersionItem>(v.versions);
-        const safeColors = normalizeArray<ColorVariant>(v.colors);
-
-        setVehicle(v);
-
-        setSelectedVersionId(safeVersions[0]?.id || "");
-        setSelectedColorId(safeColors[0]?.id || "");
-        setImgKey((k) => k + 1);
-      } catch (e: any) {
-        if (!mounted) return;
-        setErr(e?.message || "Erro ao carregar veículo.");
-      } finally {
-        if (!mounted) return;
-        window.clearTimeout(timeoutId);
-        setLoading(false);
-      }
-    })();
-
-    return () => {
-      mounted = false;
-      window.clearTimeout(timeoutId);
-    };
-  }, [slug]);
-
-  const versions = useMemo<VersionItem[]>(
-    () => normalizeArray<VersionItem>(vehicle?.versions),
-    [vehicle]
+  const selectedVersion = useMemo(
+    () => versions.find((v) => v.id === selectedVersionId) || versions[0] || null,
+    [versions, selectedVersionId]
   );
 
-  const colorVariants = useMemo<ColorVariant[]>(
-    () => normalizeArray<ColorVariant>(vehicle?.colors),
-    [vehicle]
+  const selectedColor = useMemo(
+    () => colors.find((c) => c.id === selectedColorId) || colors[0] || null,
+    [colors, selectedColorId]
   );
-
-  const selectedVersion = useMemo(() => {
-    return versions.find((v) => v.id === selectedVersionId) || versions[0] || null;
-  }, [versions, selectedVersionId]);
-
-  const selectedColor = useMemo(() => {
-    return colorVariants.find((c) => c.id === selectedColorId) || colorVariants[0] || null;
-  }, [colorVariants, selectedColorId]);
-
-  // ✅ PRINCIPAL CORREÇÃO:
-  // Itens de série agora vem da versão selecionada (se existir), senão cai no global do veículo
-  const specGroups = useMemo<SpecGroup[]>(() => {
-    const fromVersion = normalizeArray<SpecGroup>((selectedVersion as any)?.spec_groups);
-    if (fromVersion.length) return fromVersion;
-
-    const fromVehicle = normalizeArray<SpecGroup>(vehicle?.spec_groups);
-    return fromVehicle;
-  }, [selectedVersion, vehicle]);
-
-  // ✅ Destaques também pode ser por versão (opcional), com fallback no veículo
-  const highlights = useMemo<string[]>(() => {
-    const fromVersion = normalizeArray<string>((selectedVersion as any)?.highlights);
-    if (fromVersion.length) return fromVersion;
-
-    const fromVehicle = normalizeArray<string>(vehicle?.highlights);
-    return fromVehicle;
-  }, [selectedVersion, vehicle]);
-
-  const currentImageUrl = useMemo(() => {
-    return selectedColor?.image_url || vehicle?.image_url || null;
-  }, [selectedColor?.image_url, vehicle?.image_url]);
 
   useEffect(() => {
     setImgKey((k) => k + 1);
   }, [selectedColorId]);
+
+  const currentImageUrl = useMemo(() => {
+    return selectedColor?.image_url || vehicle?.image_url || null;
+  }, [selectedColor?.image_url, vehicle?.image_url]);
 
   const totalPrice = useMemo(() => {
     const base = selectedVersion?.price ?? vehicle?.price_start ?? 0;
@@ -228,106 +122,39 @@ export default function HyundaiVehicleSlugPage() {
     return base + extra;
   }, [selectedVersion?.price, vehicle?.price_start, selectedColor?.extraPrice]);
 
-  const Title = vehicle?.model_name || "Hyundai";
-
-  // quando troca versão, fecha accordion (pra não ficar aberto com ID que não existe na nova versão)
-  useEffect(() => {
-    setOpenSpecId(null);
-  }, [selectedVersionId]);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-white pt-24 px-6 text-sm font-bold text-gray-500">
-        Carregando…
-      </div>
-    );
-  }
-
-  if (err) {
-    return (
-      <div className="min-h-screen bg-white pt-24 px-6">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-sm font-bold text-red-600">{err}</div>
-
-          <div className="mt-6 flex gap-3">
-            <button
-              onClick={() => router.back()}
-              className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-semibold hover:bg-gray-50"
-            >
-              Voltar
-            </button>
-            <Link
-              href="/hyundai/veiculos"
-              className="px-4 py-2 rounded-lg bg-black text-white text-sm font-semibold hover:bg-gray-800"
-            >
-              Ver catálogo
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!vehicle) return null;
-
   const basePriceDisplay = selectedVersion?.price ?? vehicle.price_start ?? 0;
   const heroTint = selectedColor?.swatch || "#d8d8d8";
 
   return (
-    <div className="min-h-screen bg-[#f5f2ef]">
+    <div className='min-h-screen bg-[#f5f2ef]'>
       <style>{`
-        @keyframes hyVeh_fadeUp {
-          from { opacity: 0; transform: translateY(8px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes hyVeh_imgPop {
-          from { opacity: 0.25; transform: translateY(6px) scale(0.995); }
-          to   { opacity: 1; transform: translateY(0) scale(1); }
-        }
+        @keyframes hyVeh_fadeUp { from { opacity:0; transform: translateY(8px);} to { opacity:1; transform: translateY(0);} }
+        @keyframes hyVeh_imgPop { from { opacity:.25; transform: translateY(6px) scale(.995);} to { opacity:1; transform: translateY(0) scale(1);} }
         .hyVeh_animFadeUp { animation: hyVeh_fadeUp 260ms ease-out both; }
         .hyVeh_animImg    { animation: hyVeh_imgPop 260ms ease-out both; }
 
-        .hyVeh_heroBg {
-          position: relative;
-          background: var(--tint);
-          overflow: hidden;
-        }
+        .hyVeh_heroBg { position: relative; background: var(--tint); overflow:hidden; }
         .hyVeh_heroBg::before {
-          content: "";
-          position: absolute;
-          inset: 0;
+          content:''; position:absolute; inset:0;
           background:
             radial-gradient(120% 90% at 15% 25%, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0.05) 55%, rgba(0,0,0,0.08) 100%),
             radial-gradient(90% 70% at 80% 35%, rgba(0,0,0,0.12) 0%, rgba(0,0,0,0.02) 55%, rgba(255,255,255,0.00) 100%);
-          pointer-events: none;
+          pointer-events:none;
         }
         .hyVeh_heroBg::after {
-          content: "";
-          position: absolute;
-          inset: 0;
-          background-image:
-            repeating-linear-gradient(
-              45deg,
-              rgba(255,255,255,0.08) 0px,
-              rgba(255,255,255,0.08) 2px,
-              rgba(255,255,255,0.00) 2px,
-              rgba(255,255,255,0.00) 7px
-            );
-          opacity: 0.35;
-          mix-blend-mode: overlay;
-          pointer-events: none;
+          content:''; position:absolute; inset:0;
+          background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.08) 0px, rgba(255,255,255,0.08) 2px, rgba(255,255,255,0) 2px, rgba(255,255,255,0) 7px);
+          opacity:.35; mix-blend-mode: overlay; pointer-events:none;
         }
       `}</style>
 
-      {/* topo */}
+      {/* Stepper */}
       <div className="bg-white border-b border-black/5">
         <div className="max-w-[1200px] mx-auto px-6 pt-6 pb-3">
           <div className="text-[12px] text-gray-500">
             <span className="mr-1">🏠</span>
-            <span className="hover:underline cursor-pointer" onClick={() => router.push("/hyundai")}>
-              Início
-            </span>{" "}
-            · <span className="font-medium text-gray-700">Monte o seu</span>
+            <span className="font-medium text-gray-700">Monte o seu</span> ·{" "}
+            <span className="text-gray-700">{vehicle.model_name}</span>
           </div>
 
           <div className="mt-4">
@@ -337,13 +164,12 @@ export default function HyundaiVehicleSlugPage() {
                 <div className="mt-1 flex items-center gap-3">
                   <button
                     onClick={() => setStep(1)}
-                    className={`text-[12px] font-semibold ${step === 1 ? "text-[var(--hy)]" : "text-gray-700"}`}
+                    className={`text-[12px] font-semibold ${
+                      step === 1 ? "text-[var(--hy)]" : "text-gray-700"
+                    }`}
                     style={{ ["--hy" as any]: HY_BLUE }}
                   >
-                    {Title}
-                  </button>
-                  <button className="text-[12px] text-gray-500 hover:underline" onClick={() => setStep(1)}>
-                    Alterar
+                    {vehicle.model_name}
                   </button>
                 </div>
                 <div className="mt-2 h-[3px] w-full bg-black/10">
@@ -354,21 +180,29 @@ export default function HyundaiVehicleSlugPage() {
               <div>
                 <div className="text-[11px] font-semibold text-gray-500">Passo 2</div>
                 <div className="mt-1 flex items-center gap-3">
-                  <button onClick={() => setStep(1)} className="text-[12px] font-semibold text-gray-700 hover:underline">
+                  <button
+                    onClick={() => setStep(1)}
+                    className="text-[12px] font-semibold text-gray-700 hover:underline"
+                  >
                     Selecione a versão
                   </button>
                 </div>
                 <div className="mt-2 h-[3px] w-full bg-black/10">
                   <div
                     className="h-[3px] transition-all duration-300"
-                    style={{ width: step === 1 ? "0%" : "100%", background: HY_BLUE }}
+                    style={{
+                      width: step === 1 ? "0%" : "100%",
+                      background: HY_BLUE,
+                    }}
                   />
                 </div>
               </div>
 
               <div>
                 <div className="text-[11px] font-semibold text-gray-500">Passo 3</div>
-                <div className="mt-1 text-[12px] font-semibold text-gray-700">Selecione a cor</div>
+                <div className="mt-1 text-[12px] font-semibold text-gray-700">
+                  Selecione a cor
+                </div>
                 <div className="mt-2 h-[3px] w-full bg-black/10" />
               </div>
             </div>
@@ -376,14 +210,16 @@ export default function HyundaiVehicleSlugPage() {
         </div>
       </div>
 
-      {/* conteúdo */}
+      {/* Conteúdo */}
       <div className="max-w-[1200px] mx-auto px-6 py-8">
         <div className="grid grid-cols-12 gap-8 items-start">
-          {/* esquerda */}
+          {/* Esquerda: lista */}
           <div className="col-span-12 lg:col-span-4 hyVeh_animFadeUp">
             {step === 1 ? (
               <>
-                <div className="text-[12px] text-gray-700 font-semibold mb-4">{versions.length} versão(ões) cadastrada(s)</div>
+                <div className="text-[12px] text-gray-700 font-semibold mb-4">
+                  {versions.length} versão(ões)
+                </div>
 
                 {versions.length === 0 ? (
                   <div className="text-sm text-gray-600 bg-white border border-black/10 rounded-md p-4">
@@ -398,7 +234,9 @@ export default function HyundaiVehicleSlugPage() {
                           key={v.id}
                           onClick={() => setSelectedVersionId(v.id)}
                           className={`w-full text-left border rounded-md bg-white px-4 py-3 transition-all duration-200 ${
-                            active ? "border-black/30" : "border-black/10 hover:border-black/20"
+                            active
+                              ? "border-black/30"
+                              : "border-black/10 hover:border-black/20"
                           }`}
                         >
                           <div className="flex items-start gap-3">
@@ -408,12 +246,23 @@ export default function HyundaiVehicleSlugPage() {
 
                             <div className="flex-1">
                               <div className="flex items-start justify-between gap-3">
-                                <div className="text-[13px] font-semibold text-gray-900">{v.title}</div>
-                                <div className="text-[12px] font-semibold text-gray-900">{money(v.price)}</div>
+                                <div className="text-[13px] font-semibold text-gray-900">
+                                  {v.title}
+                                </div>
+                                <div className="text-[12px] font-semibold text-gray-900">
+                                  {money(v.price)}
+                                </div>
                               </div>
 
-                              {v.subtitle ? <div className="mt-1 text-[11px] text-gray-600">{v.subtitle}</div> : null}
-                              {v.note ? <div className="mt-2 text-[11px] text-gray-600 leading-snug">{v.note}</div> : null}
+                              {v.subtitle ? (
+                                <div className="mt-1 text-[11px] text-gray-600">{v.subtitle}</div>
+                              ) : null}
+
+                              {v.note ? (
+                                <div className="mt-2 text-[11px] text-gray-600 leading-snug">
+                                  {v.note}
+                                </div>
+                              ) : null}
                             </div>
                           </div>
                         </button>
@@ -424,35 +273,40 @@ export default function HyundaiVehicleSlugPage() {
               </>
             ) : (
               <>
-                <div className="text-[12px] text-gray-700 font-semibold mb-4">{colorVariants.length} cores disponíveis</div>
+                <div className="text-[12px] text-gray-700 font-semibold mb-4">
+                  {colors.length} cores disponíveis
+                </div>
 
-                {colorVariants.length === 0 ? (
+                {colors.length === 0 ? (
                   <div className="text-sm text-gray-600 bg-white border border-black/10 rounded-md p-4">
                     Nenhuma cor cadastrada no builder.
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-4">
-                    {colorVariants.map((c) => {
+                    {colors.map((c) => {
                       const active = c.id === selectedColorId;
                       return (
                         <button
                           key={c.id}
                           onClick={() => setSelectedColorId(c.id)}
                           className={`text-left bg-white border transition-all duration-200 ${
-                            active ? "border-[#0F3C66] ring-2 ring-[#0F3C66]/10" : "border-black/10 hover:border-black/20"
+                            active
+                              ? "border-[#0F3C66] ring-2 ring-[#0F3C66]/10"
+                              : "border-black/10 hover:border-black/20"
                           }`}
                           style={{ borderRadius: 0 }}
-                          title={c.image_url ? "Trocar cor (troca imagem)" : "Cor sem imagem"}
                         >
                           <div className="p-3">
                             <div className="text-[11px] font-semibold text-gray-900">{c.name}</div>
-                            <div className="text-[10px] text-gray-600">{c.internal ? `Cor interna: ${c.internal}` : "\u00A0"}</div>
                             <div className="mt-2 text-[11px] font-semibold text-gray-900">
                               {c.extraPrice ? `+ ${money(c.extraPrice)}` : "+ R$ 0,00"}
                             </div>
                           </div>
 
-                          <div className="h-[86px] border-t border-black/10" style={{ background: c.swatch || "#ddd" }} />
+                          <div
+                            className="h-[86px] border-t border-black/10"
+                            style={{ background: c.swatch || "#ddd" }}
+                          />
                         </button>
                       );
                     })}
@@ -462,16 +316,18 @@ export default function HyundaiVehicleSlugPage() {
             )}
           </div>
 
-          {/* direita */}
+          {/* Direita: preview + specs */}
           <div className="col-span-12 lg:col-span-8 hyVeh_animFadeUp">
             <div className="text-[14px] text-gray-700">
-              <span className="font-semibold">{Title}</span>
+              <span className="font-semibold">{vehicle.model_name}</span>
+
               {selectedVersion?.title ? (
                 <>
                   <span className="mx-2">•</span>
                   <span className="font-semibold">{selectedVersion.title}</span>
                 </>
               ) : null}
+
               {step === 2 && selectedColor?.name ? (
                 <>
                   <span className="mx-2">•</span>
@@ -507,7 +363,9 @@ export default function HyundaiVehicleSlugPage() {
               </div>
 
               <div className="p-6">
-                <h2 className="text-[22px] font-semibold text-gray-900">Especificações do seu Hyundai</h2>
+                <h2 className="text-[22px] font-semibold text-gray-900">
+                  Especificações do seu Hyundai
+                </h2>
 
                 {highlights.length > 0 ? (
                   <div className="mt-4 space-y-3 text-[12px] text-gray-700">
@@ -519,20 +377,14 @@ export default function HyundaiVehicleSlugPage() {
                     ))}
                   </div>
                 ) : (
-                  <div className="mt-3 text-[12px] text-gray-500">(Sem destaques cadastrados no builder.)</div>
+                  <div className="mt-3 text-[12px] text-gray-500">(Sem destaques cadastrados.)</div>
                 )}
 
                 <h3 className="mt-8 text-[18px] font-semibold text-gray-900">Itens de série</h3>
 
                 <div className="mt-3 border border-black/10 rounded-md overflow-hidden bg-white">
                   {specGroups.length === 0 ? (
-                    <div className="px-4 py-4 text-sm text-gray-500">
-                      Nenhuma seção cadastrada no builder.
-                      <div className="mt-1 text-[11px] text-gray-400">
-                        Dica: salve em <span className="font-mono">versions[].spec_groups</span> (por versão) ou em{" "}
-                        <span className="font-mono">vehicle.spec_groups</span> (global).
-                      </div>
-                    </div>
+                    <div className="px-4 py-4 text-sm text-gray-500">Nenhuma seção cadastrada.</div>
                   ) : (
                     specGroups.map((g) => {
                       const opened = openSpecId === g.id;
@@ -557,7 +409,9 @@ export default function HyundaiVehicleSlugPage() {
                           <div className={`grid transition-all duration-300 ease-out ${opened ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
                             <div className="overflow-hidden">
                               <div className="px-4 pb-4 text-[12px] text-gray-700">
-                                {g.description ? <div className="text-gray-600 mb-3 leading-relaxed">{g.description}</div> : null}
+                                {g.description ? (
+                                  <div className="text-gray-600 mb-3 leading-relaxed">{g.description}</div>
+                                ) : null}
 
                                 {items.length > 0 ? (
                                   <div className="space-y-2">
@@ -585,27 +439,42 @@ export default function HyundaiVehicleSlugPage() {
         </div>
       </div>
 
-      {/* barra inferior */}
+      {/* Barra inferior */}
       <div className="sticky bottom-0 left-0 right-0 bg-white border-t border-black/10">
         <div className="max-w-[1200px] mx-auto px-6 py-3 flex items-center justify-between">
           <button
-            onClick={() => (step === 1 ? router.push("/hyundai/veiculos") : setStep(1))}
+            onClick={() => (step === 1 ? window.history.back() : setStep(1))}
             className="text-[12px] font-semibold text-gray-700 hover:underline"
           >
-            ‹ {step === 1 ? "Alterar modelo" : "Alterar versão"}
+            ‹ {step === 1 ? "Voltar" : "Alterar versão"}
           </button>
 
           <button
             onClick={() => {
-              if (step === 1) setStep(2);
-              else window.scrollTo({ top: 0, behavior: "smooth" });
+              if (step === 1) return setStep(2);
+
+              const payload = {
+                vehicle_id: vehicle.id,
+                slug: vehicle.slug,
+                model_name: vehicle.model_name,
+                version: selectedVersion,
+                color: selectedColor,
+                totalPrice,
+                image_url: currentImageUrl,
+              };
+
+              try {
+                localStorage.setItem("hyundai_builder_selection", JSON.stringify(payload));
+              } catch {}
+
+              onFinish?.(payload);
+              window.scrollTo({ top: 0, behavior: "smooth" });
             }}
             className="px-4 py-2 text-[12px] font-semibold text-white rounded transition-transform active:scale-[0.99] disabled:opacity-60"
             style={{ background: "#0F3C66" }}
             disabled={step === 1 && versions.length === 0}
-            title={step === 1 && versions.length === 0 ? "Cadastre versões no builder" : ""}
           >
-            {step === 1 ? "Escolha a cor" : "Concluir"}
+            {step === 1 ? "Escolher cor" : "Concluir"}
           </button>
         </div>
       </div>

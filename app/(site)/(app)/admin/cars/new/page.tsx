@@ -1024,7 +1024,8 @@ const WheelsManager = ({
 };
 
 // --- PÁGINA PRINCIPAL ---
-export default function AdminPage() {
+export default function AdminPage({ forceBrand }: { forceBrand?: "chevrolet" | "hyundai" }) {
+  const BRAND = forceBrand ?? "chevrolet";
   const [activeTab, setActiveTab] = useState<"vehicles" | "accessories" | "wheels" | "banners">("vehicles");
 
   const [categories, setCategories] = useState<any[]>([]);
@@ -1081,7 +1082,7 @@ async function fetchVehicles() {
   const { data: vecs, error } = await supabase
     .from("vehicles")
     .select("*, categories(name)")
-    .eq("brand", "chevrolet") // ✅ ISOLA O ADMIN DA CHEVROLET
+.eq("brand", BRAND) // ✅ ISOLA O ADMIN DA CHEVROLET
     .order("created_at", { ascending: false });
 
   if (error) console.error("fetchVehicles error:", error);

@@ -1,61 +1,99 @@
-"use client";
-
 import Link from "next/link";
+import { Instagram, Facebook, MapPin, Phone, Mail } from "lucide-react";
 
-export default function HyundaiFooter() {
+export default function Footer() {
   return (
-    <footer className="border-t border-white/10 bg-black text-white">
-      <div className="max-w-7xl mx-auto px-6 py-12">
-        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-10">
-          <div>
-            <div className="text-xs font-bold uppercase tracking-[0.22em] text-white/70">
-              Hyundai • WB Auto
-            </div>
-            <div className="mt-3 text-2xl font-black">
-              Performance. Tecnologia. Design.
-            </div>
-            <p className="mt-3 text-sm text-white/60 max-w-md">
-              Esboço visual Hyundai. Depois vamos trocar paleta, tipografia e seções
-              da home para ficar 100% original.
+    // Fundo Cinza Claro (#f2f2f2) e Texto Escuro
+    <footer className="bg-[#f2f2f2] border-t border-gray-200 text-gray-600 text-sm font-sans">
+      <div className="max-w-[1400px] mx-auto px-6 py-16 grid grid-cols-1 md:grid-cols-4 gap-12">
+        
+        {/* Coluna 1: Marca */}
+        <div className="space-y-6">
+            <Link href="/" className="flex items-center gap-1 group">
+                <img 
+                    src="https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/parceirologo.png"
+                    alt="WB Auto" 
+                    className="h-32 w-auto object-contain mix-blend-multiply" 
+                />
+                <span className="text-lg font-bold tracking-widest uppercase text-gray-900">
+                    Nacional <span className="text-gray-500 font-normal">Consórcio</span>
+                </span>
+            </Link>
+            <p className="leading-relaxed text-xs">
+                Concessionária referência em veículos Chevrolet no Pará. 
+                Qualidade, garantia e as melhores condições do mercado.
             </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-8">
-            <div>
-              <div className="text-xs font-bold uppercase tracking-[0.22em] text-white/50">
-                Navegação
-              </div>
-              <div className="mt-4 space-y-2 text-sm">
-                <Link href="/hyundai" className="block text-white/70 hover:text-white">
-                  Home Hyundai
-                </Link>
-                <Link href="/carros" className="block text-white/70 hover:text-white">
-                  Catálogo
-                </Link>
-                <Link href="/" className="block text-white/70 hover:text-white">
-                  Trocar marca
-                </Link>
-              </div>
+            <div className="flex gap-4">
             </div>
-
-            <div>
-              <div className="text-xs font-bold uppercase tracking-[0.22em] text-white/50">
-                Contato
-              </div>
-              <div className="mt-4 space-y-2 text-sm text-white/70">
-                <div>WhatsApp: (91) 99999-9999</div>
-                <div>Email: contato@wbauto.com.br</div>
-                <div>CNPJ: 00.000.000/0000-00</div>
-              </div>
-            </div>
-          </div>
         </div>
 
-        <div className="mt-10 pt-6 border-t border-white/10 text-[11px] text-white/50 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
-          <div>© 2026 WBCNAC Digital</div>
-          <div className="text-white/40">Versão Hyundai (esboço)</div>
+        {/* Coluna 2: Navegação */}
+        <div>
+            <h3 className="text-gray-900 font-bold uppercase tracking-widest mb-6 text-xs">Navegação</h3>
+            <ul className="space-y-3 text-xs uppercase font-medium tracking-wide">
+                <li><Link href="/" className="hover:text-black transition-colors">Veículos</Link></li>
+                <li><Link href="/monte-o-seu" className="hover:text-black transition-colors">Monte o Seu</Link></li>
+                <li><Link href="#estoque" className="hover:text-black transition-colors">Ofertas</Link></li>
+                <li><Link href="/admin" className="hover:text-black transition-colors flex items-center gap-2">Portal Vendedor</Link></li>
+            </ul>
+        </div>
+
+        {/* Coluna 3: Atendimento */}
+        <div>
+            <h3 className="text-gray-900 font-bold uppercase tracking-widest mb-6 text-xs">Atendimento</h3>
+            <ul className="space-y-4 text-xs font-medium tracking-wide">
+                <li className="flex items-start gap-3">
+                    <Phone size={16} className="mt-0.5 text-yellow-500 shrink-0"/>
+                    <div className="flex flex-col">
+                        <span>(91) 98561-3982</span>
+                        <span>(51) 99650-8806</span>
+                        <span className="text-gray-400 font-normal mt-1">Seg à Sex - 08h às 18h</span>
+                    </div>
+                </li>
+                <li className="flex items-start gap-3">
+                    <Mail size={16} className="mt-0.5 text-yellow-500 shrink-0"/>
+                    <div className="flex flex-col">
+                        <a href="mailto:Sup.nacional@outlook.com" className="hover:text-black transition-colors">Sup.nacional@outlook.com</a>
+                        <a href="mailto:Supervisaovendasnacional@gmail.com" className="hover:text-black transition-colors">Supervisaovendasnacional@gmail.com</a>
+                    </div>
+                </li>
+            </ul>
+        </div>
+
+        {/* Coluna 4: Endereço */}
+        <div>
+            <h3 className="text-gray-900 font-bold uppercase tracking-widest mb-6 text-xs">Endereço</h3>
+            <ul className="space-y-4 text-xs font-medium tracking-wide">
+                <li className="flex items-start gap-3">
+                    <MapPin size={24} className="text-yellow-500 shrink-0"/>
+                    <span>
+                        BR-316, 1762 - Atalaia<br/>
+                        Ananindeua - PA, 67013-000<br/>
+                        Torre 01, sala 905
+                    </span>
+                </li>
+            </ul>
         </div>
       </div>
+
+
+{/* Faixa Final */}
+      <div className="border-t border-gray-200 bg-[#e5e5e5] py-6">
+        <div className="max-w-[1400px] mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4 text-[10px] tracking-wider uppercase text-gray-500 font-bold">
+            <p>© {new Date().getFullYear()} nacional Consórcio LTDA: Todos os direitos reservados.</p>
+            <div className="flex gap-6 flex-wrap justify-center">
+                {/* AQUI ESTÃO OS LINKS ATUALIZADOS */}
+                <Link href="/politica-de-privacidade" className="hover:text-black">
+                    Política de Privacidade
+                </Link>
+                <Link href="/termos-de-uso" className="hover:text-black">
+                    Termos de Uso
+                </Link>
+                <span>CNPJ: 59.041.030/0001-99</span>
+            </div>
+        </div>
+      </div>
+
     </footer>
-  );
+  )
 }

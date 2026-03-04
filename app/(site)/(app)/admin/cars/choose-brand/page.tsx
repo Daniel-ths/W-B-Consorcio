@@ -22,7 +22,7 @@ const BRAND_UI: Record<
     accent: "from-yellow-400 to-amber-500",
     icon: CarFront,
     tag: "Site Chevrolet",
-    href: "/admin/cars/new", // mantém seu admin principal
+    href: "/admin/cars/new",
   },
   hyundai: {
     title: "Hyundai",
@@ -30,7 +30,9 @@ const BRAND_UI: Record<
     accent: "from-sky-500 to-cyan-500",
     icon: Building2,
     tag: "Site Hyundai",
-    href: "/admin/hyundai", // ✅ AGORA APONTA PRA SUA NOVA PÁGINA
+
+    // ✅ rota correta
+    href: "/admin/cars/hyundai/new",
   },
 };
 
@@ -66,12 +68,13 @@ export default function ChooseBrandToCreateCar() {
               return (
                 <Link
                   key={brand}
-                  href={b.href} // ✅ AGORA USA O HREF DEFINIDO
+                  href={b.href}
                   className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 hover:shadow-md transition-all"
                 >
                   <div
                     className={`absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity bg-gradient-to-br ${b.accent}`}
                   />
+
                   <div className="relative flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase border border-slate-200 bg-slate-50 text-slate-700">
