@@ -20,16 +20,26 @@ import {
   RefreshCw,
   Pencil,
   ExternalLink,
+  Image as ImageIcon,
 } from "lucide-react";
 
 /* =========================================================
-   TIPOS (versions agora contém spec_groups!)
+   TIPOS
 ========================================================= */
 type SpecGroup = {
   id: string;
   title: string;
   description?: string;
   items?: string[];
+};
+
+type ColorVariant = {
+  id: string;
+  name: string;
+  internal?: string;
+  extraPrice?: number;
+  swatch: string;
+  image_url: string; // imagem da cor (PNG recomendado)
 };
 
 type VersionItem = {
@@ -40,17 +50,17 @@ type VersionItem = {
   note?: string;
   heroLabel?: string;
 
+  // ✅ imagem de capa da versão (ex: Comfort, Limited...)
+  cover_image_url?: string;
+
   // ✅ ESPECIFICAÇÕES POR VERSÃO
   spec_groups?: SpecGroup[];
-};
 
-type ColorVariant = {
-  id: string;
-  name: string;
-  internal?: string;
-  extraPrice?: number;
-  swatch: string;
-  image_url: string;
+  // ✅ DESTAQUES POR VERSÃO
+  highlights?: string[];
+
+  // ✅ CORES POR VERSÃO (agora é aqui)
+  colors?: ColorVariant[];
 };
 
 type VehicleRow = {
@@ -58,7 +68,9 @@ type VehicleRow = {
   model_name: string;
   slug: string;
 
+  // fallback geral do modelo
   image_url?: string | null;
+
   catalog_cover_url?: string | null;
 
   brand?: string | null;
@@ -66,10 +78,14 @@ type VehicleRow = {
   price_start?: number | null;
 
   versions?: VersionItem[] | null;
-  colors?: ColorVariant[] | null;
+
+  // ✅ legado (caso existam registros antigos com highlights no veículo)
   highlights?: string[] | null;
 
-  // (mantido por compatibilidade, mas NÃO vamos mais editar aqui)
+  // ✅ legado (caso existam registros antigos com colors no veículo)
+  colors?: ColorVariant[] | null;
+
+  // legado (não usamos mais)
   spec_groups?: SpecGroup[] | null;
 };
 
@@ -104,7 +120,7 @@ function preventSubmit(e: React.KeyboardEvent) {
 /* =========================================================
    UPLOAD (Supabase Storage)
 ========================================================= */
-const BUCKET_NAME = "cars"; // crie esse bucket OU troque pro nome real
+const BUCKET_NAME = "cars"; // troque pro nome real do seu bucket, se necessário
 
 function fileExt(name: string) {
   const parts = String(name || "").split(".");
@@ -126,7 +142,7 @@ async function uploadImageToSupabase(file: File, folder: string) {
     const msg = String((upErr as any)?.message || "");
     if (msg.toLowerCase().includes("bucket") && msg.toLowerCase().includes("not found")) {
       throw new Error(
-        `Bucket "${BUCKET_NAME}" não existe no Supabase Storage. Crie esse bucket (Storage > New bucket) ou troque BUCKET_NAME para o nome correto.`
+        `Bucket "${BUCKET_NAME}" não existe no Supabase Storage. Crie esse bucket (Storage > New bucket) ou troque BUCKET_NAME.`
       );
     }
     throw upErr;
@@ -269,7 +285,7 @@ function ToggleVisible({ value, onChange }: { value: boolean; onChange: (v: bool
 }
 
 /* =========================================================
-   SPEC GROUPS EDITOR (reutilizável) — usado POR VERSÃO
+   SPEC GROUPS EDITOR (por versão)
 ========================================================= */
 function SpecGroupsEditor({
   specGroups,
@@ -322,7 +338,10 @@ function SpecGroupsEditor({
                     <div className="text-xs font-bold uppercase text-gray-700">{g.title}</div>
                     <div className="text-[11px] text-gray-500">{items.length} item(ns)</div>
                   </div>
-                  <ChevronDown size={18} className={["transition-transform", opened ? "rotate-180" : "rotate-0"].join(" ")} />
+                  <ChevronDown
+                    size={18}
+                    className={["transition-transform", opened ? "rotate-180" : "rotate-0"].join(" ")}
+                  />
                 </button>
 
                 {opened ? (
@@ -397,14 +416,223 @@ function SpecGroupsEditor({
 }
 
 /* =========================================================
-   EDITORES (VERSÕES agora incluem spec_groups)
+   DESTAQUES POR VERSÃO (editor)
+========================================================= */
+function VersionHighlightsEditor({
+  highlights,
+  setHighlights,
+  versionTitle,
+}: {
+  highlights: string[];
+  setHighlights: React.Dispatch<React.SetStateAction<string[]>>;
+  versionTitle?: string;
+}) {
+  return (
+    <Card
+      title={`Destaques da versão${versionTitle ? ` • ${versionTitle}` : ""}`}
+      icon={<Sparkles size={16} />}
+      right={
+        <Button type="button" onClick={() => setHighlights((p) => [...p, "Novo destaque"])} icon={<Plus size={14} />}>
+          Adicionar
+        </Button>
+      }
+    >
+      {highlights.length === 0 ? (
+        <div className="text-sm text-gray-500">Sem destaques nesta versão.</div>
+      ) : (
+        <div className="space-y-2">
+          {highlights.map((h, idx) => (
+            <div key={idx} className="flex gap-2 items-center">
+              <span className="text-gray-300">•</span>
+              <Input
+                value={h}
+                onChange={(e) => setHighlights((prev) => prev.map((x, i) => (i === idx ? e.target.value : x)))}
+                placeholder="Ex: 6 airbags"
+              />
+              <button
+                type="button"
+                onClick={() => setHighlights((prev) => prev.filter((_, i) => i !== idx))}
+                className="p-2 rounded-lg hover:bg-red-50 text-red-600"
+                title="Remover"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/* =========================================================
+   EDITOR DE CORES (AGORA POR VERSÃO)
+========================================================= */
+function ColorsEditor({
+  colors,
+  setColors,
+  uploadFolder,
+  onUploadBusyChange,
+}: {
+  colors: ColorVariant[];
+  setColors: React.Dispatch<React.SetStateAction<ColorVariant[]>>;
+  uploadFolder: string;
+  onUploadBusyChange?: (busy: boolean) => void;
+}) {
+  const add = () =>
+    setColors((prev) => [
+      ...prev,
+      { id: uid("c"), name: "Nova cor", internal: "", extraPrice: 0, swatch: "#dddddd", image_url: "" },
+    ]);
+
+  const update = (id: string, patch: Partial<ColorVariant>) =>
+    setColors((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
+
+  const remove = (id: string) => setColors((prev) => prev.filter((c) => c.id !== id));
+
+  async function handleUploadForColor(colorId: string, file: File | null) {
+    if (!file) return;
+    onUploadBusyChange?.(true);
+    try {
+      const url = await uploadImageToSupabase(file, uploadFolder);
+      update(colorId, { image_url: url });
+    } finally {
+      onUploadBusyChange?.(false);
+    }
+  }
+
+  return (
+    <Card
+      title="Cores (da versão)"
+      icon={<Palette size={16} />}
+      right={
+        <Button type="button" onClick={add} icon={<Plus size={14} />}>
+          Adicionar
+        </Button>
+      }
+    >
+      {colors.length === 0 ? (
+        <div className="text-sm text-gray-500">Nenhuma cor cadastrada nesta versão.</div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {colors.map((c) => (
+            <div key={c.id} className="bg-gray-50/60 border border-gray-200 rounded-xl overflow-hidden">
+              <div className="p-4 flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-bold text-gray-900 truncate">{c.name || "Sem nome"}</div>
+                  <div className="text-xs text-gray-500">{c.internal ? `Interno: ${c.internal}` : "—"}</div>
+                  <div className="text-xs font-bold text-gray-900 mt-1">
+                    {c.extraPrice ? `+ ${money(c.extraPrice)}` : "+ R$ 0,00"}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => remove(c.id)}
+                  className="p-2 rounded-lg hover:bg-red-50 text-red-600"
+                  title="Remover"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+
+              <div className="h-20 border-y border-gray-200" style={{ background: c.swatch || "#ddd" }} />
+
+              <div className="p-4 space-y-3">
+                <div>
+                  <Label>Nome</Label>
+                  <Input value={c.name} onChange={(e) => update(c.id, { name: e.target.value })} placeholder="Ex: Branco Atlas" />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Hex / Swatch</Label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <input
+                        type="color"
+                        value={c.swatch || "#dddddd"}
+                        onChange={(e) => update(c.id, { swatch: e.target.value })}
+                        className="h-10 w-12 rounded-lg border border-gray-200 bg-white p-1 cursor-pointer"
+                      />
+                      <Input value={c.swatch} onChange={(e) => update(c.id, { swatch: e.target.value })} placeholder="#FFFFFF" />
+                    </div>
+                  </div>
+                  <div>
+                    <Label>Preço extra</Label>
+                    <Input
+                      type="number"
+                      value={Number(c.extraPrice || 0)}
+                      onChange={(e) => update(c.id, { extraPrice: Number(e.target.value || 0) })}
+                      placeholder="0"
+                    />
+                    <div className="text-[11px] text-gray-500 mt-1">
+                      Preview: <span className="font-semibold">{money(c.extraPrice || 0)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <Label>Cor interna (opcional)</Label>
+                  <Input value={c.internal || ""} onChange={(e) => update(c.id, { internal: e.target.value })} placeholder="Ex: Preto" />
+                </div>
+
+                <div className="grid grid-cols-1 gap-2">
+                  <Label>Imagem desta cor (upload)</Label>
+
+                  <label className="w-full cursor-pointer">
+                    <div className="w-full h-10 px-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-900 text-xs font-bold uppercase tracking-wide inline-flex items-center justify-center gap-2">
+                      <UploadCloud size={14} />
+                      Enviar imagem da cor
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0] || null;
+                        (e.target as any).value = "";
+                        handleUploadForColor(c.id, f).catch(() => {});
+                      }}
+                    />
+                  </label>
+
+                  <div className="text-[11px] text-gray-500">
+                    Vai salvar em Storage e preencher <span className="font-semibold">versions[].colors[].image_url</span>.
+                  </div>
+
+                  <div>
+                    <Label>image_url (manual/opcional)</Label>
+                    <Input value={c.image_url} onChange={(e) => update(c.id, { image_url: e.target.value })} placeholder="(preenchido automaticamente ao fazer upload)" />
+                  </div>
+
+                  {c.image_url ? (
+                    <div className="mt-2 rounded-xl border border-gray-200 bg-white p-2">
+                      <div className="text-[10px] font-bold uppercase text-gray-500 mb-2">Preview</div>
+                      <img src={c.image_url} alt={c.name} className="w-full h-40 object-contain" />
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/* =========================================================
+   EDITOR DE VERSÕES (com capa por versão)
 ========================================================= */
 function VersionsEditor({
   versions,
   setVersions,
+  uploadBaseFolder,
+  onUploadBusyChange,
 }: {
   versions: VersionItem[];
   setVersions: React.Dispatch<React.SetStateAction<VersionItem[]>>;
+  uploadBaseFolder: string;
+  onUploadBusyChange?: (busy: boolean) => void;
 }) {
   const add = () =>
     setVersions((prev) => [
@@ -416,7 +644,10 @@ function VersionsEditor({
         price: 0,
         note: "",
         heroLabel: "Exterior",
+        cover_image_url: "",
         spec_groups: [],
+        highlights: [],
+        colors: [],
       },
     ]);
 
@@ -425,9 +656,21 @@ function VersionsEditor({
 
   const remove = (id: string) => setVersions((prev) => prev.filter((v) => v.id !== id));
 
+  async function handleUploadCover(versionId: string, file: File | null) {
+    if (!file) return;
+    onUploadBusyChange?.(true);
+    try {
+      const folder = `${uploadBaseFolder}/versions/${versionId}/cover`;
+      const url = await uploadImageToSupabase(file, folder);
+      update(versionId, { cover_image_url: url });
+    } finally {
+      onUploadBusyChange?.(false);
+    }
+  }
+
   return (
     <Card
-      title="Versões"
+      title="Versões (com capa)"
       icon={<Settings size={16} />}
       right={
         <Button type="button" onClick={add} icon={<Plus size={14} />}>
@@ -446,9 +689,11 @@ function VersionsEditor({
                   <div className="text-sm font-bold text-gray-900 truncate">{v.title || "Sem título"}</div>
                   <div className="text-xs text-gray-500">{v.subtitle || "—"}</div>
                   <div className="text-xs font-bold text-gray-900 mt-1">{money(v.price || 0)}</div>
+
                   <div className="text-[11px] text-gray-500 mt-1">
-                    Specs desta versão:{" "}
-                    <span className="font-semibold">{Array.isArray(v.spec_groups) ? v.spec_groups.length : 0}</span>
+                    Cores: <span className="font-semibold">{Array.isArray(v.colors) ? v.colors.length : 0}</span> • Specs:{" "}
+                    <span className="font-semibold">{Array.isArray(v.spec_groups) ? v.spec_groups.length : 0}</span> • Destaques:{" "}
+                    <span className="font-semibold">{Array.isArray(v.highlights) ? v.highlights.length : 0}</span>
                   </div>
                 </div>
 
@@ -490,190 +735,55 @@ function VersionsEditor({
 
                 <div className="md:col-span-2">
                   <Label>Nota (opcional)</Label>
-                  <Textarea
-                    rows={2}
-                    value={v.note || ""}
-                    onChange={(e) => update(v.id, { note: e.target.value })}
-                    placeholder="Ex: Itens exclusivos desta versão..."
-                  />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </Card>
-  );
-}
-
-function ColorsEditor({
-  colors,
-  setColors,
-  uploadFolder,
-  onUploadBusyChange,
-}: {
-  colors: ColorVariant[];
-  setColors: React.Dispatch<React.SetStateAction<ColorVariant[]>>;
-  uploadFolder: string;
-  onUploadBusyChange?: (busy: boolean) => void;
-}) {
-  const add = () =>
-    setColors((prev) => [
-      ...prev,
-      { id: uid("c"), name: "Nova cor", internal: "", extraPrice: 0, swatch: "#dddddd", image_url: "" },
-    ]);
-
-  const update = (id: string, patch: Partial<ColorVariant>) =>
-    setColors((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
-
-  const remove = (id: string) => setColors((prev) => prev.filter((c) => c.id !== id));
-
-  async function handleUploadForColor(colorId: string, file: File | null) {
-    if (!file) return;
-    onUploadBusyChange?.(true);
-    try {
-      const url = await uploadImageToSupabase(file, uploadFolder);
-      update(colorId, { image_url: url });
-    } finally {
-      onUploadBusyChange?.(false);
-    }
-  }
-
-  return (
-    <Card
-      title="Cores"
-      icon={<Palette size={16} />}
-      right={
-        <Button type="button" onClick={add} icon={<Plus size={14} />}>
-          Adicionar
-        </Button>
-      }
-    >
-      {colors.length === 0 ? (
-        <div className="text-sm text-gray-500">Nenhuma cor cadastrada.</div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {colors.map((c) => (
-            <div key={c.id} className="bg-gray-50/60 border border-gray-200 rounded-xl overflow-hidden">
-              <div className="p-4 flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-sm font-bold text-gray-900 truncate">{c.name || "Sem nome"}</div>
-                  <div className="text-xs text-gray-500">{c.internal ? `Interno: ${c.internal}` : "—"}</div>
-                  <div className="text-xs font-bold text-gray-900 mt-1">{c.extraPrice ? `+ ${money(c.extraPrice)}` : "+ R$ 0,00"}</div>
-                </div>
-                <button type="button" onClick={() => remove(c.id)} className="p-2 rounded-lg hover:bg-red-50 text-red-600" title="Remover">
-                  <Trash2 size={16} />
-                </button>
-              </div>
-
-              <div className="h-20 border-y border-gray-200" style={{ background: c.swatch || "#ddd" }} />
-
-              <div className="p-4 space-y-3">
-                <div>
-                  <Label>Nome</Label>
-                  <Input value={c.name} onChange={(e) => update(c.id, { name: e.target.value })} placeholder="Ex: Branco Atlas" />
+                  <Textarea rows={2} value={v.note || ""} onChange={(e) => update(v.id, { note: e.target.value })} />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label>Hex / Swatch</Label>
-                    <div className="flex items-center gap-2 mt-1">
-                      <input
-                        type="color"
-                        value={c.swatch || "#dddddd"}
-                        onChange={(e) => update(c.id, { swatch: e.target.value })}
-                        className="h-10 w-12 rounded-lg border border-gray-200 bg-white p-1 cursor-pointer"
+                {/* ✅ capa por versão */}
+                <div className="md:col-span-2">
+                  <Label>Imagem de capa da versão (cover_image_url)</Label>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-1">
+                    <div className="md:col-span-2">
+                      <Input
+                        value={v.cover_image_url || ""}
+                        onChange={(e) => update(v.id, { cover_image_url: e.target.value })}
+                        placeholder="(preenchido automaticamente ao fazer upload)"
                       />
-                      <Input value={c.swatch} onChange={(e) => update(c.id, { swatch: e.target.value })} placeholder="#FFFFFF" />
+                    </div>
+                    <div className="md:col-span-1">
+                      <label className="w-full cursor-pointer">
+                        <div className="w-full h-10 px-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-900 text-xs font-bold uppercase tracking-wide inline-flex items-center justify-center gap-2">
+                          <UploadCloud size={14} />
+                          Upload capa
+                        </div>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0] || null;
+                            (e.target as any).value = "";
+                            handleUploadCover(v.id, f).catch(() => {});
+                          }}
+                        />
+                      </label>
                     </div>
                   </div>
-                  <div>
-                    <Label>Preço extra</Label>
-                    <Input type="number" value={Number(c.extraPrice || 0)} onChange={(e) => update(c.id, { extraPrice: Number(e.target.value || 0) })} placeholder="0" />
-                    <div className="text-[11px] text-gray-500 mt-1">
-                      Preview: <span className="font-semibold">{money(c.extraPrice || 0)}</span>
-                    </div>
-                  </div>
-                </div>
 
-                <div>
-                  <Label>Cor interna (opcional)</Label>
-                  <Input value={c.internal || ""} onChange={(e) => update(c.id, { internal: e.target.value })} placeholder="Ex: Preto" />
-                </div>
-
-                <div className="grid grid-cols-1 gap-2">
-                  <Label>Imagem desta cor (upload)</Label>
-
-                  <label className="w-full cursor-pointer">
-                    <div className="w-full h-10 px-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-900 text-xs font-bold uppercase tracking-wide inline-flex items-center justify-center gap-2">
-                      <UploadCloud size={14} />
-                      Enviar imagem da cor
-                    </div>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const f = e.target.files?.[0] || null;
-                        (e.target as any).value = "";
-                        handleUploadForColor(c.id, f).catch(() => {});
-                      }}
-                    />
-                  </label>
-
-                  <div className="text-[11px] text-gray-500">
-                    Vai salvar em Storage e preencher <span className="font-semibold">colors[].image_url</span>.
-                  </div>
-
-                  <div>
-                    <Label>image_url (manual/opcional)</Label>
-                    <Input value={c.image_url} onChange={(e) => update(c.id, { image_url: e.target.value })} placeholder="(preenchido automaticamente ao fazer upload)" />
-                  </div>
-
-                  {c.image_url ? (
+                  {v.cover_image_url ? (
                     <div className="mt-2 rounded-xl border border-gray-200 bg-white p-2">
-                      <div className="text-[10px] font-bold uppercase text-gray-500 mb-2">Preview</div>
-                      <img src={c.image_url} alt={c.name} className="w-full h-40 object-contain" />
+                      <div className="text-[10px] font-bold uppercase text-gray-500 mb-2">Preview capa</div>
+                      <img src={v.cover_image_url} alt={`Capa ${v.title}`} className="w-full h-40 object-contain" />
                     </div>
                   ) : null}
+
+                  <div className="text-[11px] text-gray-500 mt-2">
+                    Essa imagem é a base da versão. A imagem final no preview será:
+                    <span className="font-semibold"> cor.image_url </span> → senão →
+                    <span className="font-semibold"> versão.cover_image_url </span> → senão →
+                    <span className="font-semibold"> veículo.image_url</span>.
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </Card>
-  );
-}
-
-function HighlightsEditor({
-  highlights,
-  setHighlights,
-}: {
-  highlights: string[];
-  setHighlights: React.Dispatch<React.SetStateAction<string[]>>;
-}) {
-  return (
-    <Card
-      title="Destaques"
-      icon={<Sparkles size={16} />}
-      right={
-        <Button type="button" onClick={() => setHighlights((p) => [...p, "Novo destaque"])} icon={<Plus size={14} />}>
-          Adicionar
-        </Button>
-      }
-    >
-      {highlights.length === 0 ? (
-        <div className="text-sm text-gray-500">Sem destaques.</div>
-      ) : (
-        <div className="space-y-2">
-          {highlights.map((h, idx) => (
-            <div key={idx} className="flex gap-2 items-center">
-              <span className="text-gray-300">•</span>
-              <Input value={h} onChange={(e) => setHighlights((prev) => prev.map((x, i) => (i === idx ? e.target.value : x)))} placeholder="Ex: Garantia de fábrica" />
-              <button type="button" onClick={() => setHighlights((prev) => prev.filter((_, i) => i !== idx))} className="p-2 rounded-lg hover:bg-red-50 text-red-600" title="Remover">
-                <Trash2 size={16} />
-              </button>
             </div>
           ))}
         </div>
@@ -683,21 +793,18 @@ function HighlightsEditor({
 }
 
 /* =========================================================
-   PREVIEW (sem <style> inline pra não dar hydration)
-   Depende do globals.css (hyVeh_heroBg/hyVeh_animImg)
+   PREVIEW (agora usa cores da versão)
 ========================================================= */
 function Preview({
   modelName,
-  imageUrl,
+  vehicleImageUrl,
   priceStart,
   versions,
-  colors,
 }: {
   modelName: string;
-  imageUrl: string;
+  vehicleImageUrl: string;
   priceStart: number;
   versions: VersionItem[];
-  colors: ColorVariant[];
 }) {
   const [selectedVersionId, setSelectedVersionId] = useState<string>("");
   const [selectedColorId, setSelectedColorId] = useState<string>("");
@@ -707,25 +814,39 @@ function Preview({
     if (!selectedVersionId && versions[0]?.id) setSelectedVersionId(versions[0].id);
   }, [versions, selectedVersionId]);
 
-  useEffect(() => {
-    if (!selectedColorId && colors[0]?.id) setSelectedColorId(colors[0].id);
-  }, [colors, selectedColorId]);
-
   const selectedVersion = useMemo(
     () => versions.find((v) => v.id === selectedVersionId) || versions[0] || null,
     [versions, selectedVersionId]
   );
 
-  const selectedColor = useMemo(
-    () => colors.find((c) => c.id === selectedColorId) || colors[0] || null,
-    [colors, selectedColorId]
+  const versionColors = useMemo(
+    () => (Array.isArray(selectedVersion?.colors) ? selectedVersion!.colors! : []),
+    [selectedVersion]
   );
 
-  const currentImageUrl = useMemo(() => selectedColor?.image_url || imageUrl || null, [selectedColor?.image_url, imageUrl]);
+  useEffect(() => {
+    // quando troca versão, seta primeira cor dessa versão
+    if (versionColors[0]?.id) setSelectedColorId(versionColors[0].id);
+    else setSelectedColorId("");
+  }, [selectedVersionId]); // intencional
+
+  const selectedColor = useMemo(
+    () => versionColors.find((c) => c.id === selectedColorId) || versionColors[0] || null,
+    [versionColors, selectedColorId]
+  );
+
+  const currentImageUrl = useMemo(() => {
+    return (
+      selectedColor?.image_url ||
+      selectedVersion?.cover_image_url ||
+      vehicleImageUrl ||
+      null
+    );
+  }, [selectedColor?.image_url, selectedVersion?.cover_image_url, vehicleImageUrl]);
 
   useEffect(() => {
     setImgKey((k) => k + 1);
-  }, [selectedColorId]);
+  }, [selectedVersionId, selectedColorId]);
 
   const heroTint = selectedColor?.swatch || "#d8d8d8";
 
@@ -734,6 +855,8 @@ function Preview({
     const extra = selectedColor?.extraPrice || 0;
     return base + extra;
   }, [selectedVersion?.price, priceStart, selectedColor?.extraPrice]);
+
+  const vHighlightsCount = Array.isArray(selectedVersion?.highlights) ? selectedVersion!.highlights!.length : 0;
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
@@ -753,7 +876,8 @@ function Preview({
             <>
               • <span className="font-semibold text-gray-700">{selectedColor.name}</span>
             </>
-          ) : null}
+          ) : null}{" "}
+          • <span className="font-semibold text-gray-700">{vHighlightsCount} destaque(s)</span>
         </div>
       </div>
 
@@ -771,7 +895,13 @@ function Preview({
 
         <div className="h-full flex items-center justify-center relative z-[2]">
           {currentImageUrl ? (
-            <img key={imgKey} src={currentImageUrl} alt={modelName || "Hyundai"} className="w-[86%] h-[86%] object-contain hyVeh_animImg" draggable={false} />
+            <img
+              key={imgKey}
+              src={currentImageUrl}
+              alt={modelName || "Hyundai"}
+              className="w-[86%] h-[86%] object-contain hyVeh_animImg"
+              draggable={false}
+            />
           ) : (
             <div className="text-xs font-bold text-gray-500">Sem imagem</div>
           )}
@@ -782,7 +912,11 @@ function Preview({
         <div className="grid grid-cols-1 gap-3">
           <div>
             <Label>Versão ativa (preview)</Label>
-            <select className="w-full mt-1 h-10 px-3 border rounded-lg bg-white text-sm" value={selectedVersionId} onChange={(e) => setSelectedVersionId(e.target.value)}>
+            <select
+              className="w-full mt-1 h-10 px-3 border rounded-lg bg-white text-sm"
+              value={selectedVersionId}
+              onChange={(e) => setSelectedVersionId(e.target.value)}
+            >
               {versions.length === 0 ? <option value="">(sem versões)</option> : null}
               {versions.map((v) => (
                 <option key={v.id} value={v.id}>
@@ -792,16 +926,22 @@ function Preview({
             </select>
 
             <div className="text-[11px] text-gray-500 mt-2">
-              Specs da versão selecionada:{" "}
-              <span className="font-semibold">{Array.isArray(selectedVersion?.spec_groups) ? selectedVersion!.spec_groups!.length : 0}</span>
+              Cores: <span className="font-semibold">{versionColors.length}</span> • Specs:{" "}
+              <span className="font-semibold">{Array.isArray(selectedVersion?.spec_groups) ? selectedVersion!.spec_groups!.length : 0}</span>{" "}
+              • Destaques: <span className="font-semibold">{vHighlightsCount}</span>
             </div>
           </div>
 
           <div>
             <Label>Cor ativa (preview)</Label>
-            <select className="w-full mt-1 h-10 px-3 border rounded-lg bg-white text-sm" value={selectedColorId} onChange={(e) => setSelectedColorId(e.target.value)}>
-              {colors.length === 0 ? <option value="">(sem cores)</option> : null}
-              {colors.map((c) => (
+            <select
+              className="w-full mt-1 h-10 px-3 border rounded-lg bg-white text-sm"
+              value={selectedColorId}
+              onChange={(e) => setSelectedColorId(e.target.value)}
+              disabled={versionColors.length === 0}
+            >
+              {versionColors.length === 0 ? <option value="">(sem cores nesta versão)</option> : null}
+              {versionColors.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name} {c.extraPrice ? `(+${money(c.extraPrice)})` : ""}
                 </option>
@@ -810,8 +950,8 @@ function Preview({
           </div>
 
           <div className="text-[11px] text-gray-500">
-            Base: <span className="font-semibold text-gray-700">{money(selectedVersion?.price ?? priceStart ?? 0)}</span> • Extra cor:{" "}
-            <span className="font-semibold text-gray-700">{money(selectedColor?.extraPrice ?? 0)}</span>
+            Base: <span className="font-semibold text-gray-700">{money(selectedVersion?.price ?? priceStart ?? 0)}</span>{" "}
+            • Extra cor: <span className="font-semibold text-gray-700">{money(selectedColor?.extraPrice ?? 0)}</span>
           </div>
         </div>
       </div>
@@ -836,13 +976,12 @@ export default function AdminHyundaiVehicleCreatePage() {
   const [modelName, setModelName] = useState<string>("");
   const [slug, setSlug] = useState<string>("");
 
-  const [imageUrl, setImageUrl] = useState<string>("");
+  const [vehicleImageUrl, setVehicleImageUrl] = useState<string>("");
   const [catalogCoverUrl, setCatalogCoverUrl] = useState<string>("");
 
   const [isVisible, setIsVisible] = useState<boolean>(true);
   const [priceStart, setPriceStart] = useState<number>(0);
 
-  // ✅ versões agora carregam spec_groups individualmente
   const [versions, setVersions] = useState<VersionItem[]>([
     {
       id: uid("v"),
@@ -851,47 +990,83 @@ export default function AdminHyundaiVehicleCreatePage() {
       price: 129990,
       note: "",
       heroLabel: "Exterior",
-      spec_groups: [
-        { id: uid("s"), title: "ESTILO EXTERIOR (Comfort)", description: "", items: ["Faróis em LED"] },
-      ],
+      cover_image_url: "",
+      spec_groups: [{ id: uid("s"), title: "ESTILO EXTERIOR (Comfort)", description: "", items: ["Faróis em LED"] }],
+      highlights: ["Garantia de fábrica"],
+      colors: [{ id: uid("c"), name: "Branco", internal: "", extraPrice: 0, swatch: "#F2F2F2", image_url: "" }],
     },
   ]);
 
-  const [colors, setColors] = useState<ColorVariant[]>([
-    { id: uid("c"), name: "Branco", internal: "", extraPrice: 0, swatch: "#F2F2F2", image_url: "" },
-  ]);
-
-  const [highlights, setHighlights] = useState<string[]>(["Garantia de fábrica"]);
-
   const computedSlug = useMemo(() => slugify(slug || modelName), [slug, modelName]);
 
-  // ✅ aba specs: escolhe qual versão editar
-  const [specVersionId, setSpecVersionId] = useState<string>("");
+  const uploadBaseFolder = useMemo(() => `hyundai/${computedSlug || "sem-slug"}`, [computedSlug]);
+
+  // ✅ versão selecionada para editar Specs e Cores
+  const [selectedVersionId, setSelectedVersionId] = useState<string>("");
 
   useEffect(() => {
-    if (!specVersionId && versions[0]?.id) setSpecVersionId(versions[0].id);
-  }, [versions, specVersionId]);
+    if (!selectedVersionId && versions[0]?.id) setSelectedVersionId(versions[0].id);
+  }, [versions, selectedVersionId]);
 
-  const selectedSpecVersion = useMemo(
-    () => versions.find((v) => v.id === specVersionId) || versions[0] || null,
-    [versions, specVersionId]
+  const selectedVersion = useMemo(
+    () => versions.find((v) => v.id === selectedVersionId) || versions[0] || null,
+    [versions, selectedVersionId]
   );
+
+  /* ============ HELPERS para setar dentro da versão selecionada ============ */
+  function setSelectedSpecGroups(next: SpecGroup[] | ((prev: SpecGroup[]) => SpecGroup[])) {
+    const vid = selectedVersion?.id;
+    if (!vid) return;
+    setVersions((prev) =>
+      prev.map((v) => {
+        if (v.id !== vid) return v;
+        const prevGroups = Array.isArray(v.spec_groups) ? v.spec_groups : [];
+        const nextGroups = typeof next === "function" ? next(prevGroups) : next;
+        return { ...v, spec_groups: nextGroups };
+      })
+    );
+  }
+
+  function setSelectedHighlights(next: string[] | ((prev: string[]) => string[])) {
+    const vid = selectedVersion?.id;
+    if (!vid) return;
+    setVersions((prev) =>
+      prev.map((v) => {
+        if (v.id !== vid) return v;
+        const prevH = Array.isArray(v.highlights) ? v.highlights : [];
+        const nextH = typeof next === "function" ? next(prevH) : next;
+        return { ...v, highlights: nextH };
+      })
+    );
+  }
+
+  function setSelectedColors(next: ColorVariant[] | ((prev: ColorVariant[]) => ColorVariant[])) {
+    const vid = selectedVersion?.id;
+    if (!vid) return;
+    setVersions((prev) =>
+      prev.map((v) => {
+        if (v.id !== vid) return v;
+        const prevC = Array.isArray(v.colors) ? v.colors : [];
+        const nextC = typeof next === "function" ? next(prevC) : next;
+        return { ...v, colors: nextC };
+      })
+    );
+  }
 
   const selectedSpecGroups = useMemo(
-    () => (Array.isArray(selectedSpecVersion?.spec_groups) ? selectedSpecVersion!.spec_groups! : []),
-    [selectedSpecVersion]
+    () => (Array.isArray(selectedVersion?.spec_groups) ? selectedVersion!.spec_groups! : []),
+    [selectedVersion]
   );
 
-  function setSelectedSpecGroups(nextGroupsOrUpdater: SpecGroup[] | ((prev: SpecGroup[]) => SpecGroup[])) {
-    const vid = selectedSpecVersion?.id;
-    if (!vid) return;
-    setVersions((prev) => {
-      const nextGroups = typeof nextGroupsOrUpdater === 'function' 
-        ? nextGroupsOrUpdater(selectedSpecVersion?.spec_groups || [])
-        : nextGroupsOrUpdater;
-      return prev.map((v) => (v.id === vid ? { ...v, spec_groups: nextGroups } : v));
-    });
-  }
+  const selectedHighlights = useMemo(
+    () => (Array.isArray(selectedVersion?.highlights) ? selectedVersion!.highlights! : []),
+    [selectedVersion]
+  );
+
+  const selectedColors = useMemo(
+    () => (Array.isArray(selectedVersion?.colors) ? selectedVersion!.colors! : []),
+    [selectedVersion]
+  );
 
   /* =========================================================
      LISTA de veículos existentes (Hyundai)
@@ -944,22 +1119,44 @@ export default function AdminHyundaiVehicleCreatePage() {
       setEditingId(row.id);
       setModelName(row.model_name || "");
       setSlug(row.slug || "");
-      setImageUrl(row.image_url || "");
+      setVehicleImageUrl(row.image_url || "");
       setCatalogCoverUrl(row.catalog_cover_url || "");
       setIsVisible(Boolean(row.is_visible ?? true));
       setPriceStart(Number(row.price_start || 0));
 
-      // ✅ carrega versions já com spec_groups dentro
-      const vrs = Array.isArray(row.versions) ? (row.versions as any as VersionItem[]) : [];
-      setVersions(
-        vrs.map((v) => ({
-          ...v,
-          spec_groups: Array.isArray(v.spec_groups) ? v.spec_groups : [],
-        }))
-      );
+      const vrsRaw = Array.isArray(row.versions) ? (row.versions as any as VersionItem[]) : [];
+      const normalized: VersionItem[] = vrsRaw.map((v) => ({
+        ...v,
+        cover_image_url: (v as any).cover_image_url || "",
+        spec_groups: Array.isArray(v.spec_groups) ? v.spec_groups : [],
+        highlights: Array.isArray((v as any).highlights) ? (v as any).highlights : [],
+        colors: Array.isArray((v as any).colors) ? (v as any).colors : [],
+      }));
 
-      setColors(Array.isArray(row.colors) ? (row.colors as any) : []);
-      setHighlights(Array.isArray(row.highlights) ? (row.highlights as any) : []);
+      // ✅ compat: se existirem highlights no veículo e nenhuma versão tiver, joga na primeira
+      const oldVehicleHighlights = Array.isArray(row.highlights) ? row.highlights : [];
+      const hasAnyVHighlights = normalized.some((x) => Array.isArray(x.highlights) && x.highlights.length > 0);
+      if (!hasAnyVHighlights && oldVehicleHighlights.length > 0 && normalized[0]) {
+        normalized[0] = { ...normalized[0], highlights: oldVehicleHighlights };
+      }
+
+      // ✅ compat: se existirem colors no veículo (legado) e nenhuma versão tiver colors, joga na primeira
+      const oldVehicleColors = Array.isArray(row.colors) ? row.colors : [];
+      const hasAnyVColors = normalized.some((x) => Array.isArray(x.colors) && x.colors.length > 0);
+      if (!hasAnyVColors && oldVehicleColors.length > 0 && normalized[0]) {
+        normalized[0] = { ...normalized[0], colors: oldVehicleColors };
+      }
+
+      // ✅ se ainda assim ficar sem cor, garante um default na primeira
+      if (normalized[0] && (!normalized[0].colors || normalized[0].colors.length === 0)) {
+        normalized[0] = {
+          ...normalized[0],
+          colors: [{ id: uid("c"), name: "Branco", internal: "", extraPrice: 0, swatch: "#F2F2F2", image_url: "" }],
+        };
+      }
+
+      setVersions(normalized);
+      setSelectedVersionId(normalized[0]?.id || "");
 
       setActiveTab("basic");
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -991,13 +1188,13 @@ export default function AdminHyundaiVehicleCreatePage() {
     setEditingId(null);
     setModelName("");
     setSlug("");
-    setImageUrl("");
+    setVehicleImageUrl("");
     setCatalogCoverUrl("");
     setIsVisible(true);
     setPriceStart(0);
 
     const firstVersionId = uid("v");
-    setVersions([
+    const nextVersions: VersionItem[] = [
       {
         id: firstVersionId,
         title: "Comfort",
@@ -1005,25 +1202,25 @@ export default function AdminHyundaiVehicleCreatePage() {
         price: 129990,
         note: "",
         heroLabel: "Exterior",
+        cover_image_url: "",
         spec_groups: [{ id: uid("s"), title: "ESTILO EXTERIOR (Comfort)", description: "", items: ["Faróis em LED"] }],
+        highlights: ["Garantia de fábrica"],
+        colors: [{ id: uid("c"), name: "Branco", internal: "", extraPrice: 0, swatch: "#F2F2F2", image_url: "" }],
       },
-    ]);
-    setSpecVersionId(firstVersionId);
-
-    setColors([{ id: uid("c"), name: "Branco", internal: "", extraPrice: 0, swatch: "#F2F2F2", image_url: "" }]);
-    setHighlights(["Garantia de fábrica"]);
-
+    ];
+    setVersions(nextVersions);
+    setSelectedVersionId(firstVersionId);
     setActiveTab("basic");
   }
 
-  async function handleUploadMain(file: File | null) {
+  async function handleUploadVehicleImage(file: File | null) {
     if (!file) return;
     setErr(null);
     setUploading(true);
     try {
-      const folder = `hyundai/${computedSlug || "sem-slug"}/main`;
+      const folder = `${uploadBaseFolder}/vehicle/main`;
       const url = await uploadImageToSupabase(file, folder);
-      setImageUrl(url);
+      setVehicleImageUrl(url);
     } catch (e: any) {
       setErr(e?.message || "Erro ao fazer upload da imagem do modelo.");
     } finally {
@@ -1036,7 +1233,7 @@ export default function AdminHyundaiVehicleCreatePage() {
     setErr(null);
     setUploading(true);
     try {
-      const folder = `hyundai/${computedSlug || "sem-slug"}/catalog-cover`;
+      const folder = `${uploadBaseFolder}/vehicle/catalog-cover`;
       const url = await uploadImageToSupabase(file, folder);
       setCatalogCoverUrl(url);
     } catch (e: any) {
@@ -1048,22 +1245,24 @@ export default function AdminHyundaiVehicleCreatePage() {
 
   async function handleSave() {
     setErr(null);
-
     const finalSlug = computedSlug;
 
     if (!modelName.trim()) return setErr("Informe o nome do modelo.");
     if (!finalSlug) return setErr("Slug inválido.");
     if (versions.length === 0) return setErr("Cadastre ao menos 1 versão.");
-    if (colors.length === 0) return setErr("Cadastre ao menos 1 cor.");
 
+    // valida versões e cores por versão
     for (const v of versions) {
       if (!v.title?.trim()) return setErr("Existe uma versão sem título.");
       if (!Number.isFinite(Number(v.price))) return setErr("Existe uma versão com preço inválido.");
       if (!Array.isArray(v.spec_groups)) return setErr("Existe uma versão com spec_groups inválido.");
-    }
-    for (const c of colors) {
-      if (!c.name?.trim()) return setErr("Existe uma cor sem nome.");
-      if (!c.swatch?.trim()) return setErr("Existe uma cor sem swatch (hex).");
+      if (!Array.isArray(v.highlights)) return setErr("Existe uma versão com highlights inválido.");
+      if (!Array.isArray(v.colors)) return setErr("Existe uma versão com colors inválido.");
+      if (v.colors.length === 0) return setErr(`A versão "${v.title}" está sem cores. Cadastre ao menos 1 cor nela.`);
+      for (const c of v.colors) {
+        if (!c.name?.trim()) return setErr(`Na versão "${v.title}" existe uma cor sem nome.`);
+        if (!c.swatch?.trim()) return setErr(`Na versão "${v.title}" existe uma cor sem swatch (hex).`);
+      }
     }
 
     setSaving(true);
@@ -1077,33 +1276,41 @@ export default function AdminHyundaiVehicleCreatePage() {
       if (exErr) throw exErr;
       if (existing?.id) throw new Error("Já existe um veículo Hyundai com esse slug.");
 
-      // ✅ Normaliza versions com spec_groups sempre array
-      const normalizedVersions = versions.map((v) => ({
+      const normalizedVersions: VersionItem[] = versions.map((v) => ({
         ...v,
+        cover_image_url: v.cover_image_url || "",
         spec_groups: Array.isArray(v.spec_groups) ? v.spec_groups : [],
+        highlights: Array.isArray(v.highlights) ? v.highlights : [],
+        colors: Array.isArray(v.colors) ? v.colors : [],
       }));
 
-      const payload = {
+      const payload: any = {
         brand: "hyundai",
         model_name: modelName.trim(),
         slug: finalSlug,
 
-        image_url: imageUrl?.trim() || null,
+        image_url: vehicleImageUrl?.trim() || null,
         catalog_cover_url: catalogCoverUrl?.trim() || null,
 
         is_visible: isVisible,
         price_start: Number(priceStart || 0),
 
-        versions: normalizedVersions, // ✅ specs por versão aqui!
-        colors,
-        highlights,
+        versions: normalizedVersions,
 
-        // mantém por compatibilidade (não usamos mais)
+        // ✅ agora NÃO usamos mais "colors" no veículo (zera pra evitar confusão)
+        colors: [],
+
+        // legado
         spec_groups: [],
       };
 
       if (editingId) {
-        const { data, error } = await supabase.from("vehicles").update(payload).eq("id", editingId).select("slug").single();
+        const { data, error } = await supabase
+          .from("vehicles")
+          .update(payload)
+          .eq("id", editingId)
+          .select("slug")
+          .single();
         if (error) throw error;
 
         await fetchExisting();
@@ -1122,7 +1329,11 @@ export default function AdminHyundaiVehicleCreatePage() {
     }
   }
 
-  const uploadFolderForColors = useMemo(() => `hyundai/${computedSlug || "sem-slug"}/colors`, [computedSlug]);
+  // upload folder de cores depende da versão selecionada
+  const uploadFolderForSelectedVersionColors = useMemo(() => {
+    const vid = selectedVersion?.id || "sem-versao";
+    return `${uploadBaseFolder}/versions/${vid}/colors`;
+  }, [uploadBaseFolder, selectedVersion?.id]);
 
   return (
     <div className="min-h-screen bg-gray-50 pt-24 pb-32 px-4 font-sans">
@@ -1134,21 +1345,14 @@ export default function AdminHyundaiVehicleCreatePage() {
               ‹ Voltar (Admin Hyundai)
             </Link>
 
-            <h1 className="text-2xl font-bold text-gray-900 mt-2">{editingId ? "Editar Veículo • Hyundai" : "Criador de Veículo • Hyundai"}</h1>
-            {editingId ? (
-              <div className="text-[11px] text-gray-500 mt-1">
-                Modo edição: <span className="font-semibold">ID {editingId}</span>
-              </div>
-            ) : null}
+            <h1 className="text-2xl font-bold text-gray-900 mt-2">
+              {editingId ? "Editar Veículo • Hyundai" : "Criador de Veículo • Hyundai"}
+            </h1>
 
             {err ? <div className="mt-3 text-sm font-bold text-red-600">{err}</div> : null}
 
             <div className="mt-2 text-[11px] text-gray-500">
-               <span className="font-semibold">{BUCKET_NAME}</span>
-            </div>
-
-            <div className="mt-2 text-[11px] text-gray-500">
-               <span className="font-mono font-semibold"></span>
+              Bucket atual: <span className="font-semibold">{BUCKET_NAME}</span>
             </div>
           </div>
 
@@ -1163,20 +1367,30 @@ export default function AdminHyundaiVehicleCreatePage() {
               </Button>
             ) : null}
 
-            <Button type="button" onClick={handleSave} disabled={saving || uploading} icon={saving ? null : <Save size={14} />}>
+            <Button
+              type="button"
+              onClick={handleSave}
+              disabled={saving || uploading}
+              icon={saving ? null : <Save size={14} />}
+            >
               {saving ? "Salvando..." : editingId ? "Salvar alterações" : "Salvar veículo"}
             </Button>
           </div>
         </div>
 
-        {/* lista de cadastrados */}
+        {/* lista cadastrados */}
         <div className="mb-8">
           <Card
             title="Veículos Hyundai já cadastrados"
             icon={<CarFront size={16} />}
             right={
               <div className="flex items-center gap-2">
-                <Input value={existingQuery} onChange={(e) => setExistingQuery(e.target.value)} placeholder="Buscar por modelo ou slug..." className="w-[260px] mt-0" />
+                <Input
+                  value={existingQuery}
+                  onChange={(e) => setExistingQuery(e.target.value)}
+                  placeholder="Buscar por modelo ou slug..."
+                  className="w-[260px] mt-0"
+                />
                 <Button type="button" variant="gray" onClick={fetchExisting} icon={<RefreshCw size={14} />} disabled={existingLoading}>
                   Atualizar
                 </Button>
@@ -1184,7 +1398,8 @@ export default function AdminHyundaiVehicleCreatePage() {
             }
           >
             <div className="text-[11px] text-gray-500 mb-3">
-              Total: <span className="font-semibold">{existingVehicles.length}</span> • Mostrando: <span className="font-semibold">{filteredExisting.length}</span>
+              Total: <span className="font-semibold">{existingVehicles.length}</span> • Mostrando:{" "}
+              <span className="font-semibold">{filteredExisting.length}</span>
             </div>
 
             {existingLoading ? (
@@ -1250,7 +1465,13 @@ export default function AdminHyundaiVehicleCreatePage() {
                 activeTab === t ? "bg-black text-white shadow" : "text-gray-500 hover:text-black",
               ].join(" ")}
             >
-              {t === "basic" ? "Básico" : t === "versions" ? "Versões" : t === "colors" ? "Cores" : "Especificações (por versão)"}
+              {t === "basic"
+                ? "Básico"
+                : t === "versions"
+                ? "Versões + Capas"
+                : t === "colors"
+                ? "Cores (por versão)"
+                : "Especificações + Destaques (por versão)"}
             </button>
           ))}
         </div>
@@ -1270,7 +1491,12 @@ export default function AdminHyundaiVehicleCreatePage() {
 
                     <div>
                       <Label>Preço inicial (price_start)</Label>
-                      <Input type="number" value={Number(priceStart || 0)} onChange={(e) => setPriceStart(Number(e.target.value || 0))} placeholder="129990" />
+                      <Input
+                        type="number"
+                        value={Number(priceStart || 0)}
+                        onChange={(e) => setPriceStart(Number(e.target.value || 0))}
+                        placeholder="129990"
+                      />
                       <div className="text-[11px] text-gray-500 mt-1">
                         Preview: <span className="font-semibold">{money(priceStart || 0)}</span>
                       </div>
@@ -1289,84 +1515,72 @@ export default function AdminHyundaiVehicleCreatePage() {
                       <ToggleVisible value={isVisible} onChange={setIsVisible} />
                     </div>
 
-                    {/* imagem padrão do modelo */}
+                    {/* imagem fallback do modelo */}
                     <div className="md:col-span-3">
-                      <Label>Imagem do modelo (image_url)</Label>
-
+                      <Label>Imagem fallback do modelo (image_url)</Label>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-1">
                         <div className="md:col-span-2">
-                          <Input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="(preenchido automaticamente ao fazer upload)" />
+                          <Input value={vehicleImageUrl} onChange={(e) => setVehicleImageUrl(e.target.value)} placeholder="(preenchido automaticamente ao fazer upload)" />
                         </div>
-
                         <div className="md:col-span-1">
-                          <div className="h-10 flex items-center">
-                            <label className="w-full h-10 cursor-pointer">
-                              <div className="w-full h-10 px-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-900 text-xs font-bold uppercase tracking-wide inline-flex items-center justify-center gap-2">
-                                <UploadCloud size={14} />
-                                {uploading ? "Enviando..." : "Upload"}
-                              </div>
-                              <input
-                                type="file"
-                                accept="image/*"
-                                className="hidden"
-                                onChange={(e) => {
-                                  const f = e.target.files?.[0] || null;
-                                  (e.target as any).value = "";
-                                  handleUploadMain(f);
-                                }}
-                                disabled={uploading}
-                              />
-                            </label>
-                          </div>
+                          <label className="w-full cursor-pointer">
+                            <div className="w-full h-10 px-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-900 text-xs font-bold uppercase tracking-wide inline-flex items-center justify-center gap-2">
+                              <UploadCloud size={14} />
+                              {uploading ? "Enviando..." : "Upload"}
+                            </div>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const f = e.target.files?.[0] || null;
+                                (e.target as any).value = "";
+                                handleUploadVehicleImage(f);
+                              }}
+                              disabled={uploading}
+                            />
+                          </label>
                         </div>
                       </div>
 
-                      <div className="text-[11px] text-gray-500 mt-2">
-                        Usado quando a cor não tiver <span className="font-semibold">colors[].image_url</span>.
-                      </div>
-
-                      {imageUrl ? (
+                      {vehicleImageUrl ? (
                         <div className="mt-3 rounded-xl border border-gray-200 bg-white p-2">
                           <div className="text-[10px] font-bold uppercase text-gray-500 mb-2">Preview</div>
-                          <img src={imageUrl} alt="Imagem do modelo" className="w-full h-48 object-contain" />
+                          <img src={vehicleImageUrl} alt="Imagem do modelo" className="w-full h-48 object-contain" />
                         </div>
                       ) : null}
+
+                      <div className="mt-2 text-[11px] text-gray-500">
+                        Agora a ordem de imagem é: <span className="font-semibold">cor</span> → <span className="font-semibold">capa da versão</span> → <span className="font-semibold">fallback do modelo</span>.
+                      </div>
                     </div>
 
-                    {/* capa do catálogo */}
+                    {/* capa catálogo */}
                     <div className="md:col-span-3">
                       <Label>Capa do catálogo (catalog_cover_url)</Label>
-
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-1">
                         <div className="md:col-span-2">
                           <Input value={catalogCoverUrl} onChange={(e) => setCatalogCoverUrl(e.target.value)} placeholder="(preenchido automaticamente ao fazer upload)" />
                         </div>
-
                         <div className="md:col-span-1">
-                          <div className="h-10 flex items-center">
-                            <label className="w-full h-10 cursor-pointer">
-                              <div className="w-full h-10 px-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-900 text-xs font-bold uppercase tracking-wide inline-flex items-center justify-center gap-2">
-                                <UploadCloud size={14} />
-                                {uploading ? "Enviando..." : "Upload"}
-                              </div>
-                              <input
-                                type="file"
-                                accept="image/*"
-                                className="hidden"
-                                onChange={(e) => {
-                                  const f = e.target.files?.[0] || null;
-                                  (e.target as any).value = "";
-                                  handleUploadCatalogCover(f);
-                                }}
-                                disabled={uploading}
-                              />
-                            </label>
-                          </div>
+                          <label className="w-full cursor-pointer">
+                            <div className="w-full h-10 px-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-900 text-xs font-bold uppercase tracking-wide inline-flex items-center justify-center gap-2">
+                              <UploadCloud size={14} />
+                              {uploading ? "Enviando..." : "Upload"}
+                            </div>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const f = e.target.files?.[0] || null;
+                                (e.target as any).value = "";
+                                handleUploadCatalogCover(f);
+                              }}
+                              disabled={uploading}
+                            />
+                          </label>
                         </div>
-                      </div>
-
-                      <div className="text-[11px] text-gray-500 mt-2">
-                        Esta imagem é a <span className="font-semibold">capa/thumbnail</span> que aparece no catálogo.
                       </div>
 
                       {catalogCoverUrl ? (
@@ -1378,38 +1592,63 @@ export default function AdminHyundaiVehicleCreatePage() {
                     </div>
 
                     <div className="md:col-span-3 text-[11px] text-gray-500">
-                      ✅ Ao salvar: <span className="font-semibold">versions[].spec_groups</span> guarda as specs por versão.
-                      <br />
-                      ✅ Se ainda não existir no banco, crie a coluna: <span className="font-mono font-semibold">catalog_cover_url</span>.
+                      ✅ Agora: <span className="font-semibold">cores são por versão</span> (
+                      <span className="font-semibold">versions[].colors</span>) e cada versão tem{" "}
+                      <span className="font-semibold">cover_image_url</span>.
                     </div>
                   </div>
                 </Card>
-
-                <HighlightsEditor highlights={highlights} setHighlights={setHighlights} />
               </div>
             )}
 
             {activeTab === "versions" && (
               <div className="animate-in fade-in slide-in-from-bottom-2">
-                <VersionsEditor versions={versions} setVersions={setVersions} />
+                <VersionsEditor
+                  versions={versions}
+                  setVersions={setVersions}
+                  uploadBaseFolder={uploadBaseFolder}
+                  onUploadBusyChange={setUploading}
+                />
               </div>
             )}
 
             {activeTab === "colors" && (
-              <div className="animate-in fade-in slide-in-from-bottom-2">
-                <ColorsEditor colors={colors} setColors={setColors} uploadFolder={uploadFolderForColors} onUploadBusyChange={setUploading} />
-              </div>
-            )}
-
-            {/* ✅ ESPECIFICAÇÕES POR VERSÃO */}
-            {activeTab === "specs" && (
               <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
-                <Card title="Escolha a versão para editar as especificações" icon={<Settings size={16} />}>
+                <Card title="Escolha a versão para editar as cores" icon={<Palette size={16} />}>
                   <Label>Versão</Label>
                   <select
                     className="w-full mt-1 h-10 px-3 border rounded-lg bg-white text-sm"
-                    value={specVersionId}
-                    onChange={(e) => setSpecVersionId(e.target.value)}
+                    value={selectedVersionId}
+                    onChange={(e) => setSelectedVersionId(e.target.value)}
+                  >
+                    {versions.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.title} — {money(v.price || 0)}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="text-[11px] text-gray-500 mt-2">
+                    Editando cores da versão: <span className="font-semibold">{selectedVersion?.title || "—"}</span>
+                  </div>
+                </Card>
+
+                <ColorsEditor
+                  colors={selectedColors}
+                  setColors={setSelectedColors}
+                  uploadFolder={uploadFolderForSelectedVersionColors}
+                  onUploadBusyChange={setUploading}
+                />
+              </div>
+            )}
+
+            {activeTab === "specs" && (
+              <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+                <Card title="Escolha a versão para editar" icon={<Settings size={16} />}>
+                  <Label>Versão</Label>
+                  <select
+                    className="w-full mt-1 h-10 px-3 border rounded-lg bg-white text-sm"
+                    value={selectedVersionId}
+                    onChange={(e) => setSelectedVersionId(e.target.value)}
                   >
                     {versions.map((v) => (
                       <option key={v.id} value={v.id}>
@@ -1419,21 +1658,27 @@ export default function AdminHyundaiVehicleCreatePage() {
                   </select>
 
                   <div className="text-[11px] text-gray-500 mt-2">
-                    Você está editando: <span className="font-semibold">{selectedSpecVersion?.title || "—"}</span>
+                    Você está editando: <span className="font-semibold">{selectedVersion?.title || "—"}</span>
                   </div>
                 </Card>
 
                 <SpecGroupsEditor specGroups={selectedSpecGroups} setSpecGroups={setSelectedSpecGroups} />
+
+                <VersionHighlightsEditor
+                  highlights={selectedHighlights}
+                  setHighlights={setSelectedHighlights}
+                  versionTitle={selectedVersion?.title}
+                />
               </div>
             )}
           </div>
 
           {/* direita */}
           <div className="lg:col-span-5">
-            <div className="lg:sticky lg:top-24">
-              <Preview modelName={modelName} imageUrl={imageUrl} priceStart={priceStart} versions={versions} colors={colors} />
+            <div className="lg:sticky lg:top-24 space-y-4">
+              <Preview modelName={modelName} vehicleImageUrl={vehicleImageUrl} priceStart={priceStart} versions={versions} />
 
-              <div className="mt-4 bg-white rounded-2xl border border-gray-200 p-4">
+              <div className="bg-white rounded-2xl border border-gray-200 p-4">
                 <div className="text-[10px] font-bold uppercase text-gray-500">Checklist rápido</div>
                 <div className="mt-2 space-y-1 text-xs text-gray-700">
                   <div>
@@ -1446,28 +1691,27 @@ export default function AdminHyundaiVehicleCreatePage() {
                     • Versões: <span className="font-semibold">{versions.length}</span>
                   </div>
                   <div>
-                    • Cores: <span className="font-semibold">{colors.length}</span>
+                    • Versão selecionada: <span className="font-semibold">{selectedVersion?.title || "—"}</span>
                   </div>
                   <div>
-                    • Capa catálogo: <span className="font-semibold">{catalogCoverUrl ? "OK" : "Opcional"}</span>
+                    • Cores da versão: <span className="font-semibold">{selectedColors.length}</span>
                   </div>
                 </div>
 
-                <div className="mt-4 flex gap-2">
-                  <Button type="button" variant="gray" onClick={() => setActiveTab("versions")} icon={<Settings size={14} />}>
-                    Versões
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button type="button" variant="gray" onClick={() => setActiveTab("versions")} icon={<ImageIcon size={14} />}>
+                    Capas
                   </Button>
                   <Button type="button" variant="gray" onClick={() => setActiveTab("colors")} icon={<Palette size={14} />}>
                     Cores
                   </Button>
-                  <Button type="button" variant="gray" onClick={() => setActiveTab("specs")} icon={<Settings size={14} />}>
+                  <Button type="button" variant="gray" onClick={() => setActiveTab("specs")} icon={<Sparkles size={14} />}>
                     Specs
                   </Button>
                 </div>
 
                 <div className="mt-3 text-[11px] text-gray-500">
-                  Dica: pra ficar perfeito (fundo + troca), suba PNG transparente em cada cor (vai preencher{" "}
-                  <span className="font-semibold">colors[].image_url</span>).
+                  Dica: suba PNG transparente para cada cor em cada versão (fica perfeito no preview).
                 </div>
 
                 <div className="mt-3 text-[11px] text-gray-500">

@@ -80,7 +80,7 @@ export default function SimulacoesPage() {
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         {loading ? (
           <div className="p-12 flex justify-center text-gray-400">
-            <span className="animate-pulse">Carregando...</span>
+            <span className="animate-pulse"></span>
           </div>
         ) : filteredSimulations.length === 0 ? (
           <div className="p-16 text-center text-gray-500">

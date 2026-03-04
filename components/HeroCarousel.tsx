@@ -36,7 +36,7 @@ export default function HeroCarousel() {
     return () => clearInterval(timer);
   }, [slides.length]);
 
-  if (loading) return <div className="h-[95vh] bg-gray-900 flex items-center justify-center text-white"><Loader2 className="animate-spin mr-2"/> Carregando...</div>;
+  if (loading) return <div className="h-[95vh] bg-gray-900 flex items-center justify-center text-white"><Loader2 className="animate-spin mr-2"/> </div>;
 
   return (
     <section className="relative h-[95vh] w-full overflow-hidden">

@@ -49,7 +49,7 @@ export default function HyundaiCatalogPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-white pt-24 px-6 text-sm font-bold text-gray-500">
-        Carregando…
+        
       </div>
     );
   }

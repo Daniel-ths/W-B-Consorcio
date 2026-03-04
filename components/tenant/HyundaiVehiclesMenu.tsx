@@ -186,7 +186,7 @@ export default function HyundaiVehiclesMenu({ onClose }: Props) {
     setImgFailed((prev) => ({ ...prev, [key]: true }));
   };
 
-  if (loading) return <div className="p-4 text-xs font-bold text-slate-500">Carregando...</div>;
+  if (loading) return <div className="p-4 text-xs font-bold text-slate-500"></div>;
   if (errorMsg) return <div className="p-4 text-xs font-bold text-red-600">{errorMsg}</div>;
 
   if (list.length === 0) {

@@ -7,7 +7,7 @@ import { ShieldCheck } from "lucide-react";
 export default function AdminButton() {
   // Começa nulo para não piscar o botão errado antes de verificar
   const [destino, setDestino] = useState<string | null>(null);
-  const [titulo, setTitulo] = useState("Carregando...");
+  const [titulo, setTitulo] = useState("");
 
   useEffect(() => {
     let montado = true; // Flag para evitar atualizações em componentes desmontados

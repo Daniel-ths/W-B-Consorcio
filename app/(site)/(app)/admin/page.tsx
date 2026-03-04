@@ -33,18 +33,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
-import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  PieChart,
-  Pie,
-  Cell,
-} from "recharts";
+import { ResponsiveContainer, Tooltip, PieChart, Pie, Cell } from "recharts";
 
 function ModalDetalhes({
   sale,
@@ -71,9 +60,7 @@ function ModalDetalhes({
   };
 
   const formatMoney = (val: number) =>
-    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
-      Number(val || 0)
-    );
+    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(val || 0));
 
   const statusColor =
     sale?.status === "Aprovado"
@@ -81,6 +68,12 @@ function ModalDetalhes({
       : sale?.status === "Recusado"
       ? "bg-red-50 text-red-800 border-red-200"
       : "bg-yellow-50 text-yellow-800 border-yellow-200";
+
+  const sellerEmailLabel = useMemo(() => {
+    const email = String(sale?.profiles?.email || "").trim();
+    if (!email || !email.includes("@")) return "—";
+    return email.split("@")[0].toUpperCase();
+  }, [sale]);
 
   if (!sale) return null;
 
@@ -205,7 +198,9 @@ function ModalDetalhes({
               </p>
             </div>
             <div className="text-right">
-              <span className={`print-badge inline-flex items-center rounded-full border ${statusColor}`}>
+              <span
+                className={`print-badge inline-flex items-center rounded-full border ${statusColor}`}
+              >
                 {sale.status}
               </span>
               <div className="text-[10px] font-black text-slate-900 mt-1">
@@ -224,21 +219,27 @@ function ModalDetalhes({
 
               <div className="grid grid-cols-2 gap-3 print-grid">
                 <div className="col-span-2 min-w-0">
-                  <p className="print-label text-[10px] font-bold text-slate-400 uppercase">Nome</p>
+                  <p className="print-label text-[10px] font-bold text-slate-400 uppercase">
+                    Nome
+                  </p>
                   <p className="print-value text-sm font-bold text-slate-900 truncate">
                     {sale.client_name || "—"}
                   </p>
                 </div>
 
                 <div className="min-w-0">
-                  <p className="print-label text-[10px] font-bold text-slate-400 uppercase">CPF</p>
+                  <p className="print-label text-[10px] font-bold text-slate-400 uppercase">
+                    CPF
+                  </p>
                   <p className="print-value text-sm font-mono text-slate-700 truncate">
                     {sale.client_cpf || "—"}
                   </p>
                 </div>
 
                 <div className="min-w-0">
-                  <p className="print-label text-[10px] font-bold text-slate-400 uppercase">Telefone</p>
+                  <p className="print-label text-[10px] font-bold text-slate-400 uppercase">
+                    Telefone
+                  </p>
                   <p className="print-value text-sm font-mono text-slate-700 truncate">
                     {sale.client_phone || "--"}
                   </p>
@@ -257,7 +258,9 @@ function ModalDetalhes({
                 </div>
 
                 <div className="col-span-2">
-                  <p className="print-label text-[10px] font-bold text-slate-400 uppercase">Criado em</p>
+                  <p className="print-label text-[10px] font-bold text-slate-400 uppercase">
+                    Criado em
+                  </p>
                   <p className="print-value text-sm font-medium text-slate-700">
                     {new Date(sale.created_at).toLocaleDateString("pt-BR")} às{" "}
                     {new Date(sale.created_at).toLocaleTimeString("pt-BR", {
@@ -276,14 +279,18 @@ function ModalDetalhes({
 
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
-                  <p className="print-label text-[10px] font-bold text-slate-400 uppercase">Veículo</p>
+                  <p className="print-label text-[10px] font-bold text-slate-400 uppercase">
+                    Veículo
+                  </p>
                   <p className="print-value text-lg font-black text-slate-900 truncate">
                     {sale.car_name || "—"}
                   </p>
                 </div>
 
                 <div className="text-right shrink-0">
-                  <p className="print-label text-[10px] font-bold text-slate-400 uppercase">Tipo</p>
+                  <p className="print-label text-[10px] font-bold text-slate-400 uppercase">
+                    Tipo
+                  </p>
                   <span className="bg-black text-white text-[10px] font-bold px-2 py-1 rounded uppercase">
                     {sale.interest_type || "—"}
                   </span>
@@ -311,13 +318,15 @@ function ModalDetalhes({
               </h3>
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-slate-900 rounded-full flex items-center justify-center text-white font-bold text-sm">
-                  {sale.seller_name ? String(sale.seller_name).substring(0, 2).toUpperCase() : "VD"}
+                  {sale.seller_name
+                    ? String(sale.seller_name).substring(0, 2).toUpperCase()
+                    : "VD"}
                 </div>
                 <div className="leading-tight min-w-0">
-                  <p className="text-sm font-bold text-slate-900 truncate">{sale.seller_name || "—"}</p>
-                  <p className="text-[10px] text-slate-500 font-mono truncate">
-                    {sale.profiles?.email || "—"}
+                  <p className="text-sm font-bold text-slate-900 truncate">
+                    {sale.seller_name || "—"}
                   </p>
+                  <p className="text-[10px] text-slate-500 font-mono truncate">{sellerEmailLabel}</p>
                 </div>
               </div>
             </div>
@@ -329,13 +338,17 @@ function ModalDetalhes({
 
               <div className="grid grid-cols-2 gap-3 print-grid">
                 <div className="min-w-0">
-                  <p className="print-label text-[10px] font-bold text-slate-400 uppercase">Aprovador</p>
+                  <p className="print-label text-[10px] font-bold text-slate-400 uppercase">
+                    Aprovador
+                  </p>
                   <p className="print-value text-sm font-bold text-slate-900 truncate">
                     {sale.approved_by_name || "—"}
                   </p>
                 </div>
                 <div className="min-w-0">
-                  <p className="print-label text-[10px] font-bold text-slate-400 uppercase">Data</p>
+                  <p className="print-label text-[10px] font-bold text-slate-400 uppercase">
+                    Data
+                  </p>
                   <p className="print-value text-sm font-medium text-slate-700 truncate">
                     {sale.approved_at ? new Date(sale.approved_at).toLocaleString("pt-BR") : "—"}
                   </p>
@@ -455,6 +468,16 @@ export default function AdminDashboard() {
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(val || 0));
 
   const todayLabel = useMemo(() => new Date().toLocaleDateString("pt-BR"), []);
+
+  const sellerLabel = (sale: any) => {
+    const name = String(sale?.seller_name || "").trim();
+    if (name) return name;
+
+    const email = String(sale?.profiles?.email || "").trim();
+    if (!email) return "—";
+
+    return email.split("@")[0].toUpperCase();
+  };
 
   const isWithinDateRange = (createdAt: string) => {
     const d = new Date(createdAt);
@@ -813,47 +836,15 @@ export default function AdminDashboard() {
     return filtered;
   }, [sales, supervisorStatusFilter]);
 
+  // ✅ charts agora só tem o PIE (removido Volume 30 dias)
   const charts = useMemo(() => {
-    const days = 30;
-    const pad2 = (n: number) => String(n).padStart(2, "0");
-    const keyOf = (dt: Date) => `${pad2(dt.getDate())}/${pad2(dt.getMonth() + 1)}`;
-
-    const map = new Map<
-      string,
-      { date: string; total: number; approved: number; refused: number; pending: number; value: number }
-    >();
-
-    for (let i = days - 1; i >= 0; i--) {
-      const dt = new Date();
-      dt.setDate(dt.getDate() - i);
-      const k = keyOf(dt);
-      map.set(k, { date: k, total: 0, approved: 0, refused: 0, pending: 0, value: 0 });
-    }
-
-    sales.forEach((s) => {
-      const dt = new Date(s.created_at);
-      const k = keyOf(dt);
-      const bucket = map.get(k);
-      if (!bucket) return;
-
-      bucket.total += 1;
-      bucket.value += Number(s.total_price) || 0;
-
-      if (s.status === "Aprovado") bucket.approved += 1;
-      else if (s.status === "Recusado") bucket.refused += 1;
-      else bucket.pending += 1;
-    });
-
-    const lineData = Array.from(map.values());
-
     const pieData = [
       { name: "Pendentes", value: kpis.pending },
       { name: "Aprovadas", value: kpis.approved },
       { name: "Recusadas", value: kpis.refused },
     ];
-
-    return { lineData, pieData };
-  }, [sales, kpis.pending, kpis.approved, kpis.refused]);
+    return { pieData };
+  }, [kpis.pending, kpis.approved, kpis.refused]);
 
   const PIE_COLORS = ["#f59e0b", "#22c55e", "#ef4444"];
 
@@ -998,6 +989,7 @@ export default function AdminDashboard() {
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-8">
+        {/* KPIs */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
           <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
             <div className="flex items-center justify-between">
@@ -1006,7 +998,7 @@ export default function AdminDashboard() {
               </div>
               <span className="text-[10px] font-black uppercase text-slate-400">Receita</span>
             </div>
-            <p className="text-slate-500 text-xs font-bold uppercase mt-2">Total (recorte)</p>
+            <p className="text-slate-500 text-xs font-bold uppercase mt-2">Total</p>
             <h3 className="text-xl font-black text-slate-900">
               {new Intl.NumberFormat("pt-BR", {
                 notation: "compact",
@@ -1021,7 +1013,7 @@ export default function AdminDashboard() {
               <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
                 <Users size={18} />
               </div>
-              <span className="text-[10px] font-black uppercase text-slate-400">Volume</span>
+              <span className="text-[10px] font-black uppercase text-slate-400"></span>
             </div>
             <p className="text-slate-500 text-xs font-bold uppercase mt-2">Propostas</p>
             <h3 className="text-2xl font-black text-slate-900">{kpis.total}</h3>
@@ -1032,7 +1024,7 @@ export default function AdminDashboard() {
               <div className="p-2 bg-purple-50 rounded-lg text-purple-600">
                 <TrendingUp size={18} />
               </div>
-              <span className="text-[10px] font-black uppercase text-slate-400">Eficiência</span>
+              <span className="text-[10px] font-black uppercase text-slate-400"></span>
             </div>
             <p className="text-slate-500 text-xs font-bold uppercase mt-2">Conversão</p>
             <h3 className="text-2xl font-black text-slate-900">{kpis.conversion.toFixed(0)}%</h3>
@@ -1043,7 +1035,7 @@ export default function AdminDashboard() {
               <div className="p-2 bg-yellow-50 rounded-lg text-yellow-700">
                 <Clock size={18} />
               </div>
-              <span className="text-[10px] font-black uppercase text-slate-400">SLA</span>
+              <span className="text-[10px] font-black uppercase text-slate-400"></span>
             </div>
             <p className="text-slate-500 text-xs font-bold uppercase mt-2">Pendentes</p>
             <h3 className="text-2xl font-black text-slate-900">{kpis.pending}</h3>
@@ -1081,6 +1073,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
+        {/* Supervisores hoje */}
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden mb-8">
           <div className="p-5 border-b border-slate-100 flex items-center justify-between gap-3">
             <div>
@@ -1088,7 +1081,7 @@ export default function AdminDashboard() {
                 Produção dos Supervisores (Hoje)
               </h3>
               <p className="text-xs text-slate-400 font-bold">
-                Supervisor • atendimentos do dia • aprovações/recusas
+               
               </p>
             </div>
 
@@ -1208,11 +1201,14 @@ export default function AdminDashboard() {
           </div>
         </div>
 
+        {/* Pedidos do dia */}
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden mb-8">
           <div className="p-5 border-b border-slate-100 flex items-center justify-between">
             <div>
               <h3 className="font-black text-slate-900 uppercase tracking-tight">Pedidos do Dia</h3>
-              <p className="text-xs text-slate-400 font-bold">Resumo e lista das propostas criadas hoje</p>
+              <p className="text-xs text-slate-400 font-bold">
+             
+              </p>
             </div>
 
             <div className="flex items-center gap-2">
@@ -1272,12 +1268,9 @@ export default function AdminDashboard() {
                     Últimos pedidos de hoje
                   </h4>
                   <p className="text-[11px] text-slate-400 font-bold">
-                    Clique para abrir detalhes e decidir rápido
+                   
                   </p>
                 </div>
-                <span className="text-[10px] font-black uppercase text-slate-400">
-                  mostrando {Math.min(10, todaySection.list.length)}
-                </span>
               </div>
 
               {todaySection.list.length === 0 ? (
@@ -1316,7 +1309,7 @@ export default function AdminDashboard() {
                               {sale.car_name}
                             </p>
                             <p className="text-[10px] text-slate-400">
-                              Vendedor: {sale.seller_name || sale.profiles?.email || "—"}
+                              Vendedor: {sellerLabel(sale)}
                             </p>
                           </td>
                           <td className="px-4 py-3 text-center">
@@ -1341,36 +1334,15 @@ export default function AdminDashboard() {
           </div>
         </div>
 
+        {/* ✅ Agora só fica Distribuição (recorte) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
-          <div className="lg:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="lg:col-span-12 grid grid-cols-1 gap-6">
             <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-5">
               <div className="flex items-center justify-between mb-3">
                 <p className="text-xs font-black uppercase text-slate-500 tracking-widest">
-                  Volume (30 dias)
+                  Distribuição
                 </p>
-                <span className="text-[10px] font-bold text-slate-400">Total/dia</span>
-              </div>
-              <div className="h-44">
-                <div style={{ width: "100%", height: 320 }}></div>
-                <ResponsiveContainer width="100%" height="100%">
-                  
-                  <LineChart data={charts.lineData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
-                    <Tooltip />
-                    <Line type="monotone" dataKey="total" strokeWidth={2} dot={false} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-5">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-xs font-black uppercase text-slate-500 tracking-widest">
-                  Distribuição (recorte)
-                </p>
-                <span className="text-[10px] font-bold text-slate-400">Status</span>
+                <span className="text-[10px] font-bold text-slate-400"></span>
               </div>
               <div className="h-44 flex items-center">
                 <ResponsiveContainer width="100%" height="100%">
@@ -1412,10 +1384,14 @@ export default function AdminDashboard() {
           </div>
         </div>
 
+        {/* Filtros */}
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6 space-y-4">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="relative w-full md:w-96">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+              <Search
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                size={18}
+              />
               <input
                 type="text"
                 placeholder="Buscar por..."
@@ -1523,14 +1499,14 @@ export default function AdminDashboard() {
                 href="/admin/alterarvalor"
                 className="text-xs bg-amber-50 text-amber-700 px-3 py-2 rounded-lg font-bold hover:bg-amber-100 flex items-center gap-2 border border-amber-100 w-full lg:w-auto justify-center"
               >
-                <Wallet size={14} /> Alterar Valores
+                <Wallet size={14} /> Valores
               </Link>
 
               <Link
                 href="/admin/cars/choose-brand"
                 className="text-xs bg-blue-50 text-blue-600 px-3 py-2 rounded-lg font-bold hover:bg-blue-100 flex items-center gap-2 border border-blue-100 w-full lg:w-auto justify-center"
               >
-                <Plus size={14} /> Add Veículo
+                <Plus size={14} /> Veículo
               </Link>
 
               <Link
@@ -1595,6 +1571,7 @@ export default function AdminDashboard() {
           )}
         </div>
 
+        {/* Transações */}
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
           <div className="p-4 border-b border-slate-100 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -1605,7 +1582,7 @@ export default function AdminDashboard() {
           {loading ? (
             <div className="p-12 flex flex-col items-center justify-center text-slate-400">
               <Loader2 className="animate-spin mb-2" size={32} />
-              <p className="text-xs font-bold uppercase">Carregando...</p>
+              <p className="text-xs font-bold uppercase"></p>
             </div>
           ) : filteredBase.length === 0 ? (
             <div className="p-12 text-center text-slate-400">
@@ -1669,7 +1646,7 @@ export default function AdminDashboard() {
                           <div className="flex flex-col">
                             <span className="font-bold text-slate-800">{sale.car_name}</span>
                             <span className="text-[9px] text-slate-400">
-                              Vendedor: {sale.seller_name || sale.profiles?.email || "---"}
+                              Vendedor: {sellerLabel(sale)}
                             </span>
                             <span className="text-[9px] text-slate-400">
                               Criado: {new Date(sale.created_at).toLocaleDateString("pt-BR")}{" "}
@@ -1794,7 +1771,7 @@ export default function AdminDashboard() {
                   disabled={page === 1}
                   className="px-3 py-2 rounded-lg text-xs font-bold uppercase border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40"
                 >
-                  Anterior
+                  Próxima
                 </button>
 
                 <button
@@ -1802,7 +1779,7 @@ export default function AdminDashboard() {
                   disabled={page === totalPages}
                   className="px-3 py-2 rounded-lg text-xs font-bold uppercase border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40"
                 >
-                  Próxima
+                  Anterior
                 </button>
               </div>
             </div>

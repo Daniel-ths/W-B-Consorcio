@@ -943,7 +943,7 @@ Seja bem vindo!`;
 
 export default function PedidoPage() {
   return (
-    <Suspense fallback={<div>Carregando...</div>}>
+    <Suspense fallback={<div></div>}>
       <PedidoContent />
     </Suspense>
   );

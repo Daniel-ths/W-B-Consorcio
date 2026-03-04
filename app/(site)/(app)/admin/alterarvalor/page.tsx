@@ -473,7 +473,7 @@ export default function AlterarValorPage() {
               {loading ? (
                 <div className="p-10 text-center text-slate-500 font-bold">
                   <Loader2 className="animate-spin inline mr-2" size={18} />
-                  Carregando...
+                  
                 </div>
               ) : filteredVehicles.length === 0 ? (
                 <div className="p-10 text-center text-slate-500 font-bold">Nada encontrado.</div>
@@ -592,7 +592,7 @@ export default function AlterarValorPage() {
             {loading ? (
               <div className="p-10 text-center text-slate-500 font-bold">
                 <Loader2 className="animate-spin inline mr-2" size={18} />
-                Carregando...
+                
               </div>
             ) : filteredAccessories.length === 0 ? (
               <div className="p-10 text-center text-slate-500 font-bold">Nada encontrado.</div>
@@ -628,7 +628,7 @@ export default function AlterarValorPage() {
             {loading ? (
               <div className="p-10 text-center text-slate-500 font-bold">
                 <Loader2 className="animate-spin inline mr-2" size={18} />
-                Carregando...
+                
               </div>
             ) : filteredWheels.length === 0 ? (
               <div className="p-10 text-center text-slate-500 font-bold">Nada encontrado.</div>

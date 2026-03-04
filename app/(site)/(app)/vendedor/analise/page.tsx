@@ -897,7 +897,7 @@ function AnaliseContent() {
 
 export default function AnalisePage() {
   return (
-    <Suspense fallback={<div>Carregando...</div>}>
+    <Suspense fallback={<div></div>}>
       <AnaliseContent />
     </Suspense>
   );

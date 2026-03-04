@@ -1091,7 +1091,7 @@ export default function SupervisorDashboard() {
           {loading ? (
             <div className="p-12 flex flex-col items-center justify-center text-slate-400">
               <Loader2 className="animate-spin mb-2" size={32} />
-              <p className="text-xs font-bold uppercase">Carregando...</p>
+              <p className="text-xs font-bold uppercase"></p>
             </div>
           ) : filteredSalesBase.length === 0 ? (
             <div className="p-12 text-center text-slate-400">
