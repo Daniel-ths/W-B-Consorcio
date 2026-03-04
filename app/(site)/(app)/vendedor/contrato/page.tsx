@@ -83,6 +83,16 @@ const safeNumber = (v: any) => {
   return Number.isFinite(n) ? n : 0;
 };
 
+// ✅ helper: embaralha array (Fisher-Yates)
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 function PedidoContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -226,16 +236,17 @@ function PedidoContent() {
   // ✅ telefone formatado p/ exibir COM DDD: "+55 91 9XXXX-XXXX"
   const telefoneTela = telefoneDigits ? formatPhoneForDisplay(telefoneDigits) : "---";
 
-  // ✅ mensagem do SMS
-  const SMS_TESTE = (nome: string, protocolo: string) =>
-    `Parabéns, ${nome}!🎉 Seu CPF foi aprovado e você está mais perto de conquistar seu carro novo.
-Seja bem vindo!`;
-
   const formatMoney = (val: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(val);
 
   // ✅ protocolo estável (gera no client pra evitar hydration mismatch)
   const [numeroPedido, setNumeroPedido] = useState<string>("");
+
+  // ✅ aprovador (nome do vendedor logado)
+  const [aprovadorNome, setAprovadorNome] = useState<string>("");
+
+  // ✅ “melhor momento para oferta de lance” (ordem aleatória 6x/7x/8x)
+  const [momentosLance, setMomentosLance] = useState<number[]>([6, 8, 10]);
 
   useEffect(() => {
     setDataAtual(
@@ -251,11 +262,59 @@ Seja bem vindo!`;
     // ✅ gera o protocolo apenas no client (evita Server != Client)
     setNumeroPedido((prev) => {
       if (prev) return prev;
-      return Math.floor(Math.random() * 1000000).toString().padStart(6, "0");
+      return Math.floor(Math.random() * 1000000)
+        .toString()
+        .padStart(6, "0");
     });
+
+    // ✅ define a ordem aleatória UMA VEZ por visita
+    setMomentosLance(shuffle([6, 7, 8]));
+
+    // ✅ carrega aprovador (vendedor logado) para exibir na área de análise
+    (async () => {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) return;
+
+        let nome = user.email || "";
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("id", user.id)
+          .single();
+
+        if (profile?.full_name) nome = profile.full_name;
+
+        // fallback: pega antes do @ e coloca em caixa alta
+        if (!nome || nome === user.email) {
+          const beforeAt = String(user.email || "").split("@")[0] || "";
+          nome = beforeAt ? beforeAt.toUpperCase() : String(user.email || "");
+        }
+
+        setAprovadorNome(String(nome || "").toUpperCase());
+      } catch {
+        // silencioso
+      }
+    })();
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // =========================
+  // ✅ mensagem do SMS (com aprovador + melhor momento)
+  // =========================
+  const SMS_TESTE = (nome: string, protocolo: string, aprovador: string, ordem: number[]) => {
+    const linhaMomentos = `${ordem[5]}x parcela, ${ordem[1]}x e ${ordem[1]}x parcela`;
+    const aprov = aprovador ? `\nAprovador: ${aprovador}` : "";
+    return `Parabéns, ${nome}!🎉 Seu CPF foi aprovado e você está mais perto de conquistar seu carro novo.
+Seja bem vindo!
+
+Melhor momento para oferta de lance: ${linhaMomentos}
+Probabilidades altas${aprov}`;
+  };
 
   // ✅ Consulta CPF = SOMENTE no clique (preenche dados + sem SMS)
   const consultarCpf = async () => {
@@ -312,7 +371,7 @@ Seja bem vindo!`;
 
   const cpfIsRegular = String(situacaoReceita || "PENDENTE").toUpperCase() === "REGULAR";
 
-  // ✅ SMS (só é chamado depois do envio para análise e SOMENTE se CPF REGULAR)
+  // ✅ SMS (só é chamado depois do envio para análise)
   async function enviarSms(nomeCliente: string) {
     if (!telefoneDigits) {
       alert(
@@ -322,7 +381,12 @@ Seja bem vindo!`;
     }
 
     const protocolo = numeroPedido || "------";
-    const message = SMS_TESTE(nomeCliente || "cliente", protocolo);
+    const message = SMS_TESTE(
+      nomeCliente || "cliente",
+      protocolo,
+      aprovadorNome || "",
+      momentosLance || [6, 7, 8]
+    );
 
     try {
       const resp = await fetch("/api/sms/enviar", {
@@ -352,6 +416,7 @@ Seja bem vindo!`;
   }
 
   // ✅ SALVAR PROPOSTA no banco (sempre salva)
+  // ✅ REGRA NOVA: TODOS OS PEDIDOS FEITOS NA ÁREA DE CONTRATO DEVEM IR PARA O ADMIN COMO "APROVADO"
   const salvarNoBanco = async () => {
     if (!nomeManual) {
       alert("Preencha/consulte os dados do cliente antes de enviar.");
@@ -375,7 +440,7 @@ Seja bem vindo!`;
         return { ok: false };
       }
 
-      let nomeVendedor = user.email;
+      let nomeVendedor = user.email || "";
       const { data: profile } = await supabase
         .from("profiles")
         .select("full_name")
@@ -384,6 +449,9 @@ Seja bem vindo!`;
 
       if (profile && profile.full_name) {
         nomeVendedor = profile.full_name;
+      } else {
+        const beforeAt = String(user.email || "").split("@")[0] || "";
+        if (beforeAt) nomeVendedor = beforeAt.toUpperCase();
       }
 
       const payload = {
@@ -392,7 +460,9 @@ Seja bem vindo!`;
         car_name: dados.modelo,
         client_name: nomeManual.toUpperCase(),
         client_cpf: dados.cpf,
-        status: "Aguardando Aprovação",
+
+        // ✅ tudo que é feito na área de contrato já entra no painel como aprovado
+        status: "Aprovado",
 
         // ✅ o valor do carro é o CRÉDITO (com acessórios)
         total_price: dados.valor,
@@ -415,8 +485,8 @@ Seja bem vindo!`;
         prazo_final: valoresExibidos.prazoUsado || 0,
         parcela_final: valoresExibidos.parcelaUsada || 0,
 
-        // ✅ OPÇÃO B: NÃO ENVIA ato_entrada como coluna (evita erro de schema cache)
-        // ato_entrada: atoEntrada,
+        // ✅ opcional: salvar info do "melhor momento" para o admin ver também (se você tiver coluna)
+        // best_bid_moment: `Probabilidades altas • ${momentosLance[0]}x parcela, ${momentosLance[1]}x e ${momentosLance[2]}x parcela`,
       };
 
       const { error } = await supabase.from("sales").insert([payload]);
@@ -430,7 +500,7 @@ Seja bem vindo!`;
     }
   };
 
-  // ✅ BOTÃO PRINCIPAL: salva no banco sempre; SMS SEMPRE envia (independente do CPF)
+  // ✅ BOTÃO PRINCIPAL: salva no banco sempre; SMS SEMPRE tenta enviar
   const handleEnviarParaAnalise = async () => {
     if (pedidoSalvo) return;
 
@@ -439,13 +509,12 @@ Seja bem vindo!`;
       const saved = await salvarNoBanco();
       if (!saved.ok) return;
 
-      // ✅ SEMPRE tenta enviar SMS
       const okSms = await enviarSms(nomeManual || dados.nome || "cliente");
 
       if (okSms) {
-        alert(`✅ Enviado para análise + SMS enviado! (${saved.vendedor || "vendedor"})`);
+        alert(`✅ Pedido aprovado no painel + SMS enviado! (${saved.vendedor || "vendedor"})`);
       } else {
-        alert(`✅ Enviado para análise. (SMS falhou) (${saved.vendedor || "vendedor"})`);
+        alert(`✅ Pedido aprovado no painel. (SMS falhou) (${saved.vendedor || "vendedor"})`);
       }
 
       setPedidoSalvo(true);
@@ -479,7 +548,7 @@ Seja bem vindo!`;
                 onClick={handleEnviarParaAnalise}
                 disabled={loadingEnviar}
                 className="bg-[#f2e14c] text-black px-4 py-2.5 rounded-lg text-xs font-black uppercase hover:bg-[#ffe600] flex items-center gap-2 shadow-lg shadow-yellow-400/20 transition-all hover:scale-105 active:scale-95"
-                title="Salva no painel. Envia SMS."
+                title="Salva no painel como APROVADO. Envia SMS."
               >
                 {loadingEnviar ? <Loader2 className="animate-spin" size={16} /> : <Send size={16} />}
                 <span className="md:inline">{loadingEnviar ? "Enviando..." : "Enviar p/ análise"}</span>
@@ -608,7 +677,7 @@ Seja bem vindo!`;
                   onClick={handleEnviarParaAnalise}
                   disabled={loadingEnviar}
                   className="print:hidden w-full group relative overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm hover:shadow-lg transition-all"
-                  title="Salva no painel. Envia SMS."
+                  title="Salva no painel como APROVADO. Envia SMS."
                 >
                   <div className="absolute inset-0 bg-gradient-to-r from-[#f2e14c]/0 via-[#f2e14c]/25 to-[#f2e14c]/0 opacity-0 group-hover:opacity-100 transition-opacity" />
 
@@ -636,6 +705,21 @@ Seja bem vindo!`;
 
                           <span className="text-[10px] font-black uppercase px-2 py-1 rounded-full border bg-zinc-50 text-zinc-700 border-zinc-200 flex items-center gap-1">
                             <MessageSquare size={12} /> SMS
+                          </span>
+                        </div>
+
+                        {/* ✅ NOVO: aprovador + melhor momento para lance */}
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <span className="text-[10px] font-black uppercase px-2 py-1 rounded-full border bg-zinc-50 text-zinc-700 border-zinc-200">
+                            Aprovador: {aprovadorNome || "—"}
+                          </span>
+
+                          <span className="text-[10px] font-black uppercase px-2 py-1 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200">
+                            Probabilidades altas
+                          </span>
+
+                          <span className="text-[10px] font-black uppercase px-2 py-1 rounded-full border bg-zinc-50 text-zinc-700 border-zinc-200">
+                            Melhor momento: {momentosLance[0]}x parcela • {momentosLance[1]}x • {momentosLance[2]}x parcela
                           </span>
                         </div>
                       </div>

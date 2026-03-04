@@ -322,8 +322,8 @@ function OrderSummary({
   return (
     <div className="w-full bg-white font-sans text-[#1a1a1a]">
       <div className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm flex-none">
-        <div className="max-w-[1400px] mx-auto px-6 h-20 flex items-center justify-between">
-          <h1 className="text-3xl font-light tracking-tight">
+        <div className="max-w-[1400px] mx-auto px-6 h-32 flex items-center justify-between">
+          <h1 className="text-3xl font-light">
             Seu {currentCar.model_name}
             {selectedVersion?.title ? ` • ${selectedVersion.title}` : ""}
           </h1>

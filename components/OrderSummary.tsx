@@ -15,6 +15,19 @@ import {
   ArrowRight,
 } from "lucide-react";
 
+/* =========================
+   HELPERS (à prova de bagunça)
+========================= */
+const safePrice = (value: any): number => {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  if (!value) return 0;
+  if (typeof value === "string") {
+    const n = parseFloat(value.replace(/[^0-9,-]+/g, "").replace(",", "."));
+    return Number.isFinite(n) ? n : 0;
+  }
+  return 0;
+};
+
 // --- MÁSCARAS E HELPER FUNCTIONS ---
 const maskCPF = (value: string) => {
   return value
@@ -48,20 +61,6 @@ const PHONE_PREFIX_DISPLAY = "+55 ";
 const DEFAULT_DDD = "91"; // fallback opcional se colarem sem DDD
 
 const onlyDigits = (v: string) => String(v || "").replace(/\D/g, "");
-
-const maskPhoneBR = (digitsNational: string) => {
-  // digitsNational = DDD(2) + número(8/9)
-  const d = onlyDigits(digitsNational).slice(0, 11); // 2 + 9 = 11 máx
-  if (!d) return "";
-
-  const ddd = d.slice(0, 2);
-  const num = d.slice(2); // 0..9
-
-  // celular (9) ou fixo (8)
-  if (num.length <= 4) return `(${ddd}) ${num}`;
-  if (num.length <= 8) return `(${ddd}) ${num.slice(0, 4)}-${num.slice(4)}`;
-  return `(${ddd}) ${num.slice(0, 5)}-${num.slice(5)}`; // 9 dígitos
-};
 
 // retorna "55DDDNÚMERO" (só dígitos) a partir do input display
 const toE164Digits = (displayPhone: string) => {
@@ -131,34 +130,36 @@ export default function OrderSummary({
 
   // ✅ AGORA: permite digitar/colar DDD + número completo
   // - mantém prefixo +55 sempre
-  // - mascara em "(DD) 9XXXX-XXXX" / "(DD) XXXX-XXXX"
-const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  const typed = e.target.value || "";
+  // - mascara em "(DD) 9XXXX-XXXX" / "(DD) XXXXX-XXXX"
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const typed = e.target.value || "";
 
-  // Se o usuário apagar tudo
-  if (typed.trim() === "" || typed === PHONE_PREFIX_DISPLAY) {
-    setClientPhone(PHONE_PREFIX_DISPLAY);
-    return;
-  }
+    // Se o usuário apagar tudo
+    if (typed.trim() === "" || typed === PHONE_PREFIX_DISPLAY) {
+      setClientPhone(PHONE_PREFIX_DISPLAY);
+      return;
+    }
 
-  let digits = typed.replace(/\D/g, "");
+    let digits = typed.replace(/\D/g, "");
 
-  // Remove 55 se colarem junto
-  if (digits.startsWith("55")) digits = digits.slice(2);
+    // Remove 55 se colarem junto
+    if (digits.startsWith("55")) digits = digits.slice(2);
 
-  digits = digits.slice(0, 11); // DDD + 9
+    digits = digits.slice(0, 11); // DDD + 9
 
-  const ddd = digits.slice(0, 2);
-  const num = digits.slice(2);
+    const ddd = digits.slice(0, 2);
+    const num = digits.slice(2);
 
-  let formatted = "";
+    let formatted = "";
 
-  if (digits.length <= 2) formatted = `(${ddd}`;
-  else if (num.length <= 5) formatted = `(${ddd}) ${num}`;
-  else formatted = `(${ddd}) ${num.slice(0, 5)}-${num.slice(5)}`;
+    if (digits.length <= 2) formatted = `(${ddd}`;
+    else if (num.length <= 5) formatted = `(${ddd}) ${num}`;
+    else formatted = `(${ddd}) ${num.slice(0, 5)}-${num.slice(5)}`;
 
-  setClientPhone(PHONE_PREFIX_DISPLAY + formatted);
-};
+    setClientPhone(PHONE_PREFIX_DISPLAY + formatted);
+
+    if (errors.clientPhone) setErrors({ ...errors, clientPhone: "" });
+  };
 
   const handleFinishOrder = async () => {
     let newErrors = { clientName: "", clientCpf: "", clientEmail: "", clientPhone: "" };
@@ -224,12 +225,13 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
           color: selectedColor?.name || "Padrão",
           wheels: selectedWheel?.name || "Padrão",
           seats: selectedSeatType?.name || "Padrão",
-          accessories: selectedAccessoriesList.map((a: any) => a.name),
+          accessories: (selectedAccessoriesList || []).map((a: any) => a?.name).filter(Boolean),
         },
         created_at: new Date().toISOString(),
       };
 
-      await supabase.from("sales").insert([saleData]);
+      const { error } = await supabase.from("sales").insert([saleData]);
+      if (error) throw error;
 
       const query = new URLSearchParams({
         nome: clientName,
@@ -245,7 +247,7 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       router.push(`/vendedor/analise?${query}`);
     } catch (error: any) {
       console.error("Erro ao processar:", error);
-      alert("Erro ao processar pedido: " + error.message);
+      alert("Erro ao processar pedido: " + (error?.message || "desconhecido"));
       setLoading(false);
     }
   };
@@ -283,12 +285,16 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
           <section className="mb-16 border-b border-gray-200 pb-12">
             <div className="flex justify-between items-baseline mb-8 border-b border-gray-200 pb-4">
               <h2 className="text-3xl font-normal">Resumo</h2>
-              <button onClick={onEdit} className="text-sm font-medium flex items-center gap-1 hover:underline">
+              <button
+                onClick={onEdit}
+                className="text-sm font-medium flex items-center gap-1 hover:underline"
+              >
                 Editar <ChevronRight size={14} />
               </button>
             </div>
 
             <div className="space-y-0">
+              {/* VERSÃO */}
               <div className="grid grid-cols-1 md:grid-cols-4 py-8 border-b border-gray-200">
                 <div className="text-lg font-normal mb-4 md:mb-0">Versões</div>
                 <div className="md:col-span-3">
@@ -296,14 +302,18 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                     <div className="w-24 h-16 bg-white border border-gray-200 rounded flex items-center justify-center p-1 overflow-hidden">
                       <img src={currentCar.image_url} className="w-full h-full object-cover" />
                     </div>
-                    <p className="text-lg font-normal">2026 {currentCar.model_name || currentCar.name}</p>
+                    <p className="text-lg font-normal">
+                      2026 {currentCar.model_name || currentCar.name}
+                    </p>
                   </div>
                 </div>
               </div>
 
+              {/* EXTERIOR / ITENS */}
               <div className="grid grid-cols-1 md:grid-cols-4 py-8 border-b border-gray-200">
                 <div className="text-lg font-normal mb-4 md:mb-0">Exterior</div>
                 <div className="md:col-span-3 space-y-8">
+                  {/* COR */}
                   {selectedColor && (
                     <div className="flex items-center gap-6">
                       <div
@@ -313,11 +323,15 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                       <div>
                         <p className="text-lg font-normal">{selectedColor.name}</p>
                         <p className="text-gray-500 mt-1">
-                          {selectedColor.price > 0 ? formatCurrency(selectedColor.price) : "R$ 0,00"}
+                          {safePrice(selectedColor.price) > 0
+                            ? formatCurrency(safePrice(selectedColor.price))
+                            : "R$ 0,00"}
                         </p>
                       </div>
                     </div>
                   )}
+
+                  {/* RODAS */}
                   {selectedWheel && (
                     <div className="flex items-center gap-6">
                       <div className="w-16 h-16 bg-gray-100 rounded-full border border-gray-200 overflow-hidden flex items-center justify-center">
@@ -330,18 +344,62 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                       <div>
                         <p className="text-lg font-normal">{selectedWheel.name}</p>
                         <p className="text-gray-500 mt-1">
-                          {selectedWheel.price > 0 ? formatCurrency(selectedWheel.price) : "Padrão"}
+                          {safePrice(selectedWheel.price) > 0
+                            ? formatCurrency(safePrice(selectedWheel.price))
+                            : "Padrão"}
                         </p>
                       </div>
+                    </div>
+                  )}
+
+                  {/* ✅ ACESSÓRIOS (AGORA APARECEM NO RESUMO) */}
+                  {Array.isArray(selectedAccessoriesList) && selectedAccessoriesList.length > 0 && (
+                    <div className="border-t border-gray-200 pt-6 space-y-6">
+                      <p className="text-sm uppercase tracking-wide text-gray-500 font-semibold">
+                        Acessórios
+                      </p>
+
+                      {selectedAccessoriesList.map((acc: any, index: number) => (
+                        <div
+                          key={acc?.id || `${acc?.name || "acc"}-${index}`}
+                          className="flex items-center gap-6"
+                        >
+                          <div className="w-16 h-16 bg-gray-100 rounded border border-gray-200 overflow-hidden flex items-center justify-center">
+                            {acc?.image ? (
+                              <img
+                                src={acc.image}
+                                className="w-full h-full object-cover"
+                                onError={(e: any) => (e.target.style.display = "none")}
+                              />
+                            ) : (
+                              <div className="text-[10px] font-bold text-gray-400 uppercase">
+                                Sem imagem
+                              </div>
+                            )}
+                          </div>
+
+                          <div>
+                            <p className="text-lg font-normal">{acc?.name || "Acessório"}</p>
+                            <p className="text-gray-500 mt-1">
+                              {safePrice(acc?.price) > 0
+                                ? formatCurrency(safePrice(acc?.price))
+                                : "Incluso"}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
               </div>
 
+              {/* TOTAL */}
               <div className="grid grid-cols-1 md:grid-cols-4 py-8 border-b border-gray-200">
                 <div className="text-lg font-normal mb-4 md:mb-0">Total</div>
                 <div className="md:col-span-3">
-                  <span className="text-3xl font-bold text-gray-900">{formatCurrency(totalPrice)}</span>
+                  <span className="text-3xl font-bold text-gray-900">
+                    {formatCurrency(totalPrice)}
+                  </span>
                 </div>
               </div>
             </div>
@@ -353,8 +411,9 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
               <div className="lg:col-span-1">
                 <h3 className="text-2xl font-normal text-gray-900 mb-4">Finalização</h3>
                 <p className="text-sm text-gray-500">
-                  O próximo passo enviará este veículo configurado para o módulo de <strong>Análise de Crédito</strong>,
-                  onde você poderá calcular as parcelas de Financiamento ou Consórcio.
+                  O próximo passo enviará este veículo configurado para o módulo de{" "}
+                  <strong>Análise de Crédito</strong>, onde você poderá calcular as parcelas de
+                  Financiamento ou Consórcio.
                 </p>
               </div>
 
@@ -396,7 +455,11 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                             if (errors.clientName) setErrors({ ...errors, clientName: "" });
                           }}
                           className={`w-full h-12 px-4 border rounded focus:outline-none transition-all text-sm
-                            ${errors.clientName ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
+                            ${
+                              errors.clientName
+                                ? "border-red-500 bg-red-50"
+                                : "border-gray-300 focus:border-black bg-white"
+                            }
                           `}
                           placeholder="Digite o nome completo"
                         />
@@ -416,7 +479,11 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                           onChange={handleCpfChange}
                           maxLength={14}
                           className={`w-full h-12 px-4 border rounded focus:outline-none transition-all text-sm
-                            ${errors.clientCpf ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
+                            ${
+                              errors.clientCpf
+                                ? "border-red-500 bg-red-50"
+                                : "border-gray-300 focus:border-black bg-white"
+                            }
                           `}
                           placeholder="000.000.000-00"
                         />
@@ -438,7 +505,11 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                             if (errors.clientEmail) setErrors({ ...errors, clientEmail: "" });
                           }}
                           className={`w-full h-12 px-4 border rounded focus:outline-none transition-all text-sm
-                            ${errors.clientEmail ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
+                            ${
+                              errors.clientEmail
+                                ? "border-red-500 bg-red-50"
+                                : "border-gray-300 focus:border-black bg-white"
+                            }
                           `}
                           placeholder="exemplo@email.com"
                         />
@@ -458,7 +529,11 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                           onChange={handlePhoneChange}
                           maxLength={PHONE_PREFIX_DISPLAY.length + 16} // "+55 (DD) 9XXXX-XXXX"
                           className={`w-full h-12 px-4 border rounded focus:outline-none transition-all text-sm
-                            ${errors.clientPhone ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
+                            ${
+                              errors.clientPhone
+                                ? "border-red-500 bg-red-50"
+                                : "border-gray-300 focus:border-black bg-white"
+                            }
                           `}
                           placeholder="+55 (91) 9XXXX-XXXX"
                         />
@@ -468,7 +543,8 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                           </p>
                         )}
                         <p className="text-[11px] text-gray-400 mt-1">
-                          Dica: digite assim: <span className="font-mono">91 9XXXX XXXX</span> (o campo formata sozinho)
+                          Dica: digite assim:{" "}
+                          <span className="font-mono">91 9XXXX XXXX</span> (o campo formata sozinho)
                         </p>
                       </div>
                     </div>
@@ -482,15 +558,21 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                         <div className="bg-white p-4 rounded border border-gray-200 flex items-center gap-3">
                           <Banknote className="text-blue-600" size={24} />
                           <div>
-                            <p className="text-sm font-bold text-gray-900 leading-none">Financiamento</p>
-                            <p className="text-[11px] text-gray-500 mt-1 uppercase">Aprovação em minutos</p>
+                            <p className="text-sm font-bold text-gray-900 leading-none">
+                              Financiamento
+                            </p>
+                            <p className="text-[11px] text-gray-500 mt-1 uppercase">
+                              Aprovação em minutos
+                            </p>
                           </div>
                         </div>
                         <div className="bg-white p-4 rounded border border-gray-200 flex items-center gap-3">
                           <Wallet className="text-purple-600" size={24} />
                           <div>
                             <p className="text-sm font-bold text-gray-900 leading-none">Consórcio</p>
-                            <p className="text-[11px] text-gray-500 mt-1 uppercase">Cartas de crédito</p>
+                            <p className="text-[11px] text-gray-500 mt-1 uppercase">
+                              Cartas de crédito
+                            </p>
                           </div>
                         </div>
                       </div>
@@ -510,7 +592,10 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                         ) : (
                           <>
                             Avançar para Análise{" "}
-                            <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                            <ArrowRight
+                              size={18}
+                              className="group-hover:translate-x-1 transition-transform"
+                            />
                           </>
                         )}
                       </button>

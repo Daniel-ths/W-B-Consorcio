@@ -15,6 +15,7 @@ import {
   LogIn,
 } from "lucide-react";
 import HyundaiVehiclesMenu from "./HyundaiVehiclesMenu";
+import MobileCatalogModalHyundai from "@/components/hyundai/MobileCatalogModalHyundai"; // ✅ NOVO (catálogo mobile)
 
 const HY_BLUE = "#00A3C8";
 
@@ -30,6 +31,9 @@ export default function HyundaiNavbar() {
   // Mobile drawer
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  // ✅ Catálogo mobile (modal)
+  const [mobileCatalogOpen, setMobileCatalogOpen] = useState(false);
+
   // Auth states (igual ao Chevrolet)
   const [user, setUser] = useState<any>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
@@ -43,6 +47,7 @@ export default function HyundaiNavbar() {
   useEffect(() => {
     setVehiclesOpen(false);
     setSidebarOpen(false);
+    setMobileCatalogOpen(false);
   }, [pathname]);
 
   const fetchProfile = async (userId: string) => {
@@ -135,6 +140,7 @@ export default function HyundaiNavbar() {
 
       setVehiclesOpen(false);
       setSidebarOpen(false);
+      setMobileCatalogOpen(false);
 
       router.push("/login");
       router.refresh();
@@ -190,7 +196,7 @@ export default function HyundaiNavbar() {
             <img src={HY_LOGO} alt="Hyundai" className="h-14 w-auto" />
           </Link>
 
-          {/* Menu (Veículos mais pra esquerda) */}
+          {/* Menu (desktop) */}
           <nav className="hidden lg:flex items-center gap-6 ml-2 text-sm font-semibold text-gray-900">
             <button
               onClick={() => setVehiclesOpen((v) => !v)}
@@ -207,7 +213,19 @@ export default function HyundaiNavbar() {
             </button>
           </nav>
 
-          {/* Right: Auth */}
+          {/* ✅ Botão Catálogo (somente mobile) — igual Chevrolet */}
+          <div className="ml-auto lg:hidden flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setMobileCatalogOpen(true)}
+              className="px-4 py-2 rounded-xl bg-black text-white text-[11px] font-black uppercase tracking-wide hover:bg-zinc-800 transition-colors"
+              aria-label="Abrir catálogo Hyundai"
+            >
+              Catálogo
+            </button>
+          </div>
+
+          {/* Right: Auth (desktop) */}
           <div className="ml-auto hidden lg:block">
             {loading ? (
               <div className="w-8 h-8 rounded-full bg-gray-200 animate-pulse" />
@@ -310,6 +328,12 @@ export default function HyundaiNavbar() {
         />
       )}
 
+      {/* ✅ Modal catálogo Hyundai (mobile) */}
+      <MobileCatalogModalHyundai
+        open={mobileCatalogOpen}
+        onClose={() => setMobileCatalogOpen(false)}
+      />
+
       {/* MOBILE SIDEBAR (simples) */}
       <div
         className={`fixed inset-0 bg-black/60 z-[2000] backdrop-blur-sm transition-opacity duration-300 ${
@@ -386,21 +410,15 @@ export default function HyundaiNavbar() {
             </Link>
           )}
 
-          <button
-            onClick={() => {
-              setSidebarOpen(false);
-              router.push("/hyundai/veiculos");
-            }}
-            className="w-full text-left text-sm font-bold uppercase tracking-wide text-gray-900 hover:opacity-80"
-          >
-            Veículos
-          </button>
+          {/* ✅ Veículos abre catálogo (mobile) igual CTA */}
+
+
+          {/* opcional: link direto para listagem */}
+
         </div>
 
         <div className="p-6 border-t border-gray-100 text-center">
-          <p className="text-[10px] text-gray-400 font-medium">
-            © 2026 WBCNAC Digital
-          </p>
+          <p className="text-[10px] text-gray-400 font-medium">© 2026 WBCNAC Digital</p>
         </div>
       </aside>
 

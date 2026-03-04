@@ -4,10 +4,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 /**
- * ✅ Hyundai Home
- * - HERO menor + overlay escuro leve
- * - Setas esquerda/direita para trocar slides
- * - Bolinhas + barra de progresso mantidas
+ * ✅ Hyundai Home (responsive premium)
+ * - HERO com altura responsiva (não estoura em HD e fica ótimo no 2K)
+ * - Autoplay robusto (sem pular slide por timer + animationEnd)
+ * - Layout mais apresentável no mobile
+ * - Containers com max-width correto (evita “esticar demais”)
  */
 
 type HeroSlide = { id: string; imageUrl: string };
@@ -91,10 +92,10 @@ export default function HyundaiHomePage() {
   );
 
   // =========================
-  // HERO logic
+  // HERO logic (sem bug)
   // =========================
   const [heroIndex, setHeroIndex] = useState(0);
-  const heroTimerRef = useRef<number | null>(null);
+  const timeoutRef = useRef<number | null>(null);
 
   const goHero = (idx: number) => {
     const total = heroSlides.length;
@@ -112,34 +113,35 @@ export default function HyundaiHomePage() {
     goHero(heroIndex + 1);
   };
 
-  // reinicia timer sempre que trocar slide manualmente
-  const restartTimer = () => {
+  // ✅ autoplay por setTimeout (1 fonte de verdade)
+  useEffect(() => {
     if (heroSlides.length <= 1) return;
-    if (heroTimerRef.current) window.clearInterval(heroTimerRef.current);
-    heroTimerRef.current = window.setInterval(() => {
+
+    if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
+    timeoutRef.current = window.setTimeout(() => {
       setHeroIndex((p) => (p + 1) % heroSlides.length);
     }, HERO_SLIDE_DURATION);
-  };
 
-  useEffect(() => {
-    restartTimer();
     return () => {
-      if (heroTimerRef.current) window.clearInterval(heroTimerRef.current);
-      heroTimerRef.current = null;
+      if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [heroSlides.length, HERO_SLIDE_DURATION]);
+  }, [heroIndex, heroSlides.length, HERO_SLIDE_DURATION]);
 
-  // quando muda o index (por seta/bolinha), reinicia a animação da barra e o timer
-  useEffect(() => {
-    restartTimer();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [heroIndex]);
+  const rectCards = useMemo(
+    () => offerCards.filter((c) => c.aspect === "RECT_500_1015").slice(0, 2),
+    [offerCards]
+  );
+
+  const sqCardUrl = useMemo(
+    () => offerCards.find((c) => c.aspect === "SQ_1_1")?.imageUrl || "",
+    [offerCards]
+  );
 
   return (
     <main className="min-h-screen bg-white text-zinc-900">
       <style jsx global>{`
-        /* ===== HERO progress ===== */
+        /* ===== progress ===== */
         .hy-hero-progress {
           width: 0%;
           animation-name: hyFill;
@@ -177,13 +179,24 @@ export default function HyundaiHomePage() {
           display: block;
         }
 
+        /* ===== card polish ===== */
+        .hy-card {
+          border-radius: 18px;
+          overflow: hidden;
+          border: 1px solid rgba(228, 228, 231, 1);
+          background: rgba(250, 250, 250, 1);
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+        }
+
         /* ===== arrows ===== */
         .hy-arrow {
-          width: 44px;
-          height: 44px;
+          width: 42px;
+          height: 42px;
           border-radius: 999px;
           background: rgba(0, 0, 0, 0.35);
-          border: 1px solid rgba(255, 255, 255, 0.22);
+          backdrop-filter: blur(8px);
+          -webkit-backdrop-filter: blur(8px);
+          border: 1px solid rgba(255, 255, 255, 0.18);
           color: rgba(255, 255, 255, 0.95);
           display: inline-flex;
           align-items: center;
@@ -192,34 +205,53 @@ export default function HyundaiHomePage() {
           user-select: none;
         }
         .hy-arrow:hover {
-          background: rgba(0, 0, 0, 0.48);
+          background: rgba(0, 0, 0, 0.5);
           transform: scale(1.03);
         }
         .hy-arrow:active {
           transform: scale(0.98);
         }
+
+        /* ===== hero height: premium em HD e 2K =====
+           - mobile: ~340px
+           - 1366/1920: ~460-620px
+           - 2K/4K: limita em ~780px
+        */
+        .hy-hero-height {
+          height: clamp(340px, 42vw, 780px);
+        }
+
+        /* melhora toque no mobile */
+        @media (max-width: 640px) {
+          .hy-arrow {
+            width: 38px;
+            height: 38px;
+          }
+        }
       `}</style>
 
       {/* =========================
-          HERO (menor) + overlay escuro + setas
+          HERO
       ========================= */}
       <section className="relative w-full overflow-hidden bg-black">
-        {/* ✅ menor que full-screen:
-            - desktop: 520px
-            - mobile: 360px
-            - limite: não fica gigante
-        */}
-        <div className="relative h-[260px] sm:h-[420px] lg:h-[980px]">
+        <div className="relative hy-hero-height">
           {heroSlides.map((s, idx) => (
             <div
               key={s.id}
-              className={`absolute inset-0 transition-opacity duration-[900ms] ${
+              className={`absolute inset-0 transition-opacity duration-[800ms] ${
                 idx === heroIndex ? "opacity-100" : "opacity-0"
               }`}
             >
-              <img src={s.imageUrl} alt="" className="hy-img" draggable={false} />
-              {/* ✅ overlay escuro leve */}
-              <div className="absolute inset-0 bg-black/25" />
+              <img
+                src={s.imageUrl}
+                alt=""
+                className="hy-img"
+                draggable={false}
+                loading={idx === heroIndex ? "eager" : "lazy"}
+              />
+
+              {/* ✅ overlay premium (gradiente em vez de chapado) */}
+              <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-black/10 to-black/35" />
             </div>
           ))}
 
@@ -230,7 +262,7 @@ export default function HyundaiHomePage() {
                 type="button"
                 aria-label="Slide anterior"
                 onClick={goPrev}
-                className="absolute left-4 top-1/2 -translate-y-1/2 z-30 hy-arrow"
+                className="absolute left-3 sm:left-5 top-1/2 -translate-y-1/2 z-30 hy-arrow"
               >
                 <span className="text-2xl leading-none">‹</span>
               </button>
@@ -239,18 +271,18 @@ export default function HyundaiHomePage() {
                 type="button"
                 aria-label="Próximo slide"
                 onClick={goNext}
-                className="absolute right-4 top-1/2 -translate-y-1/2 z-30 hy-arrow"
+                className="absolute right-3 sm:right-5 top-1/2 -translate-y-1/2 z-30 hy-arrow"
               >
                 <span className="text-2xl leading-none">›</span>
               </button>
             </>
           )}
 
-          {/* bolinhas + barra */}
+          {/* ✅ bolinhas + barra */}
           {heroSlides.length > 1 && (
-            <div className="absolute bottom-6 left-0 right-0 z-30">
-              <div className="max-w-[1200px] mx-auto px-6">
-                <div className="flex items-center justify-center gap-3">
+            <div className="absolute bottom-4 sm:bottom-6 left-0 right-0 z-30">
+              <div className="mx-auto max-w-7xl px-4 sm:px-6">
+                <div className="flex items-center justify-center gap-2 sm:gap-3">
                   {heroSlides.map((_, idx) => (
                     <button
                       key={idx}
@@ -263,16 +295,12 @@ export default function HyundaiHomePage() {
                   ))}
                 </div>
 
-                <div className="mt-4 flex items-center justify-center">
-                  <div className="h-[3px] w-full max-w-md rounded-full bg-white/25 overflow-hidden">
+                <div className="mt-3 sm:mt-4 flex items-center justify-center">
+                  <div className="h-[3px] w-full max-w-sm sm:max-w-md rounded-full bg-white/25 overflow-hidden">
                     <div
                       key={heroIndex}
                       className="h-full bg-white hy-hero-progress"
                       style={{ animationDuration: `${HERO_SLIDE_DURATION}ms` }}
-                      onAnimationEnd={() => {
-                        if (heroSlides.length <= 1) return;
-                        setHeroIndex((p) => (p + 1) % heroSlides.length);
-                      }}
                     />
                   </div>
                 </div>
@@ -286,33 +314,24 @@ export default function HyundaiHomePage() {
           MOSAICO / OFERTAS
       ========================= */}
       <section className="w-full bg-white">
-        <div className="max-w-[6200px] mx-auto px-6 py-12">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6">
-              {offerCards
-                .filter((c) => c.aspect === "RECT_500_1015")
-                .slice(0, 2)
-                .map((c) => (
-                  <div
-                    key={c.id}
-                    className="relative overflow-hidden border border-zinc-200 bg-zinc-50"
-                    style={{ aspectRatio: "500 / 1015" }}
-                  >
-                    <img src={c.imageUrl} alt="" className="hy-img" draggable={false} />
-                  </div>
-                ))}
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 py-8 sm:py-12">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6 items-start">
+            {/* 2 retangulares */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
+              {rectCards.map((c) => (
+                <div
+                  key={c.id}
+                  className="hy-card"
+                  style={{ aspectRatio: "500 / 1015" }}
+                >
+                  <img src={c.imageUrl} alt="" className="hy-img" draggable={false} loading="lazy" />
+                </div>
+              ))}
             </div>
 
-            <div
-              className="relative overflow-hidden border border-zinc-200 bg-zinc-50"
-              style={{ aspectRatio: "1 / 1" }}
-            >
-              <img
-                src={offerCards.find((c) => c.aspect === "SQ_1_1")?.imageUrl || ""}
-                alt=""
-                className="hy-img"
-                draggable={false}
-              />
+            {/* 1 quadrado */}
+            <div className="hy-card" style={{ aspectRatio: "1 / 1" }}>
+              <img src={sqCardUrl} alt="" className="hy-img" draggable={false} loading="lazy" />
             </div>
           </div>
         </div>
@@ -322,14 +341,14 @@ export default function HyundaiHomePage() {
           PALISADE vs HB20
       ========================= */}
       <section className="w-full bg-white">
-        <div className="max-w-[5200px] mx-auto px-6 pb-12">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="relative overflow-hidden border border-zinc-200 bg-zinc-50" style={{ aspectRatio: "1 / 1" }}>
-              <img src={tiles.leftImageUrl} alt="" className="hy-img" draggable={false} />
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 pb-8 sm:pb-12">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
+            <div className="hy-card" style={{ aspectRatio: "1 / 1" }}>
+              <img src={tiles.leftImageUrl} alt="" className="hy-img" draggable={false} loading="lazy" />
             </div>
 
-            <div className="relative overflow-hidden border border-zinc-200 bg-zinc-50" style={{ aspectRatio: "1 / 1" }}>
-              <img src={tiles.rightImageUrl} alt="" className="hy-img" draggable={false} />
+            <div className="hy-card" style={{ aspectRatio: "1 / 1" }}>
+              <img src={tiles.rightImageUrl} alt="" className="hy-img" draggable={false} loading="lazy" />
             </div>
           </div>
         </div>
@@ -339,14 +358,17 @@ export default function HyundaiHomePage() {
           BANNER COPA
       ========================= */}
       <section className="w-full bg-white">
-        <div className="max-w-[4200px] mx-auto px-6 pb-12">
-          <div className="relative overflow-hidden border border-zinc-200 bg-zinc-50 w-full" style={{ aspectRatio: "2090 / 550" }}>
-            <img src={copaBannerUrl} alt="" className="hy-img" draggable={false} />
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 pb-10 sm:pb-12">
+          <div
+            className="hy-card w-full"
+            style={{ aspectRatio: "2090 / 550" }}
+          >
+            <img src={copaBannerUrl} alt="" className="hy-img" draggable={false} loading="lazy" />
           </div>
         </div>
       </section>
 
-      <div className="h-10" />
+      <div className="h-6 sm:h-10" />
     </main>
   );
 }
