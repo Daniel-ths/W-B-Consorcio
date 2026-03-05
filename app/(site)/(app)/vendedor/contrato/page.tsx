@@ -313,10 +313,7 @@ function PedidoContent() {
   const SMS_TESTE = (nome: string, protocolo: string, aprovador: string) => {
     const aprov = aprovador ? `\nAprovador: ${aprovador}` : "";
     return `Parabéns, ${nome}!🎉 Seu CPF foi aprovado e você está mais perto de conquistar seu carro novo.
-Seja bem vindo!
-
-${BEST_BID_TEXT}
-Probabilidades altas${aprov}`;
+Seja bem vindo!`;
   };
 
   // ✅ Consulta CPF = SOMENTE no clique (preenche dados + sem SMS)
