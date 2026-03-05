@@ -86,6 +86,21 @@ const safeNumber = (v: any) => {
 // ✅ FRASE FIXA (pedido do cliente)
 const BEST_BID_TEXT = "MELHOR MOMENTO PARA OFERTAR LANCE: ENTRE 7X E 8X PARCELA.";
 
+// ✅ remove emojis/unicode e reduz tamanho (evita gateway recusar SMS)
+function makeSmsSafe(raw: string, maxLen = 150) {
+  const ascii = String(raw || "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "") // remove acentos combinados
+    .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, ""); // remove unicode fora do ASCII básico
+
+  const clean = ascii
+    .replace(/\r\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  return clean.length > maxLen ? clean.slice(0, maxLen) : clean;
+}
+
 function PedidoContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -349,7 +364,9 @@ Probabilidades altas${aprov}`;
 
   // Atalhos de Dados
   const situacaoReceita =
-    apiData?.situacao || apiData?.response?.content?.nome?.conteudo?.situacao_receita || "PENDENTE";
+    apiData?.situacao ||
+    apiData?.response?.content?.nome?.conteudo?.situacao_receita ||
+    "PENDENTE";
   const dataNascimento = apiData?.nascimento || apiData?.data_nascimento || "---";
   const nomeMae = apiData?.mae || apiData?.nome_mae || "---";
 
@@ -360,6 +377,7 @@ Probabilidades altas${aprov}`;
   const cpfIsRegular = String(situacaoReceita || "PENDENTE").toUpperCase() === "REGULAR";
 
   // ✅ SMS (só é chamado depois do envio para análise)
+  // ✅ CORREÇÃO: sanitiza mensagem + lê resp.text() pra não "sumir" erro
   async function enviarSms(nomeCliente: string) {
     if (!telefoneDigits) {
       alert(
@@ -368,8 +386,14 @@ Probabilidades altas${aprov}`;
       return false;
     }
 
+    // debug rápido (se vier tamanho errado você vê no console)
+    console.log("[sms] telefoneDigits:", telefoneDigits, "len:", telefoneDigits.length);
+
     const protocolo = numeroPedido || "------";
-    const message = SMS_TESTE(nomeCliente || "cliente", protocolo, aprovadorNome || "");
+    const rawMessage = SMS_TESTE(nomeCliente || "cliente", protocolo, aprovadorNome || "");
+
+    // ✅ evita recusa por emoji/unicode/tamanho
+    const message = makeSmsSafe(rawMessage, 150);
 
     try {
       const resp = await fetch("/api/sms/enviar", {
@@ -382,14 +406,23 @@ Probabilidades altas${aprov}`;
         }),
       });
 
-      const json = await resp.json().catch(() => null);
+      // ✅ pega bruto: se o backend retornar HTML/texto, você vai ver
+      const text = await resp.text();
+      let json: any = null;
+      try {
+        json = text ? JSON.parse(text) : null;
+      } catch {
+        // não era JSON
+      }
 
       if (!resp.ok || json?.error) {
-        alert(`❌ SMS falhou: ${json?.message || "erro"}`);
-        console.warn("[sms] falhou ao enviar:", json || resp.status);
+        console.warn("[sms] HTTP:", resp.status);
+        console.warn("[sms] body:", json ?? text);
+        alert(`❌ SMS falhou (${resp.status}): ${json?.message || text || "sem resposta"}`);
         return false;
       }
 
+      console.log("[sms] ok:", json ?? text);
       return true;
     } catch (err) {
       alert("❌ Erro de rede no envio do SMS");
@@ -403,14 +436,14 @@ Probabilidades altas${aprov}`;
   const salvarNoBanco = async () => {
     if (!nomeManual) {
       alert("Preencha/consulte os dados do cliente antes de enviar.");
-      return { ok: false };
+      return { ok: false as const };
     }
 
     if (!telefoneDigits) {
       alert(
         "📵 Telefone inválido/ausente. Ele deve vir da página anterior como +55DDDNÚMERO (ex: +5591999999999)."
       );
-      return { ok: false };
+      return { ok: false as const };
     }
 
     try {
@@ -420,7 +453,7 @@ Probabilidades altas${aprov}`;
 
       if (!user) {
         alert("Sessão expirada. Faça login novamente.");
-        return { ok: false };
+        return { ok: false as const };
       }
 
       let nomeVendedor = user.email || "";
@@ -472,11 +505,11 @@ Probabilidades altas${aprov}`;
       const { error } = await supabase.from("sales").insert([payload]);
       if (error) throw error;
 
-      return { ok: true, vendedor: nomeVendedor };
+      return { ok: true as const, vendedor: nomeVendedor };
     } catch (error: any) {
       console.error(error);
       alert("Erro ao salvar: " + error.message);
-      return { ok: false };
+      return { ok: false as const };
     }
   };
 
@@ -688,7 +721,6 @@ Probabilidades altas${aprov}`;
                           </span>
                         </div>
 
-                        {/* ✅ ALTERADO: frase fixa do melhor momento */}
                         <div className="mt-2 flex flex-wrap items-center gap-2">
                           <span className="text-[10px] font-black uppercase px-2 py-1 rounded-full border bg-zinc-50 text-zinc-700 border-zinc-200">
                             Aprovador: {aprovadorNome || "—"}
@@ -958,7 +990,6 @@ Probabilidades altas${aprov}`;
                     </p>
                   ) : null}
 
-                  {/* ✅ opcional: deixa registrado também no campo de observações */}
                   <p className="mt-1">• {BEST_BID_TEXT}</p>
                 </div>
               )}
