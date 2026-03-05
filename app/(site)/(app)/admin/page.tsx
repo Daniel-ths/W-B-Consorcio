@@ -35,6 +35,31 @@ import {
 
 import { ResponsiveContainer, Tooltip, PieChart, Pie, Cell } from "recharts";
 
+/**
+ * ✅ Supervisores FIXOS
+ * Somente estes podem aparecer como supervisor no painel e somente estes podem "tocar" pendente.
+ * (agora são 6)
+ */
+const SUPERVISOR_EMAILS = [
+  "glauco@wbcnac.com",
+  "rafael@wbcnac.com",
+  "alexandre@wbcnac.com",
+  "marcelo@wbcnac.com",
+  "felipe@wbcnac.com",
+  "marcos@wbcnac.com",
+].map((s) => s.toLowerCase().trim());
+
+const isSupervisorEmail = (email?: string | null) =>
+  !!email && SUPERVISOR_EMAILS.includes(String(email).toLowerCase().trim());
+
+const onlyDigits = (v: any) => String(v || "").replace(/\D/g, "");
+
+const toWhatsDigits = (phoneLike: any) => {
+  const d = onlyDigits(phoneLike);
+  if (!d) return "";
+  return d.startsWith("55") ? d : `55${d}`;
+};
+
 function ModalDetalhes({
   sale,
   onClose,
@@ -60,7 +85,9 @@ function ModalDetalhes({
   };
 
   const formatMoney = (val: number) =>
-    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(val || 0));
+    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
+      Number(val || 0)
+    );
 
   const statusColor =
     sale?.status === "Aprovado"
@@ -76,6 +103,8 @@ function ModalDetalhes({
   }, [sale]);
 
   if (!sale) return null;
+
+  const waDigits = toWhatsDigits(sale.client_phone);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 print:p-0">
@@ -244,9 +273,9 @@ function ModalDetalhes({
                     {sale.client_phone || "--"}
                   </p>
                   <div className="no-print">
-                    {sale.client_phone && (
+                    {waDigits && (
                       <a
-                        href={`https://wa.me/55${sale.client_phone.replace(/\D/g, "")}`}
+                        href={`https://wa.me/${waDigits}`}
                         target="_blank"
                         rel="noreferrer"
                         className="inline-flex items-center gap-1 mt-1 text-green-700 hover:text-green-900 bg-green-100 px-2 py-0.5 rounded text-[10px] font-bold uppercase"
@@ -326,7 +355,9 @@ function ModalDetalhes({
                   <p className="text-sm font-bold text-slate-900 truncate">
                     {sale.seller_name || "—"}
                   </p>
-                  <p className="text-[10px] text-slate-500 font-mono truncate">{sellerEmailLabel}</p>
+                  <p className="text-[10px] text-slate-500 font-mono truncate">
+                    {sellerEmailLabel}
+                  </p>
                 </div>
               </div>
             </div>
@@ -339,7 +370,7 @@ function ModalDetalhes({
               <div className="grid grid-cols-2 gap-3 print-grid">
                 <div className="min-w-0">
                   <p className="print-label text-[10px] font-bold text-slate-400 uppercase">
-                    Aprovador
+                    Aprovador (Supervisor)
                   </p>
                   <p className="print-value text-sm font-bold text-slate-900 truncate">
                     {sale.approved_by_name || "—"}
@@ -350,7 +381,9 @@ function ModalDetalhes({
                     Data
                   </p>
                   <p className="print-value text-sm font-medium text-slate-700 truncate">
-                    {sale.approved_at ? new Date(sale.approved_at).toLocaleString("pt-BR") : "—"}
+                    {sale.approved_at
+                      ? new Date(sale.approved_at).toLocaleString("pt-BR")
+                      : "—"}
                   </p>
                 </div>
               </div>
@@ -469,15 +502,11 @@ export default function AdminDashboard() {
 
   const todayLabel = useMemo(() => new Date().toLocaleDateString("pt-BR"), []);
 
-  const sellerLabel = (sale: any) => {
-    const name = String(sale?.seller_name || "").trim();
-    if (name) return name;
-
-    const email = String(sale?.profiles?.email || "").trim();
-    if (!email) return "—";
-
-    return email.split("@")[0].toUpperCase();
-  };
+  /**
+   * ✅ Vendedor do pedido = seller_name EXATO do OrderSummary
+   * (sem fallback por email) para não quebrar a amarração.
+   */
+  const sellerNameExact = (sale: any) => String(sale?.seller_name || "").trim() || "—";
 
   const isWithinDateRange = (createdAt: string) => {
     const d = new Date(createdAt);
@@ -542,29 +571,60 @@ export default function AdminDashboard() {
     setDateTo(iso);
   };
 
-  const normalizeSupervisorName = (raw: any) => {
-    const s = String(raw || "").trim();
-    if (!s) return "Supervisor (não informado)";
-    return s.replace(/\s+/g, " ");
+  const getISODateToday = () => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, "0");
+    const d = String(now.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
   };
 
+  // =========================
+  // ✅ Painel Supervisores (fixos) + dia
+  // =========================
+  const [supDay, setSupDay] = useState<string>(() => getISODateToday());
+  const [selectedSupervisor, setSelectedSupervisor] = useState<string | null>(null);
+
+  const getDayRangeISO = (isoDate: string) => {
+    const base = isoDate ? new Date(isoDate + "T00:00:00") : new Date();
+    const start = new Date(base.getFullYear(), base.getMonth(), base.getDate(), 0, 0, 0, 0);
+    const end = new Date(base.getFullYear(), base.getMonth(), base.getDate(), 23, 59, 59, 999);
+    return { startISO: start.toISOString(), endISO: end.toISOString() };
+  };
+
+  const getActionTime = (s: any) => s?.approved_at || s?.updated_at || s?.created_at;
+
+  const isInDay = (isoLike: any, startISO: string, endISO: string) => {
+    if (!isoLike) return false;
+    const t = new Date(isoLike).toISOString();
+    return t >= startISO && t <= endISO;
+  };
+
+  const supervisorNameForUI = (email: string) => {
+    const s = String(email || "");
+    return s.includes("@") ? s.split("@")[0] : s;
+  };
+
+  const normalizeSupEmail = (raw: any) => String(raw || "").trim().toLowerCase();
+
+  // =========================
+  // ✅ Auth/Perfil (Supervisor = email)
+  // =========================
   const getMyDisplayName = async () => {
     const { data: authData } = await supabase.auth.getUser();
     const user = authData?.user;
     if (!user?.id) return null;
 
-    const { data: me } = await supabase
-      .from("profiles")
-      .select("email, name, full_name")
-      .eq("id", user.id)
-      .single();
+    const email = String(user.email || "").trim();
+    const displayName = email || "Usuário";
 
-    const displayName =
-      (me as any)?.name || (me as any)?.full_name || (me as any)?.email || user.email || "Usuário";
-
-    return { id: user.id, name: displayName };
+    return { id: user.id, name: displayName, email };
   };
 
+  /**
+   * ✅ Só supervisor pode “tocar” pendente para virar responsável.
+   * E grava approved_by_name como EMAIL, para o painel ficar correto.
+   */
   const markSupervisorTouch = async (sale: any) => {
     try {
       if (!sale?.id) return;
@@ -574,7 +634,9 @@ export default function AdminDashboard() {
       const me = await getMyDisplayName();
       if (!me) return;
 
-      const payload = { approved_by_id: me.id, approved_by_name: me.name };
+      if (!isSupervisorEmail(me.email)) return;
+
+      const payload = { approved_by_id: me.id, approved_by_name: me.email };
       const { error } = await supabase.from("sales").update(payload).eq("id", sale.id);
       if (error) throw error;
 
@@ -588,6 +650,46 @@ export default function AdminDashboard() {
     await markSupervisorTouch(sale);
   };
 
+  /**
+   * ✅ CORREÇÃO: “aprovado/recusado fantasma”
+   * Se algum registro estiver como Aprovado/Recusado mas SEM approved_at/approved_by_name,
+   * consideramos inconsistente e voltamos para "Aguardando Aprovação".
+   */
+  const fixInconsistentStatuses = async (rows: any[]) => {
+    const needsFix = rows.filter((s) => {
+      const st = String(s?.status || "");
+      const hasAudit = !!s?.approved_at && !!String(s?.approved_by_name || "").trim();
+      if (st === "Aprovado" || st === "Recusado") return !hasAudit;
+      return false;
+    });
+
+    if (needsFix.length === 0) return;
+
+    const ids = needsFix.map((x) => x.id).filter(Boolean);
+    if (ids.length === 0) return;
+
+    const { error } = await supabase
+      .from("sales")
+      .update({
+        status: "Aguardando Aprovação",
+        approved_at: null,
+        approved_by_id: null,
+        approved_by_name: null,
+      })
+      .in("id", ids);
+
+    if (!error) {
+      rows.forEach((r) => {
+        if (ids.includes(r.id)) {
+          r.status = "Aguardando Aprovação";
+          r.approved_at = null;
+          r.approved_by_id = null;
+          r.approved_by_name = null;
+        }
+      });
+    }
+  };
+
   const fetchSales = async () => {
     setLoading(true);
     try {
@@ -597,7 +699,15 @@ export default function AdminDashboard() {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setSales(data || []);
+
+      const rows = (data || []).map((r: any) => ({
+        ...r,
+        status: String(r?.status || "").trim() || "Aguardando Aprovação",
+      }));
+
+      await fixInconsistentStatuses(rows);
+
+      setSales(rows);
     } catch (err) {
       console.error("Erro ao buscar vendas:", err);
     } finally {
@@ -608,6 +718,73 @@ export default function AdminDashboard() {
   useEffect(() => {
     fetchSales();
   }, []);
+
+  /**
+   * ✅ Supervisores SEMPRE: os 6 emails
+   * Contagem do dia por supervisor usando approved_by_name (email do supervisor).
+   * Vendedores: seller_name (EXATO do OrderSummary).
+   */
+  const supervisorsByDay = useMemo(() => {
+    const { startISO, endISO } = getDayRangeISO(supDay);
+
+    const base = new Map<
+      string,
+      {
+        supervisor: string;
+        atendimentos: number;
+        vendedores: Map<string, { seller: string; count: number }>;
+        lastActionAt: number;
+      }
+    >();
+
+    for (const email of SUPERVISOR_EMAILS) {
+      base.set(email, {
+        supervisor: email,
+        atendimentos: 0,
+        vendedores: new Map(),
+        lastActionAt: 0,
+      });
+    }
+
+    const rows = sales.filter((s) => {
+      const supEmail = normalizeSupEmail(s?.approved_by_name);
+      if (!isSupervisorEmail(supEmail)) return false;
+      return isInDay(getActionTime(s), startISO, endISO);
+    });
+
+    for (const s of rows) {
+      const supEmail = normalizeSupEmail(s?.approved_by_name);
+      if (!base.has(supEmail)) continue;
+
+      const seller = sellerNameExact(s);
+      const keySeller = String(seller || "—").trim() || "—";
+
+      const existing = base.get(supEmail)!;
+      existing.atendimentos += 1;
+
+      const prevSeller = existing.vendedores.get(keySeller) || { seller: keySeller, count: 0 };
+      prevSeller.count += 1;
+      existing.vendedores.set(keySeller, prevSeller);
+
+      const ts = new Date(getActionTime(s)).getTime();
+      existing.lastActionAt = Math.max(existing.lastActionAt || 0, ts);
+    }
+
+    let list = Array.from(base.values()).map((r) => ({
+      supervisor: r.supervisor,
+      atendimentos: r.atendimentos,
+      vendedores: Array.from(r.vendedores.values()).sort((a, b) => b.count - a.count),
+      lastActionAt: r.lastActionAt,
+    }));
+
+    list.sort((a, b) => b.atendimentos - a.atendimentos || b.lastActionAt - a.lastActionAt);
+
+    if (supervisorStatusFilter === "ATENDIMENTOS") {
+      list = list.filter((r) => r.atendimentos > 0);
+    }
+
+    return list;
+  }, [sales, supDay, supervisorStatusFilter]);
 
   const StatusBadge = ({ status }: { status: string }) => {
     let styles = "bg-gray-100 text-gray-600";
@@ -734,109 +911,6 @@ export default function AdminDashboard() {
     return { list: todayAll, totalToday, pendingToday, approvedToday, refusedToday, valueToday };
   }, [sales]);
 
-  const supervisorsToday = useMemo(() => {
-    const { startISO, endISO } = getTodayRangeISO();
-
-    const isInToday = (isoLike: any) => {
-      if (!isoLike) return false;
-      const t = new Date(isoLike).toISOString();
-      return t >= startISO && t <= endISO;
-    };
-
-    const getActionTime = (s: any) => s?.approved_at || s?.updated_at || s?.created_at;
-
-    const touchedToday = sales.filter((s) => {
-      const sup = s?.approved_by_name || s?.approved_by_id;
-      if (!sup) return false;
-      return isInToday(getActionTime(s));
-    });
-
-    const decidedToday = sales.filter((s) => isInToday(s.approved_at));
-
-    const map = new Map<
-      string,
-      {
-        supervisor: string;
-        atendimentos: number;
-        aprovacoes: number;
-        recusas: number;
-        decididas: number;
-        valorAprovado: number;
-        lastActionAt?: number;
-      }
-    >();
-
-    const touch = (supName: string) => {
-      const key = normalizeSupervisorName(supName);
-      const curr =
-        map.get(key) ||
-        ({
-          supervisor: key,
-          atendimentos: 0,
-          aprovacoes: 0,
-          recusas: 0,
-          decididas: 0,
-          valorAprovado: 0,
-          lastActionAt: 0,
-        } as any);
-      map.set(key, curr);
-      return curr;
-    };
-
-    touchedToday.forEach((s) => {
-      const sup = s?.approved_by_name || s?.approved_by_id;
-      if (!sup) return;
-
-      const row = touch(sup);
-      row.atendimentos += 1;
-
-      const ts = new Date(getActionTime(s)).getTime();
-      row.lastActionAt = Math.max(row.lastActionAt || 0, ts);
-    });
-
-    decidedToday.forEach((s) => {
-      const sup = s?.approved_by_name || s?.approved_by_id || "Supervisor (não informado)";
-      const row = touch(sup);
-
-      row.decididas += 1;
-
-      if (s.status === "Aprovado") {
-        row.aprovacoes += 1;
-        row.valorAprovado += Number(s.total_price) || 0;
-      } else if (s.status === "Recusado") {
-        row.recusas += 1;
-      }
-
-      const ts = new Date(s.approved_at).getTime();
-      row.lastActionAt = Math.max(row.lastActionAt || 0, ts);
-    });
-
-    const list = Array.from(map.values()).map((r) => {
-      const conv = r.atendimentos ? (r.aprovacoes / r.atendimentos) * 100 : 0;
-      return {
-        supervisor: r.supervisor,
-        atendimentos: r.atendimentos,
-        aprovacoes: r.aprovacoes,
-        recusas: r.recusas,
-        decididas: r.decididas,
-        valorAprovado: r.valorAprovado,
-        conversao: conv,
-        lastActionAt: r.lastActionAt || 0,
-      };
-    });
-
-    const filtered = list.filter((r) => {
-      if (supervisorStatusFilter === "ATENDIMENTOS") return r.atendimentos > 0;
-      if (supervisorStatusFilter === "APROVACOES") return r.aprovacoes > 0;
-      if (supervisorStatusFilter === "RECUSAS") return r.recusas > 0;
-      return true;
-    });
-
-    filtered.sort((a, b) => b.atendimentos - a.atendimentos || b.lastActionAt - a.lastActionAt);
-    return filtered;
-  }, [sales, supervisorStatusFilter]);
-
-  // ✅ charts agora só tem o PIE (removido Volume 30 dias)
   const charts = useMemo(() => {
     const pieData = [
       { name: "Pendentes", value: kpis.pending },
@@ -848,6 +922,10 @@ export default function AdminDashboard() {
 
   const PIE_COLORS = ["#f59e0b", "#22c55e", "#ef4444"];
 
+  /**
+   * ✅ Aprovar/Recusar: só supervisor pode.
+   * Grava approved_by_name como EMAIL (um dos 6).
+   */
   const updateStatus = async (saleId: string, newStatus: string) => {
     try {
       setIsUpdating(saleId);
@@ -856,11 +934,15 @@ export default function AdminDashboard() {
       const payload: any = { status: newStatus };
 
       if (newStatus === "Aprovado" || newStatus === "Recusado") {
-        payload.approved_at = new Date().toISOString();
-        if (me?.id) {
-          payload.approved_by_id = me.id;
-          payload.approved_by_name = me.name;
+        if (!me?.email || !isSupervisorEmail(me.email)) {
+          alert(
+            "Somente supervisores (glauco/rafael/alexandre/marcelo/felipe/marcos) podem aprovar ou recusar."
+          );
+          return;
         }
+        payload.approved_at = new Date().toISOString();
+        payload.approved_by_id = me.id;
+        payload.approved_by_name = me.email;
       }
 
       if (newStatus === "Aguardando Aprovação") {
@@ -925,7 +1007,7 @@ export default function AdminDashboard() {
     if (ids.length === 0) return alert("Selecione ao menos 1 item.");
     if (!confirm(`Aplicar status "${status}" em ${ids.length} propostas?`)) return;
 
-    for (const id of ids) await updateStatus(id, status);
+    for (const id of ids) await updateStatus(id as any, status);
     clearSelection();
   };
 
@@ -934,7 +1016,7 @@ export default function AdminDashboard() {
     if (ids.length === 0) return alert("Selecione ao menos 1 item.");
     if (!confirm(`Excluir permanentemente ${ids.length} propostas?`)) return;
 
-    for (const id of ids) await deleteSale(id);
+    for (const id of ids) await deleteSale(id as any);
     clearSelection();
   };
 
@@ -990,8 +1072,8 @@ export default function AdminDashboard() {
 
       <main className="max-w-7xl mx-auto px-6 py-8">
         {/* KPIs */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-6 mb-8">
+          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm md:col-span-1">
             <div className="flex items-center justify-between">
               <div className="p-2 bg-green-50 rounded-lg text-green-600">
                 <Wallet size={18} />
@@ -1008,36 +1090,36 @@ export default function AdminDashboard() {
             </h3>
           </div>
 
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm md:col-span-1">
             <div className="flex items-center justify-between">
               <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
                 <Users size={18} />
               </div>
-              <span className="text-[10px] font-black uppercase text-slate-400"></span>
+              <span className="text-[10px] font-black uppercase text-slate-400">Propostas</span>
             </div>
-            <p className="text-slate-500 text-xs font-bold uppercase mt-2">Propostas</p>
+            <p className="text-slate-500 text-xs font-bold uppercase mt-2">Total</p>
             <h3 className="text-2xl font-black text-slate-900">{kpis.total}</h3>
           </div>
 
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm md:col-span-1">
             <div className="flex items-center justify-between">
               <div className="p-2 bg-purple-50 rounded-lg text-purple-600">
                 <TrendingUp size={18} />
               </div>
-              <span className="text-[10px] font-black uppercase text-slate-400"></span>
+              <span className="text-[10px] font-black uppercase text-slate-400">Conversão</span>
             </div>
-            <p className="text-slate-500 text-xs font-bold uppercase mt-2">Conversão</p>
+            <p className="text-slate-500 text-xs font-bold uppercase mt-2">Aprovadas</p>
             <h3 className="text-2xl font-black text-slate-900">{kpis.conversion.toFixed(0)}%</h3>
           </div>
 
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm md:col-span-1">
             <div className="flex items-center justify-between">
               <div className="p-2 bg-yellow-50 rounded-lg text-yellow-700">
                 <Clock size={18} />
               </div>
-              <span className="text-[10px] font-black uppercase text-slate-400"></span>
+              <span className="text-[10px] font-black uppercase text-slate-400">Pendentes</span>
             </div>
-            <p className="text-slate-500 text-xs font-bold uppercase mt-2">Pendentes</p>
+            <p className="text-slate-500 text-xs font-bold uppercase mt-2">Aguardando</p>
             <h3 className="text-2xl font-black text-slate-900">{kpis.pending}</h3>
             <p className="text-[11px] font-bold text-slate-500 mt-1">
               +24h:{" "}
@@ -1051,7 +1133,7 @@ export default function AdminDashboard() {
             </p>
           </div>
 
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm md:col-span-1">
             <div className="flex items-center justify-between">
               <div className="p-2 bg-slate-100 rounded-lg text-slate-700">
                 <BadgeCheck size={18} />
@@ -1071,43 +1153,74 @@ export default function AdminDashboard() {
               </span>
             </p>
           </div>
+
+          {/* ✅ Gráfico pie (usa Recharts importado) */}
+          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm md:col-span-1">
+            <p className="text-[10px] font-black uppercase text-slate-400">Distribuição</p>
+            <div className="h-[110px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Tooltip />
+                  <Pie
+                    data={charts.pieData}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={28}
+                    outerRadius={44}
+                    paddingAngle={2}
+                  >
+                    {charts.pieData.map((_, idx) => (
+                      <Cell key={`cell-${idx}`} fill={PIE_COLORS[idx % PIE_COLORS.length]} />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="mt-2 grid grid-cols-3 gap-2 text-[10px] font-bold text-slate-600">
+              <span>Pend: {kpis.pending}</span>
+              <span>Aprov: {kpis.approved}</span>
+              <span>Rec: {kpis.refused}</span>
+            </div>
+          </div>
         </div>
 
-        {/* Supervisores hoje */}
+        {/* ✅ Supervisores FIXOS (coluna) + clique abre vendedores do dia */}
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden mb-8">
-          <div className="p-5 border-b border-slate-100 flex items-center justify-between gap-3">
+          <div className="p-5 border-b border-slate-100 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div>
               <h3 className="font-black text-slate-900 uppercase tracking-tight">
-                Produção dos Supervisores (Hoje)
+                Painel de Supervisores
               </h3>
               <p className="text-xs text-slate-400 font-bold">
-               
+                Selecione o dia e clique no supervisor para ver os vendedores e a contagem.
               </p>
             </div>
 
             <div className="flex items-center gap-2">
-              <div className="hidden md:flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1">
-                {(
-                  [
-                    { k: "TODOS", label: "Todos" },
-                    { k: "ATENDIMENTOS", label: "Atendimentos" },
-                    { k: "APROVACOES", label: "Aprovações" },
-                    { k: "RECUSAS", label: "Recusas" },
-                  ] as const
-                ).map((b) => (
-                  <button
-                    key={b.k}
-                    onClick={() => setSupervisorStatusFilter(b.k)}
-                    className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${
-                      supervisorStatusFilter === b.k
-                        ? "bg-black text-white"
-                        : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
-                    }`}
-                  >
-                    {b.label}
-                  </button>
-                ))}
+              <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                <CalendarRange size={16} className="text-slate-400" />
+                <input
+                  type="date"
+                  value={supDay}
+                  onChange={(e) => {
+                    setSupDay(e.target.value);
+                    setSelectedSupervisor(null);
+                  }}
+                  className="bg-transparent text-xs font-bold text-slate-700 outline-none"
+                  title="Selecionar dia"
+                />
               </div>
+
+              <button
+                onClick={() => {
+                  setSupDay(getISODateToday());
+                  setSelectedSupervisor(null);
+                }}
+                className="text-xs bg-white text-slate-700 px-3 py-2 rounded-lg font-bold hover:bg-slate-50 flex items-center gap-2 border border-slate-200"
+                title="Ir para hoje"
+              >
+                <CalendarRange size={14} /> Hoje
+              </button>
 
               <button
                 onClick={fetchSales}
@@ -1121,83 +1234,194 @@ export default function AdminDashboard() {
           </div>
 
           <div className="p-5">
-            {supervisorsToday.length === 0 ? (
-              <div className="p-8 text-center text-slate-400 text-sm font-medium">
-                Sem atividade de supervisores hoje
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+              {/* Coluna de supervisores (fixos) */}
+              <div className="lg:col-span-4">
+                <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                  <div className="bg-slate-50 border-b border-slate-200 px-4 py-3 flex items-center justify-between">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                      Supervisores
+                    </p>
+                    <span className="text-[10px] font-black text-slate-700 bg-white border border-slate-200 px-2 py-1 rounded-full">
+                      {SUPERVISOR_EMAILS.length}
+                    </span>
+                  </div>
+
+                  <div className="max-h-[420px] overflow-auto">
+                    <table className="w-full text-left">
+                      <thead className="sticky top-0 bg-white border-b border-slate-200">
+                        <tr className="text-[10px] uppercase font-black text-slate-400">
+                          <th className="px-4 py-3">Supervisor</th>
+                          <th className="px-4 py-3 text-right">Atend.</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {(supervisorsByDay.length
+                          ? supervisorsByDay
+                          : (SUPERVISOR_EMAILS.map((e) => ({
+                              supervisor: e,
+                              atendimentos: 0,
+                              vendedores: [],
+                              lastActionAt: 0,
+                            })) as any[])
+                        ).map((s: any) => {
+                          const active = selectedSupervisor === s.supervisor;
+
+                          return (
+                            <tr
+                              key={s.supervisor}
+                              className={`cursor-pointer transition-colors ${
+                                active ? "bg-black text-white" : "hover:bg-slate-50"
+                              }`}
+                              onClick={() => setSelectedSupervisor(s.supervisor)}
+                            >
+                              <td className="px-4 py-3">
+                                <p
+                                  className={`text-sm font-black truncate ${
+                                    active ? "text-white" : "text-slate-900"
+                                  }`}
+                                >
+                                  {supervisorNameForUI(s.supervisor)}
+                                </p>
+                                <p
+                                  className={`text-[10px] font-bold ${
+                                    active ? "text-white/70" : "text-slate-400"
+                                  }`}
+                                >
+                                  {s.supervisor}
+                                </p>
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <span
+                                  className={`inline-flex items-center justify-center px-3 py-1 rounded-full text-[11px] font-black border ${
+                                    active
+                                      ? "border-white/25 bg-white/10 text-white"
+                                      : "border-slate-200 bg-slate-50 text-slate-800"
+                                  }`}
+                                >
+                                  {Number(s.atendimentos || 0)}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="p-3 border-t border-slate-200 bg-white">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[10px] font-bold text-slate-500">
+                        Filtro de lista (opcional)
+                      </p>
+                      <select
+                        value={supervisorStatusFilter}
+                        onChange={(e) => setSupervisorStatusFilter(e.target.value as any)}
+                        className="text-[10px] font-bold border border-slate-200 rounded px-2 py-1 bg-white"
+                      >
+                        <option value="TODOS">Todos</option>
+                        <option value="ATENDIMENTOS">Só com atendimentos</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
               </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead className="bg-slate-50 text-slate-500 font-semibold uppercase text-[10px] border-b border-slate-200">
-                    <tr>
-                      <th className="px-4 py-3 min-w-[240px]">Supervisor</th>
-                      <th className="px-4 py-3 text-center min-w-[110px]">Atendimentos</th>
-                      <th className="px-4 py-3 text-center min-w-[110px]">Aprovações</th>
-                      <th className="px-4 py-3 text-center min-w-[110px]">Recusas</th>
-                      <th className="px-4 py-3 text-center min-w-[110px]">Conversão</th>
-                      <th className="px-4 py-3 text-right min-w-[150px]">Valor Aprovado</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {supervisorsToday.map((r, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50">
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-slate-900 rounded-full flex items-center justify-center text-white font-bold text-sm">
-                              {String(r.supervisor)
-                                .split(" ")
-                                .slice(0, 2)
-                                .map((p: string) => p[0])
-                                .join("")
-                                .toUpperCase()
-                                .slice(0, 2)}
+
+              {/* Painel de detalhe */}
+              <div className="lg:col-span-8">
+                {!selectedSupervisor ? (
+                  <div className="h-full bg-slate-50 border border-slate-200 rounded-2xl p-5 text-slate-500 text-sm font-medium">
+                    Selecione um supervisor na coluna ao lado para ver os vendedores do dia e a
+                    quantidade de atendimentos.
+                  </div>
+                ) : (
+                  <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white">
+                    <div className="p-5 border-b border-slate-100">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                        Supervisor
+                      </p>
+                      <h4 className="text-lg font-black text-slate-900 truncate">
+                        {supervisorNameForUI(selectedSupervisor)}
+                      </h4>
+                      <p className="text-xs text-slate-500 font-bold mt-1">
+                        Email: <span className="text-slate-900">{selectedSupervisor}</span> • Dia:{" "}
+                        <span className="text-slate-900">{supDay}</span>
+                      </p>
+                    </div>
+
+                    <div className="p-5">
+                      {(() => {
+                        const data =
+                          supervisorsByDay.find((x) => x.supervisor === selectedSupervisor) || {
+                            supervisor: selectedSupervisor,
+                            atendimentos: 0,
+                            vendedores: [],
+                            lastActionAt: 0,
+                          };
+
+                        if (!data.atendimentos) {
+                          return (
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-slate-600 text-sm font-bold">
+                              Nenhum atendimento para este supervisor no dia selecionado.
                             </div>
-                            <div className="min-w-0">
-                              <p className="text-sm font-black text-slate-900 truncate">
-                                {String(r.supervisor).includes("@")
-                                  ? String(r.supervisor).split("@")[0]
-                                  : r.supervisor}
-                              </p>
-                              <p className="text-[10px] text-slate-400 font-bold">
-                                Decididas hoje: {r.decididas}
-                              </p>
+                          );
+                        }
+
+                        return (
+                          <div className="overflow-x-auto">
+                            <div className="mb-3 text-xs font-bold text-slate-600">
+                              Total de atendimentos:{" "}
+                              <span className="text-slate-900 font-black">
+                                {data.atendimentos}
+                              </span>
                             </div>
+
+                            <table className="w-full text-left">
+                              <thead className="bg-slate-50 text-slate-500 font-semibold uppercase text-[10px] border-b border-slate-200">
+                                <tr>
+                                  <th className="px-4 py-3 min-w-[260px]">
+                                    Vendedor (precisa bater com o OrderSummary)
+                                  </th>
+                                  <th className="px-4 py-3 text-center min-w-[140px]">
+                                    Atendimentos
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {data.vendedores.map((v: any) => (
+                                  <tr key={v.seller} className="hover:bg-slate-50">
+                                    <td className="px-4 py-3">
+                                      <p className="text-sm font-black text-slate-900 truncate">
+                                        {v.seller}
+                                      </p>
+                                      <p className="text-[10px] text-slate-400 font-bold">
+                                        
+                                      </p>
+                                    </td>
+                                    <td className="px-4 py-3 text-center">
+                                      <span className="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-black bg-slate-100 text-slate-700 border border-slate-200">
+                                        {v.count}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+
+                            {data.vendedores.some((x: any) => x.seller === "—") && (
+                              <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-red-800 text-xs font-bold">
+                                Existe pedido com vendedor "—" (seller_name vazio). Isso quebra a
+                                contagem por nome.
+                              </div>
+                            )}
                           </div>
-                        </td>
-
-                        <td className="px-4 py-3 text-center">
-                          <span className="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-black bg-slate-100 text-slate-700 border border-slate-200">
-                            {r.atendimentos}
-                          </span>
-                        </td>
-
-                        <td className="px-4 py-3 text-center">
-                          <span className="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-black bg-green-100 text-green-700 border border-green-200">
-                            {r.aprovacoes}
-                          </span>
-                        </td>
-
-                        <td className="px-4 py-3 text-center">
-                          <span className="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-black bg-red-100 text-red-700 border border-red-200">
-                            {r.recusas}
-                          </span>
-                        </td>
-
-                        <td className="px-4 py-3 text-center">
-                          <span className="text-xs font-black text-slate-800">
-                            {Number.isFinite(r.conversao) ? r.conversao.toFixed(0) : 0}%
-                          </span>
-                        </td>
-
-                        <td className="px-4 py-3 text-right text-xs font-black text-slate-900">
-                          {formatCurrency(r.valorAprovado)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
         </div>
 
@@ -1206,9 +1430,7 @@ export default function AdminDashboard() {
           <div className="p-5 border-b border-slate-100 flex items-center justify-between">
             <div>
               <h3 className="font-black text-slate-900 uppercase tracking-tight">Pedidos do Dia</h3>
-              <p className="text-xs text-slate-400 font-bold">
-             
-              </p>
+              <p className="text-xs text-slate-400 font-bold">Resumo do dia atual</p>
             </div>
 
             <div className="flex items-center gap-2">
@@ -1267,15 +1489,12 @@ export default function AdminDashboard() {
                   <h4 className="text-sm font-black text-slate-800 uppercase tracking-wide">
                     Últimos pedidos de hoje
                   </h4>
-                  <p className="text-[11px] text-slate-400 font-bold">
-                   
-                  </p>
                 </div>
               </div>
 
               {todaySection.list.length === 0 ? (
                 <div className="p-8 text-center text-slate-400 text-sm font-medium">
-                  Sem propostas criadas hoje.
+                  Sem propostas por enquanto.
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -1309,7 +1528,7 @@ export default function AdminDashboard() {
                               {sale.car_name}
                             </p>
                             <p className="text-[10px] text-slate-400">
-                              Vendedor: {sellerLabel(sale)}
+                              Vendedor: {String(sale?.seller_name || "—")}
                             </p>
                           </td>
                           <td className="px-4 py-3 text-center">
@@ -1330,56 +1549,6 @@ export default function AdminDashboard() {
                   </table>
                 </div>
               )}
-            </div>
-          </div>
-        </div>
-
-        {/* ✅ Agora só fica Distribuição (recorte) */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
-          <div className="lg:col-span-12 grid grid-cols-1 gap-6">
-            <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-5">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-xs font-black uppercase text-slate-500 tracking-widest">
-                  Distribuição
-                </p>
-                <span className="text-[10px] font-bold text-slate-400"></span>
-              </div>
-              <div className="h-44 flex items-center">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={charts.pieData}
-                      dataKey="value"
-                      nameKey="name"
-                      innerRadius={45}
-                      outerRadius={70}
-                      paddingAngle={4}
-                    >
-                      {charts.pieData.map((_, idx) => (
-                        <Cell key={idx} fill={PIE_COLORS[idx % PIE_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="grid grid-cols-3 gap-2 text-[11px] font-bold text-slate-500 mt-2">
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-2 text-center">
-                  Pendentes
-                  <br />
-                  <span className="text-slate-900 text-sm">{kpis.pending}</span>
-                </div>
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-2 text-center">
-                  Aprovadas
-                  <br />
-                  <span className="text-slate-900 text-sm">{kpis.approved}</span>
-                </div>
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-2 text-center">
-                  Recusadas
-                  <br />
-                  <span className="text-slate-900 text-sm">{kpis.refused}</span>
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -1582,7 +1751,7 @@ export default function AdminDashboard() {
           {loading ? (
             <div className="p-12 flex flex-col items-center justify-center text-slate-400">
               <Loader2 className="animate-spin mb-2" size={32} />
-              <p className="text-xs font-bold uppercase"></p>
+              <p className="text-xs font-bold uppercase">Carregando...</p>
             </div>
           ) : filteredBase.length === 0 ? (
             <div className="p-12 text-center text-slate-400">
@@ -1607,6 +1776,7 @@ export default function AdminDashboard() {
                   {filteredSales.map((sale) => {
                     const pr = priorityLabel(sale);
                     const checked = selectedIds.has(sale.id);
+                    const waDigits = toWhatsDigits(sale.client_phone);
 
                     return (
                       <tr
@@ -1627,9 +1797,9 @@ export default function AdminDashboard() {
                           <p className="text-sm font-bold text-slate-900 uppercase">{sale.client_name}</p>
                           <div className="flex items-center gap-1 text-[10px] text-slate-400 mt-1">
                             <span className="font-mono">{sale.client_cpf}</span>
-                            {sale.client_phone && (
+                            {waDigits && (
                               <a
-                                href={`https://wa.me/55${sale.client_phone.replace(/\D/g, "")}`}
+                                href={`https://wa.me/${waDigits}`}
                                 target="_blank"
                                 rel="noreferrer"
                                 onClick={(e) => e.stopPropagation()}
@@ -1646,7 +1816,7 @@ export default function AdminDashboard() {
                           <div className="flex flex-col">
                             <span className="font-bold text-slate-800">{sale.car_name}</span>
                             <span className="text-[9px] text-slate-400">
-                              Vendedor: {sellerLabel(sale)}
+                              Vendedor: {String(sale?.seller_name || "—")}
                             </span>
                             <span className="text-[9px] text-slate-400">
                               Criado: {new Date(sale.created_at).toLocaleDateString("pt-BR")}{" "}
@@ -1771,7 +1941,7 @@ export default function AdminDashboard() {
                   disabled={page === 1}
                   className="px-3 py-2 rounded-lg text-xs font-bold uppercase border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40"
                 >
-                  Próxima
+                  Anterior
                 </button>
 
                 <button
@@ -1779,7 +1949,7 @@ export default function AdminDashboard() {
                   disabled={page === totalPages}
                   className="px-3 py-2 rounded-lg text-xs font-bold uppercase border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40"
                 >
-                  Anterior
+                  Próxima
                 </button>
               </div>
             </div>

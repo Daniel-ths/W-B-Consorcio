@@ -83,15 +83,8 @@ const safeNumber = (v: any) => {
   return Number.isFinite(n) ? n : 0;
 };
 
-// ✅ helper: embaralha array (Fisher-Yates)
-function shuffle<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
+// ✅ FRASE FIXA (pedido do cliente)
+const BEST_BID_TEXT = "MELHOR MOMENTO PARA OFERTAR LANCE: ENTRE 7X E 8X PARCELA.";
 
 function PedidoContent() {
   const router = useRouter();
@@ -107,7 +100,9 @@ function PedidoContent() {
       // ✅ aqui é o "crédito com acessórios" (não mostrar "categoria")
       valor: safeNumber(searchParams.get("valor")),
 
+      // (mantido para compat, mas NÃO usado no Ato/Entrada)
       entrada: safeNumber(searchParams.get("entrada")),
+
       parcela: safeNumber(searchParams.get("parcela_escolhida")),
       prazo: searchParams.get("prazo_escolhido") || "0",
       total: safeNumber(searchParams.get("total_final")),
@@ -208,12 +203,12 @@ function PedidoContent() {
   }, [dados, lanceInfo, promo]);
 
   // =========================
-  // ✅ ATO/ENTRADA: SEMPRE IGUAL À 1ª PARCELA INTEGRAL (pedido do cliente)
+  // ✅ ATO/ENTRADA: SEMPRE = VALOR DA PARCELA INTEGRAL (pedido do cliente)
   // =========================
   const atoEntrada = useMemo(() => {
-    const p = safeNumber(valoresExibidos.parcelaUsada) || safeNumber(dados.parcela);
-    return p > 0 ? p : 0;
-  }, [valoresExibidos.parcelaUsada, dados.parcela]);
+    const parcelaIntegral = safeNumber(valoresExibidos.parcelaUsada);
+    return parcelaIntegral > 0 ? parcelaIntegral : 0;
+  }, [valoresExibidos.parcelaUsada]);
 
   // ✅ agora NÃO faz consulta automática no load
   const [loadingValidacao, setLoadingValidacao] = useState(false);
@@ -245,9 +240,6 @@ function PedidoContent() {
   // ✅ aprovador (nome do vendedor logado)
   const [aprovadorNome, setAprovadorNome] = useState<string>("");
 
-  // ✅ “melhor momento para oferta de lance” (ordem aleatória 6x/7x/8x)
-  const [momentosLance, setMomentosLance] = useState<number[]>([6, 8, 10]);
-
   useEffect(() => {
     setDataAtual(
       new Date().toLocaleDateString("pt-BR", {
@@ -266,9 +258,6 @@ function PedidoContent() {
         .toString()
         .padStart(6, "0");
     });
-
-    // ✅ define a ordem aleatória UMA VEZ por visita
-    setMomentosLance(shuffle([6, 7, 8]));
 
     // ✅ carrega aprovador (vendedor logado) para exibir na área de análise
     (async () => {
@@ -304,15 +293,14 @@ function PedidoContent() {
   }, []);
 
   // =========================
-  // ✅ mensagem do SMS (com aprovador + melhor momento)
+  // ✅ mensagem do SMS (com aprovador + frase fixa de melhor momento)
   // =========================
-  const SMS_TESTE = (nome: string, protocolo: string, aprovador: string, ordem: number[]) => {
-    const linhaMomentos = `${ordem[5]}x parcela, ${ordem[1]}x e ${ordem[1]}x parcela`;
+  const SMS_TESTE = (nome: string, protocolo: string, aprovador: string) => {
     const aprov = aprovador ? `\nAprovador: ${aprovador}` : "";
     return `Parabéns, ${nome}!🎉 Seu CPF foi aprovado e você está mais perto de conquistar seu carro novo.
 Seja bem vindo!
 
-Melhor momento para oferta de lance: ${linhaMomentos}
+${BEST_BID_TEXT}
 Probabilidades altas${aprov}`;
   };
 
@@ -381,12 +369,7 @@ Probabilidades altas${aprov}`;
     }
 
     const protocolo = numeroPedido || "------";
-    const message = SMS_TESTE(
-      nomeCliente || "cliente",
-      protocolo,
-      aprovadorNome || "",
-      momentosLance || [6, 7, 8]
-    );
+    const message = SMS_TESTE(nomeCliente || "cliente", protocolo, aprovadorNome || "");
 
     try {
       const resp = await fetch("/api/sms/enviar", {
@@ -484,9 +467,6 @@ Probabilidades altas${aprov}`;
         lance_value: lanceInfo.hasLance ? lanceInfo.lanceValor : 0,
         prazo_final: valoresExibidos.prazoUsado || 0,
         parcela_final: valoresExibidos.parcelaUsada || 0,
-
-        // ✅ opcional: salvar info do "melhor momento" para o admin ver também (se você tiver coluna)
-        // best_bid_moment: `Probabilidades altas • ${momentosLance[0]}x parcela, ${momentosLance[1]}x e ${momentosLance[2]}x parcela`,
       };
 
       const { error } = await supabase.from("sales").insert([payload]);
@@ -708,7 +688,7 @@ Probabilidades altas${aprov}`;
                           </span>
                         </div>
 
-                        {/* ✅ NOVO: aprovador + melhor momento para lance */}
+                        {/* ✅ ALTERADO: frase fixa do melhor momento */}
                         <div className="mt-2 flex flex-wrap items-center gap-2">
                           <span className="text-[10px] font-black uppercase px-2 py-1 rounded-full border bg-zinc-50 text-zinc-700 border-zinc-200">
                             Aprovador: {aprovadorNome || "—"}
@@ -719,7 +699,7 @@ Probabilidades altas${aprov}`;
                           </span>
 
                           <span className="text-[10px] font-black uppercase px-2 py-1 rounded-full border bg-zinc-50 text-zinc-700 border-zinc-200">
-                            Melhor momento: {momentosLance[0]}x parcela • {momentosLance[1]}x • {momentosLance[2]}x parcela
+                            {BEST_BID_TEXT}
                           </span>
                         </div>
                       </div>
@@ -977,6 +957,9 @@ Probabilidades altas${aprov}`;
                       {promo.discountValue ? ` | ${formatMoney(promo.discountValue)} OFF` : ""}
                     </p>
                   ) : null}
+
+                  {/* ✅ opcional: deixa registrado também no campo de observações */}
+                  <p className="mt-1">• {BEST_BID_TEXT}</p>
                 </div>
               )}
             </div>
