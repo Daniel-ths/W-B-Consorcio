@@ -47,6 +47,7 @@ const SUPERVISOR_EMAILS = [
   "marcelo@wbcnac.com",
   "felipe@wbcnac.com",
   "marcos@wbcnac.com",
+  "eder@wbcnac.com",
 ].map((s) => s.toLowerCase().trim());
 
 const isSupervisorEmail = (email?: string | null) =>
@@ -1380,7 +1381,7 @@ export default function AdminDashboard() {
                               <thead className="bg-slate-50 text-slate-500 font-semibold uppercase text-[10px] border-b border-slate-200">
                                 <tr>
                                   <th className="px-4 py-3 min-w-[260px]">
-                                    Vendedor (precisa bater com o OrderSummary)
+                                   Supervisor
                                   </th>
                                   <th className="px-4 py-3 text-center min-w-[140px]">
                                     Atendimentos
