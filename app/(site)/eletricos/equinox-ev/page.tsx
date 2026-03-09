@@ -26,13 +26,18 @@ import {
   Banknote,
   CheckCircle2,
   Tag,
+  UserRound,
 } from "lucide-react";
 
 /**
- * Equinox EV — com FINALIZAÇÃO no final (mesma lógica)
+ * Equinox EV — com FINALIZAÇÃO no final
  * ✅ Todos CTAs rolam pro final
- * ✅ Se logado: salva em sales e abre /vendedor/analise com query (com entrada 30%)
- * ✅ Se não logado: bloqueia e mostra botão login
+ * ✅ Igual ao OrderSummary:
+ *    - nome, cpf, email, telefone
+ *    - nome do vendedor digitado
+ * ✅ Salva em sales
+ * ✅ Se usuário logado for supervisor, grava approved_by_name com email dele
+ * ✅ Envia para /vendedor/analise com entrada 30%
  */
 
 // =========================
@@ -42,14 +47,13 @@ const moneyBRL = (value: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 
 // =========================
-// CONFIG (edite aqui)
+// CONFIG
 // =========================
 const CONFIG = {
   ano: "2024",
   titulo: "Equinox EV",
   subtitulo: "Consórcio ou financiamento • Simule em minutos",
 
-  // ✅ preço oficial
   preco: 349990,
 
   ctaHero: "Simular agora",
@@ -130,9 +134,6 @@ const CONFIG = {
   ],
 };
 
-// =========================
-// URL do seu fluxo (com preço + entrada 30%)
-// =========================
 function buildAnaliseParams() {
   const valor = typeof CONFIG.preco === "number" ? CONFIG.preco : 0;
   const entrada = valor ? Math.round(valor * 0.3) : 0;
@@ -141,7 +142,27 @@ function buildAnaliseParams() {
 
 type TabKey = "exterior" | "interior";
 
-// --- MÁSCARAS / HELPERS (Finalização) ---
+// =========================
+// HELPERS DE FINALIZAÇÃO
+// =========================
+const SUPERVISOR_EMAILS = [
+  "glauco@wbcnac.com",
+  "rafael@wbcnac.com",
+  "alexandre@wbcnac.com",
+  "marcelo@wbcnac.com",
+  "felipe@wbcnac.com",
+  "marcos@wbcnac.com",
+].map((s) => s.toLowerCase().trim());
+
+const PHONE_PREFIX_DISPLAY = "+55 ";
+const DEFAULT_DDD = "91";
+
+const cleanText = (value: any) => String(value || "").trim();
+const lowerText = (value: any) => cleanText(value).toLowerCase();
+
+const isSupervisorEmail = (email?: string | null) =>
+  !!email && SUPERVISOR_EMAILS.includes(lowerText(email));
+
 const maskCPF = (value: string) =>
   value
     .replace(/\D/g, "")
@@ -152,28 +173,41 @@ const maskCPF = (value: string) =>
 
 const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-// --- TELEFONE FIXO +55  ---
-const PHONE_PREFIX_DISPLAY = "+55 ";
-const PHONE_PREFIX_E164 = "+55";
+const normalizeSellerName = (value: string) =>
+  String(value || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase();
 
-const maskPhoneAfterPrefix = (value: string) => {
-  const digits = value.replace(/\D/g, "").slice(0, 9);
-  if (!digits) return "";
-  if (digits.length <= 1) return digits;
-  if (digits.length <= 5) return `${digits.slice(0, 1)}${digits.slice(1)}`;
-  return `${digits.slice(0, 1)}${digits.slice(1, 5)}-${digits.slice(5)}`;
-};
+const onlyDigits = (v: string) => String(v || "").replace(/\D/g, "");
 
-const getPhoneDigitsAfterPrefix = (fullValue: string) => {
-  const digits = fullValue.replace(/\D/g, "");
-  if (digits.startsWith("5591")) return digits.slice(4).slice(0, 9);
-  return digits.slice(0, 9);
+const toE164Digits = (displayPhone: string) => {
+  const digits = onlyDigits(displayPhone);
+
+  if (digits.startsWith("55")) {
+    const national = digits.slice(2);
+
+    if (national.length === 10 || national.length === 11) return `55${national}`;
+
+    if ((national.length === 8 || national.length === 9) && DEFAULT_DDD) {
+      return `55${DEFAULT_DDD}${national}`;
+    }
+
+    return null;
+  }
+
+  if (digits.length === 10 || digits.length === 11) return `55${digits}`;
+
+  if ((digits.length === 8 || digits.length === 9) && DEFAULT_DDD) {
+    return `55${DEFAULT_DDD}${digits}`;
+  }
+
+  return null;
 };
 
 export default function EquinoxEVPage() {
   const router = useRouter();
 
-  // ===== FINALIZAÇÃO NO FINAL =====
   const orderSectionId = "order-summary";
 
   const [authLoading, setAuthLoading] = useState(true);
@@ -183,6 +217,7 @@ export default function EquinoxEVPage() {
   const [clientCpf, setClientCpf] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [clientPhone, setClientPhone] = useState(PHONE_PREFIX_DISPLAY);
+  const [sellerName, setSellerName] = useState("");
 
   const [loading, setLoading] = useState(false);
 
@@ -191,7 +226,10 @@ export default function EquinoxEVPage() {
     clientCpf: "",
     clientEmail: "",
     clientPhone: "",
+    sellerName: "",
   });
+
+  const sellerNamePreview = useMemo(() => normalizeSellerName(sellerName), [sellerName]);
 
   const scrollToId = (id: string) => {
     const el = document.getElementById(id);
@@ -199,7 +237,6 @@ export default function EquinoxEVPage() {
     el.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  // ✅ pega usuário logado
   useEffect(() => {
     let mounted = true;
 
@@ -231,35 +268,34 @@ export default function EquinoxEVPage() {
     if (errors.clientCpf) setErrors({ ...errors, clientCpf: "" });
   };
 
-const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  const typed = e.target.value || "";
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const typed = e.target.value || "";
 
-  // Se o usuário apagar tudo
-  if (typed.trim() === "" || typed === PHONE_PREFIX_DISPLAY) {
-    setClientPhone(PHONE_PREFIX_DISPLAY);
-    return;
-  }
+    if (typed.trim() === "" || typed === PHONE_PREFIX_DISPLAY) {
+      setClientPhone(PHONE_PREFIX_DISPLAY);
+      return;
+    }
 
-  let digits = typed.replace(/\D/g, "");
+    let digits = typed.replace(/\D/g, "");
 
-  // Remove 55 se colarem junto
-  if (digits.startsWith("55")) digits = digits.slice(2);
+    if (digits.startsWith("55")) digits = digits.slice(2);
 
-  digits = digits.slice(0, 11); // DDD + 9
+    digits = digits.slice(0, 11);
 
-  const ddd = digits.slice(0, 2);
-  const num = digits.slice(2);
+    const ddd = digits.slice(0, 2);
+    const num = digits.slice(2);
 
-  let formatted = "";
+    let formatted = "";
 
-  if (digits.length <= 2) formatted = `(${ddd}`;
-  else if (num.length <= 5) formatted = `(${ddd}) ${num}`;
-  else formatted = `(${ddd}) ${num.slice(0, 5)}-${num.slice(5)}`;
+    if (digits.length <= 2) formatted = `(${ddd}`;
+    else if (num.length <= 5) formatted = `(${ddd}) ${num}`;
+    else formatted = `(${ddd}) ${num.slice(0, 5)}-${num.slice(5)}`;
 
-  setClientPhone(PHONE_PREFIX_DISPLAY + formatted);
-};
+    setClientPhone(PHONE_PREFIX_DISPLAY + formatted);
 
-  // ✅ todos CTAs chamam isso (não navega mais pro analise direto)
+    if (errors.clientPhone) setErrors({ ...errors, clientPhone: "" });
+  };
+
   const goPrimary = () => scrollToId(orderSectionId);
 
   // ===== Página (UI) =====
@@ -271,21 +307,20 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
-  // ---- animação de troca de imagem (fade + leve zoom) ----
   const [isImgSwitching, setIsImgSwitching] = useState(false);
   const [displayedSrc, setDisplayedSrc] = useState(CONFIG.exterior.colors[0]?.img || CONFIG.heroImage);
   const animTimer = useRef<number | null>(null);
 
   const mosaic = useMemo(() => {
-    const g = (CONFIG.gallery ?? []).map((x) => (typeof x === "string" ? x.trim() : x)).filter(Boolean);
+    const g = (CONFIG.gallery ?? [])
+      .map((x) => (typeof x === "string" ? x.trim() : x))
+      .filter(Boolean);
     while (g.length < 6) g.push((CONFIG.gallery?.[0] || CONFIG.heroImage).trim());
     return g.slice(0, 6);
   }, []);
 
-  // exterior atual
   const exteriorCurrent = CONFIG.exterior.colors[selectedExterior]?.img?.trim() || CONFIG.heroImage;
 
-  // interior atual (cor + carousel)
   const interiorColor = CONFIG.interior.colors[selectedInterior];
   const interiorImages = (interiorColor?.images ?? []).map((x) => x.trim()).filter(Boolean);
   const interiorCurrent = interiorImages[interiorIndex] || interiorImages[0] || CONFIG.heroImage;
@@ -339,7 +374,13 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
   const closeLightbox = () => setLightboxOpen(false);
 
   const handleFinishOrder = async () => {
-    let newErrors = { clientName: "", clientCpf: "", clientEmail: "", clientPhone: "" };
+    let newErrors = {
+      clientName: "",
+      clientCpf: "",
+      clientEmail: "",
+      clientPhone: "",
+      sellerName: "",
+    };
     let hasError = false;
 
     if (authLoading) return;
@@ -364,10 +405,21 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       hasError = true;
     }
 
-    const phoneDigits = getPhoneDigitsAfterPrefix(clientPhone);
-    if (phoneDigits.length < 9) {
-      newErrors.clientPhone = "Telefone obrigatório (digite os 9 dígitos após o 9).";
+    if (normalizeSellerName(sellerName).length < 3) {
+      newErrors.sellerName = "Informe o nome do vendedor que atendeu o cliente.";
       hasError = true;
+    }
+
+    const telefoneE164Digits = toE164Digits(clientPhone);
+    if (!telefoneE164Digits) {
+      newErrors.clientPhone = "Telefone inválido. Digite com DDD (ex: +55 (91) 9XXXX-XXXX).";
+      hasError = true;
+    } else {
+      const national = telefoneE164Digits.slice(2);
+      if (national.length !== 10 && national.length !== 11) {
+        newErrors.clientPhone = "Telefone incompleto. Informe DDD + número.";
+        hasError = true;
+      }
     }
 
     setErrors(newErrors);
@@ -376,34 +428,63 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setLoading(true);
 
     try {
-      const telefoneE164 = `${PHONE_PREFIX_E164}${getPhoneDigitsAfterPrefix(clientPhone)}`;
+      const telefoneE164 = toE164Digits(clientPhone)!;
       const { valor, entrada } = buildAnaliseParams();
+      const normalizedSeller = normalizeSellerName(sellerName);
+
+      const loggedUserEmail = String(user?.email || "").trim().toLowerCase();
+      const loggedUserId = user?.id || null;
+      const userIsSupervisor = isSupervisorEmail(loggedUserEmail);
 
       const saleData = {
         car_id: `landing-${CONFIG.titulo.toLowerCase().replace(/\s+/g, "-")}`,
         car_name: CONFIG.titulo,
+
         seller_id: user.id,
-        client_name: clientName,
+        seller_name: normalizedSeller,
+
+        client_name: clientName.trim(),
         client_cpf: clientCpf,
-        client_email: clientEmail,
+        client_email: clientEmail.trim().toLowerCase(),
         client_phone: telefoneE164,
+
         total_price: valor,
-        status: "Enviado para Análise",
-        interest_type: "Pendente (Aba Análise)",
+        status: "Aprovado",
+        interest_type: "Análise de Crédito",
+
         details: {
           exterior_color: CONFIG.exterior.colors[selectedExterior]?.name || "Padrão",
           interior_color: CONFIG.interior.colors[selectedInterior]?.name || "Padrão",
           entrada_sugerida: entrada,
+
+          vendedor_digitado: normalizedSeller,
+          vendedor_usuario_logado_id: loggedUserId,
+          vendedor_usuario_logado_email: loggedUserEmail || null,
+
+          approved_by_email: userIsSupervisor ? loggedUserEmail : null,
+          approved_by_name: userIsSupervisor ? loggedUserEmail : "Sistema",
+          approved_by_id: userIsSupervisor ? loggedUserId : null,
         },
+
+        approved_at: new Date().toISOString(),
+        approved_by_id: userIsSupervisor ? loggedUserId : null,
+        approved_by_name: userIsSupervisor ? loggedUserEmail : "Sistema",
+
         created_at: new Date().toISOString(),
       };
 
-      await supabase.from("sales").insert([saleData]);
+      const { error } = await supabase.from("sales").insert([saleData]);
+      if (error) throw error;
 
       const query = new URLSearchParams({
-        nome: clientName,
+        nome: clientName.trim(),
         cpf: clientCpf,
+        email: clientEmail.trim().toLowerCase(),
         telefone: telefoneE164,
+        vendedor: normalizedSeller,
+        vendedor_id: user?.id || "",
+        vendedor_email: loggedUserEmail || "",
+        supervisor_email: userIsSupervisor ? loggedUserEmail : "",
         modelo: CONFIG.titulo,
         valor: String(valor),
         entrada: String(entrada),
@@ -479,7 +560,9 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                 <div key={idx} className="text-center">
                   <div className="flex items-center justify-center gap-2 text-white/80 mb-2">
                     <span className="opacity-80">{s.icon}</span>
-                    <span className="text-[11px] font-extrabold uppercase tracking-widest opacity-70">Destaque</span>
+                    <span className="text-[11px] font-extrabold uppercase tracking-widest opacity-70">
+                      Destaque
+                    </span>
                   </div>
 
                   <div className="flex items-end justify-center gap-2">
@@ -760,7 +843,7 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         </div>
       </section>
 
-      {/* ================= FINALIZAÇÃO NO FINAL ================= */}
+      {/* FINALIZAÇÃO */}
       <section id={orderSectionId} className="py-20 px-4 md:px-10 bg-white border-t border-gray-200">
         <div className="max-w-[1400px] mx-auto">
           <div className="mb-10">
@@ -788,7 +871,9 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* FORM */}
               <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-6">
-                <h4 className="text-lg font-semibold text-gray-900 mb-6 pb-3 border-b border-gray-200">Informações do Cliente</h4>
+                <h4 className="text-lg font-semibold text-gray-900 mb-6 pb-3 border-b border-gray-200">
+                  Informações do Cliente
+                </h4>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div>
@@ -801,9 +886,9 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                         setClientName(e.target.value);
                         if (errors.clientName) setErrors({ ...errors, clientName: "" });
                       }}
-                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
-                        ${errors.clientName ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
-                      `}
+                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400 ${
+                        errors.clientName ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"
+                      }`}
                       placeholder="Digite o nome completo"
                     />
                     {errors.clientName && (
@@ -821,9 +906,9 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                       value={clientCpf}
                       onChange={handleCpfChange}
                       maxLength={14}
-                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
-                        ${errors.clientCpf ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
-                      `}
+                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400 ${
+                        errors.clientCpf ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"
+                      }`}
                       placeholder="000.000.000-00"
                     />
                     {errors.clientCpf && (
@@ -843,9 +928,9 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                         setClientEmail(e.target.value);
                         if (errors.clientEmail) setErrors({ ...errors, clientEmail: "" });
                       }}
-                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
-                        ${errors.clientEmail ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
-                      `}
+                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400 ${
+                        errors.clientEmail ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"
+                      }`}
                       placeholder="exemplo@email.com"
                     />
                     {errors.clientEmail && (
@@ -862,17 +947,56 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                     <input
                       value={clientPhone}
                       onChange={handlePhoneChange}
-                      maxLength={PHONE_PREFIX_DISPLAY.length + 10}
-                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
-                        ${errors.clientPhone ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
-                      `}
-                      placeholder="+55  XXXX-XXXX"
+                      maxLength={PHONE_PREFIX_DISPLAY.length + 16}
+                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400 ${
+                        errors.clientPhone ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"
+                      }`}
+                      placeholder="+55 (91) 9XXXX-XXXX"
                     />
                     {errors.clientPhone && (
                       <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
                         <AlertCircle size={10} /> {errors.clientPhone}
                       </p>
                     )}
+                    <p className="text-[11px] text-gray-400 mt-1">
+                      Dica: digite assim: <span className="font-mono">91 9XXXX XXXX</span>
+                    </p>
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                      Vendedor <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <UserRound
+                        size={16}
+                        className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+                      />
+                      <input
+                        value={sellerName}
+                        onChange={(e) => {
+                          setSellerName(e.target.value);
+                          if (errors.sellerName) setErrors({ ...errors, sellerName: "" });
+                        }}
+                        className={`w-full h-12 pl-11 pr-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400 ${
+                          errors.sellerName ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"
+                        }`}
+                        placeholder="Ex: JOÃO SILVA"
+                      />
+                    </div>
+
+                    {errors.sellerName && (
+                      <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                        <AlertCircle size={10} /> {errors.sellerName}
+                      </p>
+                    )}
+
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+                      <span className="text-gray-400">Prévia salva:</span>
+                      <span className="px-2 py-1 rounded bg-gray-100 border border-gray-200 font-bold text-gray-700 uppercase">
+                        {sellerNamePreview || "—"}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -923,7 +1047,11 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                 <div className="mt-6 p-4 rounded-xl border border-gray-200 bg-white">
                   <p className="text-[11px] text-gray-500 uppercase font-bold mb-2">Veículo</p>
                   <p className="text-sm font-semibold text-gray-900">{CONFIG.titulo}</p>
-                  <p className="text-sm text-gray-600 mt-1">{typeof CONFIG.preco === "number" && CONFIG.preco > 0 ? `A partir de ${moneyBRL(CONFIG.preco)}` : "Valor sob consulta"}</p>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {typeof CONFIG.preco === "number" && CONFIG.preco > 0
+                      ? `A partir de ${moneyBRL(CONFIG.preco)}`
+                      : "Valor sob consulta"}
+                  </p>
                   <p className="text-xs text-gray-500 mt-2">
                     Exterior: <span className="font-bold">{CONFIG.exterior.colors[selectedExterior]?.name || "Padrão"}</span>
                   </p>
@@ -946,7 +1074,9 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
           <div className="min-w-0">
             <p className="text-xs font-black text-gray-900 truncate">{CONFIG.titulo}</p>
             <p className="text-[11px] text-gray-500 truncate">
-              {typeof CONFIG.preco === "number" && CONFIG.preco > 0 ? `A partir de ${moneyBRL(CONFIG.preco)} • simule agora` : "Simule consórcio/financiamento agora"}
+              {typeof CONFIG.preco === "number" && CONFIG.preco > 0
+                ? `A partir de ${moneyBRL(CONFIG.preco)} • simule agora`
+                : "Simule consórcio/financiamento agora"}
             </p>
           </div>
 

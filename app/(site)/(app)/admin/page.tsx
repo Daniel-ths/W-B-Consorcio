@@ -27,37 +27,109 @@ import {
   X,
   CalendarRange,
   ArrowUpDown,
-  AlertTriangle,
-  Timer,
   BadgeCheck,
-  ShieldCheck,
 } from "lucide-react";
 
 import { ResponsiveContainer, Tooltip, PieChart, Pie, Cell } from "recharts";
 
-/**
- * ✅ Supervisores FIXOS
- * Somente estes podem aparecer como supervisor no painel e somente estes podem "tocar" pendente.
- * (agora são 6)
- */
-const SUPERVISOR_EMAILS = [
-  "glauco@wbcnac.com",
-  "rafael@wbcnac.com",
-  "alexandre@wbcnac.com",
-  "marcelo@wbcnac.com",
-  "felipe@wbcnac.com",
-  "marcos@wbcnac.com",
-].map((s) => s.toLowerCase().trim());
-
-const isSupervisorEmail = (email?: string | null) =>
-  !!email && SUPERVISOR_EMAILS.includes(String(email).toLowerCase().trim());
-
 const onlyDigits = (v: any) => String(v || "").replace(/\D/g, "");
+const cleanText = (v: any) => String(v || "").trim();
+const lowerText = (v: any) => cleanText(v).toLowerCase();
+
+const isEmailLike = (value: any) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanText(value));
 
 const toWhatsDigits = (phoneLike: any) => {
   const d = onlyDigits(phoneLike);
   if (!d) return "";
   return d.startsWith("55") ? d : `55${d}`;
+};
+
+const normalizeSellerDisplayName = (sale: any) => {
+  const detailsSeller = cleanText(sale?.details?.vendedor_digitado);
+  const rootSeller = cleanText(sale?.seller_name);
+
+  if (detailsSeller) return detailsSeller.toUpperCase();
+
+  if (rootSeller && !isEmailLike(rootSeller)) return rootSeller.toUpperCase();
+
+  return "—";
+};
+
+const getSellerRawValue = (sale: any) => {
+  const detailsSeller = cleanText(sale?.details?.vendedor_digitado);
+  const rootSeller = cleanText(sale?.seller_name);
+  return detailsSeller || rootSeller || "";
+};
+
+const buildSaleIdentityKey = (sale: any) => {
+  const clientCpf = onlyDigits(sale?.client_cpf || "");
+  const clientPhone = onlyDigits(sale?.client_phone || "");
+  const clientName = lowerText(sale?.client_name || "");
+  const carName = lowerText(sale?.car_name || "");
+  const total = Number(sale?.total_price || 0).toFixed(2);
+
+  const created = sale?.created_at ? new Date(sale.created_at) : null;
+  const minuteKey = created && !Number.isNaN(created.getTime())
+    ? created.toISOString().slice(0, 16)
+    : "";
+
+  return [
+    clientCpf || clientPhone || clientName,
+    clientName,
+    carName,
+    total,
+    minuteKey,
+  ].join("|");
+};
+
+const saleScore = (sale: any) => {
+  let score = 0;
+
+  const detailsSeller = cleanText(sale?.details?.vendedor_digitado);
+  const rootSeller = cleanText(sale?.seller_name);
+
+  if (detailsSeller) score += 100;
+  if (rootSeller && !isEmailLike(rootSeller)) score += 50;
+  if (sale?.client_email) score += 10;
+  if (sale?.approved_at) score += 5;
+  if (sale?.approved_by_name) score += 2;
+
+  return score;
+};
+
+const dedupeSales = (rows: any[]) => {
+  const map = new Map<string, any>();
+
+  for (const row of rows) {
+    const key = buildSaleIdentityKey(row);
+    const current = map.get(key);
+
+    if (!current) {
+      map.set(key, row);
+      continue;
+    }
+
+    const currentScore = saleScore(current);
+    const rowScore = saleScore(row);
+
+    if (rowScore > currentScore) {
+      map.set(key, row);
+      continue;
+    }
+
+    if (rowScore === currentScore) {
+      const currentCreated = new Date(current?.created_at || 0).getTime();
+      const rowCreated = new Date(row?.created_at || 0).getTime();
+
+      if (rowCreated > currentCreated) {
+        map.set(key, row);
+      }
+    }
+  }
+
+  return Array.from(map.values()).sort(
+    (a, b) => new Date(b?.created_at || 0).getTime() - new Date(a?.created_at || 0).getTime()
+  );
 };
 
 function ModalDetalhes({
@@ -101,6 +173,8 @@ function ModalDetalhes({
     if (!email || !email.includes("@")) return "—";
     return email.split("@")[0].toUpperCase();
   }, [sale]);
+
+  const sellerDisplayName = useMemo(() => normalizeSellerDisplayName(sale), [sale]);
 
   if (!sale) return null;
 
@@ -347,14 +421,10 @@ function ModalDetalhes({
               </h3>
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-slate-900 rounded-full flex items-center justify-center text-white font-bold text-sm">
-                  {sale.seller_name
-                    ? String(sale.seller_name).substring(0, 2).toUpperCase()
-                    : "VD"}
+                  {sellerDisplayName !== "—" ? sellerDisplayName.substring(0, 2) : "VD"}
                 </div>
                 <div className="leading-tight min-w-0">
-                  <p className="text-sm font-bold text-slate-900 truncate">
-                    {sale.seller_name || "—"}
-                  </p>
+                  <p className="text-sm font-bold text-slate-900 truncate">{sellerDisplayName}</p>
                   <p className="text-[10px] text-slate-500 font-mono truncate">
                     {sellerEmailLabel}
                   </p>
@@ -364,16 +434,16 @@ function ModalDetalhes({
 
             <div className="bg-white border border-slate-200 rounded-2xl p-5 print-card">
               <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 border-b border-slate-100 pb-2 flex items-center gap-2">
-                <ShieldCheck size={14} /> Auditoria
+                <BadgeCheck size={14} /> Processamento
               </h3>
 
               <div className="grid grid-cols-2 gap-3 print-grid">
                 <div className="min-w-0">
                   <p className="print-label text-[10px] font-bold text-slate-400 uppercase">
-                    Aprovador (Supervisor)
+                    Processado por
                   </p>
                   <p className="print-value text-sm font-bold text-slate-900 truncate">
-                    {sale.approved_by_name || "—"}
+                    {sale.approved_by_name || "Sistema"}
                   </p>
                 </div>
                 <div className="min-w-0">
@@ -393,43 +463,33 @@ function ModalDetalhes({
 
         <div className="bg-gray-50 p-6 border-t border-gray-100 flex flex-col md:flex-row md:items-center md:justify-between gap-3 sticky bottom-0 no-print">
           <div className="flex items-center gap-2">
-            {sale.status === "Aguardando Aprovação" && (
-              <>
-                <button
-                  onClick={() => handleAction("Aprovado")}
-                  disabled={isProcessing}
-                  className="px-4 py-2.5 bg-green-600 text-white font-bold text-xs uppercase rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-60"
-                >
-                  {isProcessing ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : (
-                    <Check size={14} />
-                  )}
-                  Aprovar
-                </button>
-
-                <button
-                  onClick={() => handleAction("Recusado")}
-                  disabled={isProcessing}
-                  className="px-4 py-2.5 bg-red-600 text-white font-bold text-xs uppercase rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 disabled:opacity-60"
-                >
-                  {isProcessing ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : (
-                    <XCircle size={14} />
-                  )}
-                  Recusar
-                </button>
-              </>
+            {sale.status !== "Aprovado" && (
+              <button
+                onClick={() => handleAction("Aprovado")}
+                disabled={isProcessing}
+                className="px-4 py-2.5 bg-green-600 text-white font-bold text-xs uppercase rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-60"
+              >
+                {isProcessing ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Check size={14} />
+                )}
+                Aprovar
+              </button>
             )}
 
-            {sale.status !== "Aguardando Aprovação" && (
+            {sale.status !== "Recusado" && (
               <button
-                onClick={() => handleAction("Aguardando Aprovação")}
+                onClick={() => handleAction("Recusado")}
                 disabled={isProcessing}
-                className="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 font-bold text-xs uppercase rounded-lg hover:bg-slate-100 transition-colors disabled:opacity-60"
+                className="px-4 py-2.5 bg-red-600 text-white font-bold text-xs uppercase rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 disabled:opacity-60"
               >
-                Reabrir
+                {isProcessing ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <XCircle size={14} />
+                )}
+                Recusar
               </button>
             )}
           </div>
@@ -474,10 +534,6 @@ export default function AdminDashboard() {
   const [sales, setSales] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [supervisorStatusFilter, setSupervisorStatusFilter] = useState<
-    "TODOS" | "ATENDIMENTOS" | "APROVACOES" | "RECUSAS"
-  >("TODOS");
-
   const [filterStatus, setFilterStatus] = useState("TODOS");
   const [searchTerm, setSearchTerm] = useState("");
   const [dateFrom, setDateFrom] = useState<string>("");
@@ -502,12 +558,6 @@ export default function AdminDashboard() {
 
   const todayLabel = useMemo(() => new Date().toLocaleDateString("pt-BR"), []);
 
-  /**
-   * ✅ Vendedor do pedido = seller_name EXATO do OrderSummary
-   * (sem fallback por email) para não quebrar a amarração.
-   */
-  const sellerNameExact = (sale: any) => String(sale?.seller_name || "").trim() || "—";
-
   const isWithinDateRange = (createdAt: string) => {
     const d = new Date(createdAt);
     if (dateFrom) {
@@ -519,30 +569,6 @@ export default function AdminDashboard() {
       if (d > to) return false;
     }
     return true;
-  };
-
-  const hoursSince = (iso: string) => (Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60);
-
-  const priorityLabel = (sale: any) => {
-    if (sale.status !== "Aguardando Aprovação") return null;
-    const h = hoursSince(sale.created_at);
-    if (h >= 48)
-      return {
-        label: "Crítico",
-        cls: "bg-red-100 text-red-700 border-red-200",
-        icon: <AlertTriangle size={12} />,
-      };
-    if (h >= 24)
-      return {
-        label: "Atenção",
-        cls: "bg-yellow-100 text-yellow-800 border-yellow-200",
-        icon: <Timer size={12} />,
-      };
-    return {
-      label: "Normal",
-      cls: "bg-slate-100 text-slate-600 border-slate-200",
-      icon: <Clock size={12} />,
-    };
   };
 
   const toggleSort = (key: typeof sortKey) => {
@@ -571,143 +597,22 @@ export default function AdminDashboard() {
     setDateTo(iso);
   };
 
-  const getISODateToday = () => {
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, "0");
-    const d = String(now.getDate()).padStart(2, "0");
-    return `${y}-${m}-${d}`;
-  };
-
-  // =========================
-  // ✅ Painel Supervisores (fixos) + dia
-  // =========================
-  const [supDay, setSupDay] = useState<string>(() => getISODateToday());
-  const [selectedSupervisor, setSelectedSupervisor] = useState<string | null>(null);
-
-  const getDayRangeISO = (isoDate: string) => {
-    const base = isoDate ? new Date(isoDate + "T00:00:00") : new Date();
-    const start = new Date(base.getFullYear(), base.getMonth(), base.getDate(), 0, 0, 0, 0);
-    const end = new Date(base.getFullYear(), base.getMonth(), base.getDate(), 23, 59, 59, 999);
-    return { startISO: start.toISOString(), endISO: end.toISOString() };
-  };
-
-  const getActionTime = (s: any) => s?.approved_at || s?.updated_at || s?.created_at;
-
-  const isInDay = (isoLike: any, startISO: string, endISO: string) => {
-    if (!isoLike) return false;
-    const t = new Date(isoLike).toISOString();
-    return t >= startISO && t <= endISO;
-  };
-
-  const supervisorNameForUI = (email: string) => {
-    const s = String(email || "");
-    return s.includes("@") ? s.split("@")[0] : s;
-  };
-
-  const normalizeSupEmail = (raw: any) => String(raw || "").trim().toLowerCase();
-
-  // =========================
-  // ✅ Auth/Perfil (Supervisor = email)
-  // =========================
-  const getMyDisplayName = async () => {
-    const { data: authData } = await supabase.auth.getUser();
-    const user = authData?.user;
-    if (!user?.id) return null;
-
-    const email = String(user.email || "").trim();
-    const displayName = email || "Usuário";
-
-    return { id: user.id, name: displayName, email };
-  };
-
-  /**
-   * ✅ Só supervisor pode “tocar” pendente para virar responsável.
-   * E grava approved_by_name como EMAIL, para o painel ficar correto.
-   */
-  const markSupervisorTouch = async (sale: any) => {
-    try {
-      if (!sale?.id) return;
-      if (sale.status !== "Aguardando Aprovação") return;
-      if (sale.approved_by_id || sale.approved_by_name) return;
-
-      const me = await getMyDisplayName();
-      if (!me) return;
-
-      if (!isSupervisorEmail(me.email)) return;
-
-      const payload = { approved_by_id: me.id, approved_by_name: me.email };
-      const { error } = await supabase.from("sales").update(payload).eq("id", sale.id);
-      if (error) throw error;
-
-      setSales((prev) => prev.map((s) => (s.id === sale.id ? { ...s, ...payload } : s)));
-      if (selectedSale?.id === sale.id) setSelectedSale((p: any) => ({ ...p, ...payload }));
-    } catch {}
-  };
-
-  const openSale = async (sale: any) => {
-    setSelectedSale(sale);
-    await markSupervisorTouch(sale);
-  };
-
-  /**
-   * ✅ CORREÇÃO: “aprovado/recusado fantasma”
-   * Se algum registro estiver como Aprovado/Recusado mas SEM approved_at/approved_by_name,
-   * consideramos inconsistente e voltamos para "Aguardando Aprovação".
-   */
-  const fixInconsistentStatuses = async (rows: any[]) => {
-    const needsFix = rows.filter((s) => {
-      const st = String(s?.status || "");
-      const hasAudit = !!s?.approved_at && !!String(s?.approved_by_name || "").trim();
-      if (st === "Aprovado" || st === "Recusado") return !hasAudit;
-      return false;
-    });
-
-    if (needsFix.length === 0) return;
-
-    const ids = needsFix.map((x) => x.id).filter(Boolean);
-    if (ids.length === 0) return;
-
-    const { error } = await supabase
-      .from("sales")
-      .update({
-        status: "Aguardando Aprovação",
-        approved_at: null,
-        approved_by_id: null,
-        approved_by_name: null,
-      })
-      .in("id", ids);
-
-    if (!error) {
-      rows.forEach((r) => {
-        if (ids.includes(r.id)) {
-          r.status = "Aguardando Aprovação";
-          r.approved_at = null;
-          r.approved_by_id = null;
-          r.approved_by_name = null;
-        }
-      });
-    }
-  };
-
   const fetchSales = async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
         .from("sales")
-        .select(`*, profiles:seller_id (email), approved_by_id, approved_by_name, approved_at`)
+        .select(`*, profiles:seller_id (email)`)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
 
       const rows = (data || []).map((r: any) => ({
         ...r,
-        status: String(r?.status || "").trim() || "Aguardando Aprovação",
+        status: cleanText(r?.status) || "Aprovado",
       }));
 
-      await fixInconsistentStatuses(rows);
-
-      setSales(rows);
+      setSales(dedupeSales(rows));
     } catch (err) {
       console.error("Erro ao buscar vendas:", err);
     } finally {
@@ -719,72 +624,9 @@ export default function AdminDashboard() {
     fetchSales();
   }, []);
 
-  /**
-   * ✅ Supervisores SEMPRE: os 6 emails
-   * Contagem do dia por supervisor usando approved_by_name (email do supervisor).
-   * Vendedores: seller_name (EXATO do OrderSummary).
-   */
-  const supervisorsByDay = useMemo(() => {
-    const { startISO, endISO } = getDayRangeISO(supDay);
-
-    const base = new Map<
-      string,
-      {
-        supervisor: string;
-        atendimentos: number;
-        vendedores: Map<string, { seller: string; count: number }>;
-        lastActionAt: number;
-      }
-    >();
-
-    for (const email of SUPERVISOR_EMAILS) {
-      base.set(email, {
-        supervisor: email,
-        atendimentos: 0,
-        vendedores: new Map(),
-        lastActionAt: 0,
-      });
-    }
-
-    const rows = sales.filter((s) => {
-      const supEmail = normalizeSupEmail(s?.approved_by_name);
-      if (!isSupervisorEmail(supEmail)) return false;
-      return isInDay(getActionTime(s), startISO, endISO);
-    });
-
-    for (const s of rows) {
-      const supEmail = normalizeSupEmail(s?.approved_by_name);
-      if (!base.has(supEmail)) continue;
-
-      const seller = sellerNameExact(s);
-      const keySeller = String(seller || "—").trim() || "—";
-
-      const existing = base.get(supEmail)!;
-      existing.atendimentos += 1;
-
-      const prevSeller = existing.vendedores.get(keySeller) || { seller: keySeller, count: 0 };
-      prevSeller.count += 1;
-      existing.vendedores.set(keySeller, prevSeller);
-
-      const ts = new Date(getActionTime(s)).getTime();
-      existing.lastActionAt = Math.max(existing.lastActionAt || 0, ts);
-    }
-
-    let list = Array.from(base.values()).map((r) => ({
-      supervisor: r.supervisor,
-      atendimentos: r.atendimentos,
-      vendedores: Array.from(r.vendedores.values()).sort((a, b) => b.count - a.count),
-      lastActionAt: r.lastActionAt,
-    }));
-
-    list.sort((a, b) => b.atendimentos - a.atendimentos || b.lastActionAt - a.lastActionAt);
-
-    if (supervisorStatusFilter === "ATENDIMENTOS") {
-      list = list.filter((r) => r.atendimentos > 0);
-    }
-
-    return list;
-  }, [sales, supDay, supervisorStatusFilter]);
+  const openSale = async (sale: any) => {
+    setSelectedSale(sale);
+  };
 
   const StatusBadge = ({ status }: { status: string }) => {
     let styles = "bg-gray-100 text-gray-600";
@@ -803,7 +645,7 @@ export default function AdminDashboard() {
 
     return (
       <span
-        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide border ${styles}`}
+        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide border ${styles}`}
       >
         {icon} {status}
       </span>
@@ -818,11 +660,13 @@ export default function AdminDashboard() {
         const matchesStatus = filterStatus === "TODOS" || sale.status === filterStatus;
         const matchesDate = isWithinDateRange(sale.created_at);
 
+        const sellerDisplay = normalizeSellerDisplayName(sale).toLowerCase();
+
         const matchesSearch =
           !term ||
           sale.client_name?.toLowerCase().includes(term) ||
           sale.car_name?.toLowerCase().includes(term) ||
-          sale.seller_name?.toLowerCase().includes(term) ||
+          sellerDisplay.includes(term) ||
           sale.profiles?.email?.toLowerCase().includes(term) ||
           sale.client_cpf?.toLowerCase().includes(term);
 
@@ -859,7 +703,6 @@ export default function AdminDashboard() {
     const rows = filteredBase;
 
     const total = rows.length;
-    const pending = rows.filter((s) => s.status === "Aguardando Aprovação");
     const approved = rows.filter((s) => s.status === "Aprovado");
     const refused = rows.filter((s) => s.status === "Recusado");
 
@@ -870,25 +713,22 @@ export default function AdminDashboard() {
       const created = new Date(s.created_at).toISOString();
       return created >= startISO && created <= endISO;
     });
+
     const todayValue = todaySales.reduce((acc, s) => acc + (Number(s.total_price) || 0), 0);
     const approvedToday = todaySales.filter((s) => s.status === "Aprovado").length;
-
-    const pendingOver24 = pending.filter((s) => hoursSince(s.created_at) >= 24).length;
-    const pendingOver48 = pending.filter((s) => hoursSince(s.created_at) >= 48).length;
+    const refusedToday = todaySales.filter((s) => s.status === "Recusado").length;
 
     const conversion = total ? (approved.length / total) * 100 : 0;
 
     return {
       total,
-      pending: pending.length,
       approved: approved.length,
       refused: refused.length,
       revenue,
       conversion,
-      pendingOver24,
-      pendingOver48,
       todayValue,
       approvedToday,
+      refusedToday,
     };
   }, [filteredBase]);
 
@@ -902,59 +742,44 @@ export default function AdminDashboard() {
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
     const totalToday = todayAll.length;
-    const pendingToday = todayAll.filter((s) => s.status === "Aguardando Aprovação").length;
     const approvedToday = todayAll.filter((s) => s.status === "Aprovado").length;
     const refusedToday = todayAll.filter((s) => s.status === "Recusado").length;
 
     const valueToday = todayAll.reduce((acc, s) => acc + (Number(s.total_price) || 0), 0);
 
-    return { list: todayAll, totalToday, pendingToday, approvedToday, refusedToday, valueToday };
+    return { list: todayAll, totalToday, approvedToday, refusedToday, valueToday };
   }, [sales]);
 
   const charts = useMemo(() => {
     const pieData = [
-      { name: "Pendentes", value: kpis.pending },
       { name: "Aprovadas", value: kpis.approved },
       { name: "Recusadas", value: kpis.refused },
     ];
     return { pieData };
-  }, [kpis.pending, kpis.approved, kpis.refused]);
+  }, [kpis.approved, kpis.refused]);
 
-  const PIE_COLORS = ["#f59e0b", "#22c55e", "#ef4444"];
+  const PIE_COLORS = ["#22c55e", "#ef4444"];
 
-  /**
-   * ✅ Aprovar/Recusar: só supervisor pode.
-   * Grava approved_by_name como EMAIL (um dos 6).
-   */
   const updateStatus = async (saleId: string, newStatus: string) => {
     try {
       setIsUpdating(saleId);
 
-      const me = await getMyDisplayName();
       const payload: any = { status: newStatus };
 
-      if (newStatus === "Aprovado" || newStatus === "Recusado") {
-        if (!me?.email || !isSupervisorEmail(me.email)) {
-          alert(
-            "Somente supervisores (glauco/rafael/alexandre/marcelo/felipe/marcos) podem aprovar ou recusar."
-          );
-          return;
-        }
+      if (newStatus === "Aprovado") {
         payload.approved_at = new Date().toISOString();
-        payload.approved_by_id = me.id;
-        payload.approved_by_name = me.email;
+        payload.approved_by_name = cleanText(payload.approved_by_name) || "Sistema";
       }
 
-      if (newStatus === "Aguardando Aprovação") {
-        payload.approved_at = null;
-        payload.approved_by_id = null;
-        payload.approved_by_name = null;
+      if (newStatus === "Recusado") {
+        payload.approved_at = new Date().toISOString();
+        payload.approved_by_name = "Admin";
       }
 
       const { error } = await supabase.from("sales").update(payload).eq("id", saleId);
       if (error) throw error;
 
-      setSales((prev) => prev.map((s) => (s.id === saleId ? { ...s, ...payload } : s)));
+      setSales((prev) => dedupeSales(prev.map((s) => (s.id === saleId ? { ...s, ...payload } : s))));
       if (selectedSale?.id === saleId) setSelectedSale((prev: any) => ({ ...prev, ...payload }));
       alert(`Status atualizado para: ${newStatus}`);
     } catch (error: any) {
@@ -1002,7 +827,7 @@ export default function AdminDashboard() {
     });
   };
 
-  const bulkUpdate = async (status: "Aprovado" | "Recusado" | "Aguardando Aprovação") => {
+  const bulkUpdate = async (status: "Aprovado" | "Recusado") => {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return alert("Selecione ao menos 1 item.");
     if (!confirm(`Aplicar status "${status}" em ${ids.length} propostas?`)) return;
@@ -1071,7 +896,6 @@ export default function AdminDashboard() {
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-8">
-        {/* KPIs */}
         <div className="grid grid-cols-1 md:grid-cols-6 gap-6 mb-8">
           <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm md:col-span-1">
             <div className="flex items-center justify-between">
@@ -1114,47 +938,29 @@ export default function AdminDashboard() {
 
           <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm md:col-span-1">
             <div className="flex items-center justify-between">
-              <div className="p-2 bg-yellow-50 rounded-lg text-yellow-700">
-                <Clock size={18} />
+              <div className="p-2 bg-emerald-50 rounded-lg text-emerald-700">
+                <CheckCircle2 size={18} />
               </div>
-              <span className="text-[10px] font-black uppercase text-slate-400">Pendentes</span>
+              <span className="text-[10px] font-black uppercase text-slate-400">Aprovadas</span>
             </div>
-            <p className="text-slate-500 text-xs font-bold uppercase mt-2">Aguardando</p>
-            <h3 className="text-2xl font-black text-slate-900">{kpis.pending}</h3>
-            <p className="text-[11px] font-bold text-slate-500 mt-1">
-              +24h:{" "}
-              <span className={kpis.pendingOver24 ? "text-yellow-800" : "text-slate-400"}>
-                {kpis.pendingOver24}
-              </span>{" "}
-              • +48h:{" "}
-              <span className={kpis.pendingOver48 ? "text-red-700" : "text-slate-400"}>
-                {kpis.pendingOver48}
-              </span>
-            </p>
+            <p className="text-slate-500 text-xs font-bold uppercase mt-2">Total</p>
+            <h3 className="text-2xl font-black text-slate-900">{kpis.approved}</h3>
           </div>
 
           <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm md:col-span-1">
             <div className="flex items-center justify-between">
-              <div className="p-2 bg-slate-100 rounded-lg text-slate-700">
-                <BadgeCheck size={18} />
+              <div className="p-2 bg-red-50 rounded-lg text-red-700">
+                <XCircle size={18} />
               </div>
               <span className="text-[10px] font-black uppercase text-slate-400">Hoje</span>
             </div>
             <p className="text-slate-500 text-xs font-bold uppercase mt-2">Aprovadas</p>
             <h3 className="text-2xl font-black text-slate-900">{kpis.approvedToday}</h3>
             <p className="text-[11px] font-bold text-slate-500 mt-1">
-              Valor:{" "}
-              <span className="text-slate-900">
-                {new Intl.NumberFormat("pt-BR", {
-                  notation: "compact",
-                  style: "currency",
-                  currency: "BRL",
-                }).format(kpis.todayValue)}
-              </span>
+              Recusadas: <span className="text-slate-900">{kpis.refusedToday}</span>
             </p>
           </div>
 
-          {/* ✅ Gráfico pie (usa Recharts importado) */}
           <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm md:col-span-1">
             <p className="text-[10px] font-black uppercase text-slate-400">Distribuição</p>
             <div className="h-[110px]">
@@ -1176,261 +982,20 @@ export default function AdminDashboard() {
                 </PieChart>
               </ResponsiveContainer>
             </div>
-            <div className="mt-2 grid grid-cols-3 gap-2 text-[10px] font-bold text-slate-600">
-              <span>Pend: {kpis.pending}</span>
+            <div className="mt-2 grid grid-cols-2 gap-2 text-[10px] font-bold text-slate-600">
               <span>Aprov: {kpis.approved}</span>
               <span>Rec: {kpis.refused}</span>
             </div>
           </div>
         </div>
 
-        {/* ✅ Supervisores FIXOS (coluna) + clique abre vendedores do dia */}
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden mb-8">
-          <div className="p-5 border-b border-slate-100 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-            <div>
-              <h3 className="font-black text-slate-900 uppercase tracking-tight">
-                Painel de Supervisores
-              </h3>
-              <p className="text-xs text-slate-400 font-bold">
-                Selecione o dia e clique no supervisor para ver os vendedores e a contagem.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
-                <CalendarRange size={16} className="text-slate-400" />
-                <input
-                  type="date"
-                  value={supDay}
-                  onChange={(e) => {
-                    setSupDay(e.target.value);
-                    setSelectedSupervisor(null);
-                  }}
-                  className="bg-transparent text-xs font-bold text-slate-700 outline-none"
-                  title="Selecionar dia"
-                />
-              </div>
-
-              <button
-                onClick={() => {
-                  setSupDay(getISODateToday());
-                  setSelectedSupervisor(null);
-                }}
-                className="text-xs bg-white text-slate-700 px-3 py-2 rounded-lg font-bold hover:bg-slate-50 flex items-center gap-2 border border-slate-200"
-                title="Ir para hoje"
-              >
-                <CalendarRange size={14} /> Hoje
-              </button>
-
-              <button
-                onClick={fetchSales}
-                className="text-xs bg-slate-50 text-slate-600 px-3 py-2 rounded-lg font-bold hover:bg-slate-100 flex items-center gap-2 border border-slate-200"
-                title="Atualizar"
-              >
-                <Loader2 size={14} className={loading ? "animate-spin" : ""} />
-                Atualizar
-              </button>
-            </div>
-          </div>
-
-          <div className="p-5">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-              {/* Coluna de supervisores (fixos) */}
-              <div className="lg:col-span-4">
-                <div className="border border-slate-200 rounded-2xl overflow-hidden">
-                  <div className="bg-slate-50 border-b border-slate-200 px-4 py-3 flex items-center justify-between">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                      Supervisores
-                    </p>
-                    <span className="text-[10px] font-black text-slate-700 bg-white border border-slate-200 px-2 py-1 rounded-full">
-                      {SUPERVISOR_EMAILS.length}
-                    </span>
-                  </div>
-
-                  <div className="max-h-[420px] overflow-auto">
-                    <table className="w-full text-left">
-                      <thead className="sticky top-0 bg-white border-b border-slate-200">
-                        <tr className="text-[10px] uppercase font-black text-slate-400">
-                          <th className="px-4 py-3">Supervisor</th>
-                          <th className="px-4 py-3 text-right">Atend.</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {(supervisorsByDay.length
-                          ? supervisorsByDay
-                          : (SUPERVISOR_EMAILS.map((e) => ({
-                              supervisor: e,
-                              atendimentos: 0,
-                              vendedores: [],
-                              lastActionAt: 0,
-                            })) as any[])
-                        ).map((s: any) => {
-                          const active = selectedSupervisor === s.supervisor;
-
-                          return (
-                            <tr
-                              key={s.supervisor}
-                              className={`cursor-pointer transition-colors ${
-                                active ? "bg-black text-white" : "hover:bg-slate-50"
-                              }`}
-                              onClick={() => setSelectedSupervisor(s.supervisor)}
-                            >
-                              <td className="px-4 py-3">
-                                <p
-                                  className={`text-sm font-black truncate ${
-                                    active ? "text-white" : "text-slate-900"
-                                  }`}
-                                >
-                                  {supervisorNameForUI(s.supervisor)}
-                                </p>
-                                <p
-                                  className={`text-[10px] font-bold ${
-                                    active ? "text-white/70" : "text-slate-400"
-                                  }`}
-                                >
-                                  {s.supervisor}
-                                </p>
-                              </td>
-                              <td className="px-4 py-3 text-right">
-                                <span
-                                  className={`inline-flex items-center justify-center px-3 py-1 rounded-full text-[11px] font-black border ${
-                                    active
-                                      ? "border-white/25 bg-white/10 text-white"
-                                      : "border-slate-200 bg-slate-50 text-slate-800"
-                                  }`}
-                                >
-                                  {Number(s.atendimentos || 0)}
-                                </span>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <div className="p-3 border-t border-slate-200 bg-white">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-[10px] font-bold text-slate-500">
-                        Filtro de lista (opcional)
-                      </p>
-                      <select
-                        value={supervisorStatusFilter}
-                        onChange={(e) => setSupervisorStatusFilter(e.target.value as any)}
-                        className="text-[10px] font-bold border border-slate-200 rounded px-2 py-1 bg-white"
-                      >
-                        <option value="TODOS">Todos</option>
-                        <option value="ATENDIMENTOS">Só com atendimentos</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Painel de detalhe */}
-              <div className="lg:col-span-8">
-                {!selectedSupervisor ? (
-                  <div className="h-full bg-slate-50 border border-slate-200 rounded-2xl p-5 text-slate-500 text-sm font-medium">
-                    Selecione um supervisor na coluna ao lado para ver os vendedores do dia e a
-                    quantidade de atendimentos.
-                  </div>
-                ) : (
-                  <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white">
-                    <div className="p-5 border-b border-slate-100">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                        Supervisor
-                      </p>
-                      <h4 className="text-lg font-black text-slate-900 truncate">
-                        {supervisorNameForUI(selectedSupervisor)}
-                      </h4>
-                      <p className="text-xs text-slate-500 font-bold mt-1">
-                        Email: <span className="text-slate-900">{selectedSupervisor}</span> • Dia:{" "}
-                        <span className="text-slate-900">{supDay}</span>
-                      </p>
-                    </div>
-
-                    <div className="p-5">
-                      {(() => {
-                        const data =
-                          supervisorsByDay.find((x) => x.supervisor === selectedSupervisor) || {
-                            supervisor: selectedSupervisor,
-                            atendimentos: 0,
-                            vendedores: [],
-                            lastActionAt: 0,
-                          };
-
-                        if (!data.atendimentos) {
-                          return (
-                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-slate-600 text-sm font-bold">
-                              Nenhum atendimento para este supervisor no dia selecionado.
-                            </div>
-                          );
-                        }
-
-                        return (
-                          <div className="overflow-x-auto">
-                            <div className="mb-3 text-xs font-bold text-slate-600">
-                              Total de atendimentos:{" "}
-                              <span className="text-slate-900 font-black">
-                                {data.atendimentos}
-                              </span>
-                            </div>
-
-                            <table className="w-full text-left">
-                              <thead className="bg-slate-50 text-slate-500 font-semibold uppercase text-[10px] border-b border-slate-200">
-                                <tr>
-                                  <th className="px-4 py-3 min-w-[260px]">
-                                    Vendedor (precisa bater com o OrderSummary)
-                                  </th>
-                                  <th className="px-4 py-3 text-center min-w-[140px]">
-                                    Atendimentos
-                                  </th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-100">
-                                {data.vendedores.map((v: any) => (
-                                  <tr key={v.seller} className="hover:bg-slate-50">
-                                    <td className="px-4 py-3">
-                                      <p className="text-sm font-black text-slate-900 truncate">
-                                        {v.seller}
-                                      </p>
-                                      <p className="text-[10px] text-slate-400 font-bold">
-                                        
-                                      </p>
-                                    </td>
-                                    <td className="px-4 py-3 text-center">
-                                      <span className="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-black bg-slate-100 text-slate-700 border border-slate-200">
-                                        {v.count}
-                                      </span>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-
-                            {data.vendedores.some((x: any) => x.seller === "—") && (
-                              <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-red-800 text-xs font-bold">
-                                Existe pedido com vendedor "—" (seller_name vazio). Isso quebra a
-                                contagem por nome.
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Pedidos do dia */}
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden mb-8">
           <div className="p-5 border-b border-slate-100 flex items-center justify-between">
             <div>
               <h3 className="font-black text-slate-900 uppercase tracking-tight">Pedidos do Dia</h3>
-              <p className="text-xs text-slate-400 font-bold">Resumo do dia atual</p>
+              <p className="text-xs text-slate-400 font-bold">
+                Exibindo somente um pedido por venda, priorizando o nome do vendedor digitado
+              </p>
             </div>
 
             <div className="flex items-center gap-2">
@@ -1454,14 +1019,10 @@ export default function AdminDashboard() {
           </div>
 
           <div className="p-5">
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
                 <p className="text-[10px] font-bold uppercase text-slate-500">Total Hoje</p>
                 <p className="text-2xl font-black text-slate-900">{todaySection.totalToday}</p>
-              </div>
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                <p className="text-[10px] font-bold uppercase text-slate-500">Pendentes</p>
-                <p className="text-2xl font-black text-slate-900">{todaySection.pendingToday}</p>
               </div>
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
                 <p className="text-[10px] font-bold uppercase text-slate-500">Aprovadas</p>
@@ -1528,7 +1089,7 @@ export default function AdminDashboard() {
                               {sale.car_name}
                             </p>
                             <p className="text-[10px] text-slate-400">
-                              Vendedor: {String(sale?.seller_name || "—")}
+                              Vendedor: {normalizeSellerDisplayName(sale)}
                             </p>
                           </td>
                           <td className="px-4 py-3 text-center">
@@ -1553,7 +1114,6 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Filtros */}
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6 space-y-4">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="relative w-full md:w-96">
@@ -1571,7 +1131,7 @@ export default function AdminDashboard() {
             </div>
 
             <div className="flex gap-2 w-full md:w-auto overflow-x-auto">
-              {["TODOS", "Aguardando Aprovação", "Aprovado", "Recusado"].map((status) => (
+              {["TODOS", "Aprovado", "Recusado"].map((status) => (
                 <button
                   key={status}
                   onClick={() => setFilterStatus(status)}
@@ -1581,7 +1141,7 @@ export default function AdminDashboard() {
                       : "bg-slate-50 text-slate-500 hover:bg-slate-100"
                   }`}
                 >
-                  {status === "Aguardando Aprovação" ? "Pendentes" : status}
+                  {status}
                 </button>
               ))}
             </div>
@@ -1654,7 +1214,7 @@ export default function AdminDashboard() {
               </button>
             </div>
 
-            <div className="flex items-center gap-2 w-full lg:w-auto justify-end">
+            <div className="flex items-center gap-2 w-full lg:w-auto justify-end flex-wrap">
               <button
                 onClick={fetchSales}
                 className="text-xs bg-slate-50 text-slate-600 px-3 py-2 rounded-lg font-bold hover:bg-slate-100 flex items-center gap-2 border border-slate-200 w-full lg:w-auto justify-center"
@@ -1663,6 +1223,13 @@ export default function AdminDashboard() {
                 <Loader2 size={14} className={loading ? "animate-spin" : ""} />
                 Atualizar
               </button>
+
+              <Link
+                href="/admin/consulta-dias"
+                className="text-xs bg-indigo-50 text-indigo-700 px-3 py-2 rounded-lg font-bold hover:bg-indigo-100 flex items-center gap-2 border border-indigo-100 w-full lg:w-auto justify-center"
+              >
+                <CalendarRange size={14} /> Consulta Dias
+              </Link>
 
               <Link
                 href="/admin/alterarvalor"
@@ -1716,13 +1283,6 @@ export default function AdminDashboard() {
                 </button>
 
                 <button
-                  onClick={() => bulkUpdate("Aguardando Aprovação")}
-                  className="px-3 py-2 rounded-lg text-xs font-bold uppercase bg-white border border-slate-200 hover:bg-slate-100"
-                >
-                  Reabrir lote
-                </button>
-
-                <button
                   onClick={bulkDelete}
                   className="px-3 py-2 rounded-lg text-xs font-bold uppercase bg-slate-900 text-white hover:bg-black"
                 >
@@ -1740,7 +1300,6 @@ export default function AdminDashboard() {
           )}
         </div>
 
-        {/* Transações */}
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
           <div className="p-4 border-b border-slate-100 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -1766,7 +1325,6 @@ export default function AdminDashboard() {
                     <th className="px-6 py-4 min-w-[200px]">Cliente</th>
                     <th className="px-6 py-4 min-w-[220px]">Veículo</th>
                     <th className="px-6 py-4 text-center">Status</th>
-                    <th className="px-6 py-4 text-center min-w-[120px]">Prioridade</th>
                     <th className="px-6 py-4 text-right">Valor</th>
                     <th className="px-6 py-4 text-right">Ações</th>
                   </tr>
@@ -1774,9 +1332,9 @@ export default function AdminDashboard() {
 
                 <tbody className="divide-y divide-slate-100">
                   {filteredSales.map((sale) => {
-                    const pr = priorityLabel(sale);
                     const checked = selectedIds.has(sale.id);
                     const waDigits = toWhatsDigits(sale.client_phone);
+                    const sellerDisplayName = normalizeSellerDisplayName(sale);
 
                     return (
                       <tr
@@ -1816,7 +1374,7 @@ export default function AdminDashboard() {
                           <div className="flex flex-col">
                             <span className="font-bold text-slate-800">{sale.car_name}</span>
                             <span className="text-[9px] text-slate-400">
-                              Vendedor: {String(sale?.seller_name || "—")}
+                              Vendedor: {sellerDisplayName}
                             </span>
                             <span className="text-[9px] text-slate-400">
                               Criado: {new Date(sale.created_at).toLocaleDateString("pt-BR")}{" "}
@@ -1830,18 +1388,6 @@ export default function AdminDashboard() {
 
                         <td className="px-6 py-4 text-center">
                           <StatusBadge status={sale.status} />
-                        </td>
-
-                        <td className="px-6 py-4 text-center">
-                          {pr ? (
-                            <span
-                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide border ${pr.cls}`}
-                            >
-                              {pr.icon} {pr.label}
-                            </span>
-                          ) : (
-                            <span className="text-[10px] font-bold text-slate-300 uppercase">—</span>
-                          )}
                         </td>
 
                         <td className="px-6 py-4 text-right font-bold text-slate-800 text-sm">
@@ -1861,42 +1407,42 @@ export default function AdminDashboard() {
                               <Eye size={14} />
                             </button>
 
-                            {sale.status === "Aguardando Aprovação" && (
-                              <>
-                                <button
-                                  onClick={async (e) => {
-                                    e.stopPropagation();
-                                    if (!confirm("Aprovar este crédito?")) return;
-                                    await updateStatus(sale.id, "Aprovado");
-                                  }}
-                                  disabled={isUpdating === sale.id}
-                                  className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 hover:scale-110 transition-all border border-green-100"
-                                  title="Aprovar"
-                                >
-                                  {isUpdating === sale.id ? (
-                                    <Loader2 size={14} className="animate-spin" />
-                                  ) : (
-                                    <Check size={14} />
-                                  )}
-                                </button>
+                            {sale.status !== "Aprovado" && (
+                              <button
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  if (!confirm("Aprovar esta proposta?")) return;
+                                  await updateStatus(sale.id, "Aprovado");
+                                }}
+                                disabled={isUpdating === sale.id}
+                                className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 hover:scale-110 transition-all border border-green-100"
+                                title="Aprovar"
+                              >
+                                {isUpdating === sale.id ? (
+                                  <Loader2 size={14} className="animate-spin" />
+                                ) : (
+                                  <Check size={14} />
+                                )}
+                              </button>
+                            )}
 
-                                <button
-                                  onClick={async (e) => {
-                                    e.stopPropagation();
-                                    if (!confirm("Recusar esta proposta?")) return;
-                                    await updateStatus(sale.id, "Recusado");
-                                  }}
-                                  disabled={isUpdating === sale.id}
-                                  className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 hover:scale-110 transition-all border border-red-100"
-                                  title="Recusar"
-                                >
-                                  {isUpdating === sale.id ? (
-                                    <Loader2 size={14} className="animate-spin" />
-                                  ) : (
-                                    <XCircle size={14} />
-                                  )}
-                                </button>
-                              </>
+                            {sale.status !== "Recusado" && (
+                              <button
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  if (!confirm("Recusar esta proposta?")) return;
+                                  await updateStatus(sale.id, "Recusado");
+                                }}
+                                disabled={isUpdating === sale.id}
+                                className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 hover:scale-110 transition-all border border-red-100"
+                                title="Recusar"
+                              >
+                                {isUpdating === sale.id ? (
+                                  <Loader2 size={14} className="animate-spin" />
+                                ) : (
+                                  <XCircle size={14} />
+                                )}
+                              </button>
                             )}
 
                             <button

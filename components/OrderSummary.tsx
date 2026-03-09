@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
@@ -13,10 +13,11 @@ import {
   CheckCircle2,
   AlertCircle,
   ArrowRight,
+  UserRound,
 } from "lucide-react";
 
 /* =========================
-   HELPERS (à prova de bagunça)
+   HELPERS
 ========================= */
 const safePrice = (value: any): number => {
   if (typeof value === "number") return Number.isFinite(value) ? value : 0;
@@ -28,7 +29,6 @@ const safePrice = (value: any): number => {
   return 0;
 };
 
-// --- MÁSCARAS E HELPER FUNCTIONS ---
 const maskCPF = (value: string) => {
   return value
     .replace(/\D/g, "")
@@ -52,28 +52,45 @@ const formatCurrency = (val: number) => {
   }).format(val || 0);
 };
 
-// ======================================================
-// ✅ TELEFONE (BR) — agora com DDD + número completo
-// Formato na tela: "+55 (DD) 9XXXX-XXXX" ou "+55 (DD) XXXX-XXXX"
-// E164 (salvar/enviar): "55DD9XXXXXXXX" (somente dígitos)
-// ======================================================
+const normalizeSellerName = (value: string) =>
+  String(value || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase();
+
+const cleanText = (value: any) => String(value || "").trim().toLowerCase();
+
+/* =========================
+   SUPERVISORES
+========================= */
+const SUPERVISOR_EMAILS = [
+  "glauco@wbcnac.com",
+  "rafael@wbcnac.com",
+  "alexandre@wbcnac.com",
+  "marcelo@wbcnac.com",
+  "felipe@wbcnac.com",
+  "marcos@wbcnac.com",
+].map((s) => s.toLowerCase().trim());
+
+const isSupervisorEmail = (email?: string | null) =>
+  !!email && SUPERVISOR_EMAILS.includes(cleanText(email));
+
+/* =========================
+   TELEFONE BR
+========================= */
 const PHONE_PREFIX_DISPLAY = "+55 ";
-const DEFAULT_DDD = "91"; // fallback opcional se colarem sem DDD
+const DEFAULT_DDD = "91";
 
 const onlyDigits = (v: string) => String(v || "").replace(/\D/g, "");
 
-// retorna "55DDDNÚMERO" (só dígitos) a partir do input display
 const toE164Digits = (displayPhone: string) => {
   const digits = onlyDigits(displayPhone);
 
-  // se já veio com 55
   if (digits.startsWith("55")) {
     const national = digits.slice(2);
 
-    // se veio DDD+numero ok
     if (national.length === 10 || national.length === 11) return `55${national}`;
 
-    // se veio só número (8/9) depois do 55 (sem DDD), aplica fallback
     if ((national.length === 8 || national.length === 9) && DEFAULT_DDD) {
       return `55${DEFAULT_DDD}${national}`;
     }
@@ -81,11 +98,11 @@ const toE164Digits = (displayPhone: string) => {
     return null;
   }
 
-  // se veio sem 55: pode ser DDD+numero
   if (digits.length === 10 || digits.length === 11) return `55${digits}`;
 
-  // se veio só número (8/9), aplica fallback
-  if ((digits.length === 8 || digits.length === 9) && DEFAULT_DDD) return `55${DEFAULT_DDD}${digits}`;
+  if ((digits.length === 8 || digits.length === 9) && DEFAULT_DDD) {
+    return `55${DEFAULT_DDD}${digits}`;
+  }
 
   return null;
 };
@@ -104,37 +121,32 @@ export default function OrderSummary({
 
   const [paymentMethod] = useState("Análise de Crédito");
 
-  // Estados dos Campos
   const [clientName, setClientName] = useState("");
   const [clientCpf, setClientCpf] = useState("");
   const [clientEmail, setClientEmail] = useState("");
-
-  // ✅ começa só com o prefixo +55 (sem travar DDD)
+  const [sellerName, setSellerName] = useState("");
   const [clientPhone, setClientPhone] = useState(PHONE_PREFIX_DISPLAY);
 
-  // Estados de Controle
   const [loading, setLoading] = useState(false);
 
-  // Estado de Erros de Validação
   const [errors, setErrors] = useState({
     clientName: "",
     clientCpf: "",
     clientEmail: "",
     clientPhone: "",
+    sellerName: "",
   });
+
+  const sellerNamePreview = useMemo(() => normalizeSellerName(sellerName), [sellerName]);
 
   const handleCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setClientCpf(maskCPF(e.target.value));
     if (errors.clientCpf) setErrors({ ...errors, clientCpf: "" });
   };
 
-  // ✅ AGORA: permite digitar/colar DDD + número completo
-  // - mantém prefixo +55 sempre
-  // - mascara em "(DD) 9XXXX-XXXX" / "(DD) XXXXX-XXXX"
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const typed = e.target.value || "";
 
-    // Se o usuário apagar tudo
     if (typed.trim() === "" || typed === PHONE_PREFIX_DISPLAY) {
       setClientPhone(PHONE_PREFIX_DISPLAY);
       return;
@@ -142,10 +154,9 @@ export default function OrderSummary({
 
     let digits = typed.replace(/\D/g, "");
 
-    // Remove 55 se colarem junto
     if (digits.startsWith("55")) digits = digits.slice(2);
 
-    digits = digits.slice(0, 11); // DDD + 9
+    digits = digits.slice(0, 11);
 
     const ddd = digits.slice(0, 2);
     const num = digits.slice(2);
@@ -162,7 +173,13 @@ export default function OrderSummary({
   };
 
   const handleFinishOrder = async () => {
-    let newErrors = { clientName: "", clientCpf: "", clientEmail: "", clientPhone: "" };
+    let newErrors = {
+      clientName: "",
+      clientCpf: "",
+      clientEmail: "",
+      clientPhone: "",
+      sellerName: "",
+    };
     let hasError = false;
 
     if (!user) {
@@ -185,7 +202,11 @@ export default function OrderSummary({
       hasError = true;
     }
 
-    // ✅ valida E164 final (55 + DDD + número)
+    if (normalizeSellerName(sellerName).length < 3) {
+      newErrors.sellerName = "Informe o nome do vendedor que atendeu o cliente.";
+      hasError = true;
+    }
+
     const telefoneE164Digits = toE164Digits(clientPhone);
     if (!telefoneE164Digits) {
       newErrors.clientPhone = "Telefone inválido. Digite com DDD (ex: +55 (91) 9XXXX-XXXX).";
@@ -207,26 +228,48 @@ export default function OrderSummary({
       currentCar.model_name || currentCar.name || currentCar.model || `Veículo ID ${currentCar.id}`;
 
     try {
-      // ✅ telefone final (só dígitos) para DB + URL
-      const telefoneE164 = toE164Digits(clientPhone)!; // "55DDDNÚMERO"
+      const telefoneE164 = toE164Digits(clientPhone)!;
+      const normalizedSeller = normalizeSellerName(sellerName);
+
+      const loggedUserEmail = String(user?.email || "").trim().toLowerCase();
+      const loggedUserId = user?.id || null;
+      const userIsSupervisor = isSupervisorEmail(loggedUserEmail);
 
       const saleData = {
         car_id: currentCar.id,
         car_name: carNameResolved,
+
         seller_id: user.id,
-        client_name: clientName,
+        seller_name: normalizedSeller,
+
+        client_name: clientName.trim(),
         client_cpf: clientCpf,
-        client_email: clientEmail,
+        client_email: clientEmail.trim().toLowerCase(),
         client_phone: telefoneE164,
+
         total_price: totalPrice,
-        status: "Enviado para Análise",
-        interest_type: "Pendente (Aba Análise)",
+        status: "Aprovado",
+        interest_type: paymentMethod,
+
         details: {
           color: selectedColor?.name || "Padrão",
           wheels: selectedWheel?.name || "Padrão",
           seats: selectedSeatType?.name || "Padrão",
           accessories: (selectedAccessoriesList || []).map((a: any) => a?.name).filter(Boolean),
+
+          vendedor_digitado: normalizedSeller,
+          vendedor_usuario_logado_id: loggedUserId,
+          vendedor_usuario_logado_email: loggedUserEmail || null,
+
+          approved_by_email: userIsSupervisor ? loggedUserEmail : null,
+          approved_by_name: userIsSupervisor ? loggedUserEmail : "Sistema",
+          approved_by_id: userIsSupervisor ? loggedUserId : null,
         },
+
+        approved_at: new Date().toISOString(),
+        approved_by_id: userIsSupervisor ? loggedUserId : null,
+        approved_by_name: userIsSupervisor ? loggedUserEmail : "Sistema",
+
         created_at: new Date().toISOString(),
       };
 
@@ -234,9 +277,14 @@ export default function OrderSummary({
       if (error) throw error;
 
       const query = new URLSearchParams({
-        nome: clientName,
+        nome: clientName.trim(),
         cpf: clientCpf,
-        telefone: telefoneE164, // ✅ envia sempre "55DDDNÚMERO"
+        email: clientEmail.trim().toLowerCase(),
+        telefone: telefoneE164,
+        vendedor: normalizedSeller,
+        vendedor_id: user?.id || "",
+        vendedor_email: loggedUserEmail || "",
+        supervisor_email: userIsSupervisor ? loggedUserEmail : "",
         modelo: carNameResolved,
         valor: totalPrice.toString(),
         entrada: "0",
@@ -254,7 +302,6 @@ export default function OrderSummary({
 
   return (
     <div className="w-full bg-white font-sans text-[#1a1a1a]">
-      {/* HEADER */}
       <div className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm flex-none">
         <div className="max-w-[1400px] mx-auto px-6 h-20 flex items-center justify-between">
           <h1 className="text-3xl font-light tracking-tight">
@@ -267,9 +314,7 @@ export default function OrderSummary({
         </div>
       </div>
 
-      {/* CONTEÚDO PRINCIPAL */}
       <main className="w-full pb-20">
-        {/* HERO IMAGE */}
         <div className="bg-[#f2f2f2] w-full py-12 flex justify-center items-center mb-12">
           <div className="max-w-[1200px] w-full aspect-[21/9] relative">
             <img
@@ -281,7 +326,6 @@ export default function OrderSummary({
         </div>
 
         <div className="max-w-[1200px] mx-auto px-6">
-          {/* RESUMO */}
           <section className="mb-16 border-b border-gray-200 pb-12">
             <div className="flex justify-between items-baseline mb-8 border-b border-gray-200 pb-4">
               <h2 className="text-3xl font-normal">Resumo</h2>
@@ -294,7 +338,6 @@ export default function OrderSummary({
             </div>
 
             <div className="space-y-0">
-              {/* VERSÃO */}
               <div className="grid grid-cols-1 md:grid-cols-4 py-8 border-b border-gray-200">
                 <div className="text-lg font-normal mb-4 md:mb-0">Versões</div>
                 <div className="md:col-span-3">
@@ -309,11 +352,9 @@ export default function OrderSummary({
                 </div>
               </div>
 
-              {/* EXTERIOR / ITENS */}
               <div className="grid grid-cols-1 md:grid-cols-4 py-8 border-b border-gray-200">
                 <div className="text-lg font-normal mb-4 md:mb-0">Exterior</div>
                 <div className="md:col-span-3 space-y-8">
-                  {/* COR */}
                   {selectedColor && (
                     <div className="flex items-center gap-6">
                       <div
@@ -331,7 +372,6 @@ export default function OrderSummary({
                     </div>
                   )}
 
-                  {/* RODAS */}
                   {selectedWheel && (
                     <div className="flex items-center gap-6">
                       <div className="w-16 h-16 bg-gray-100 rounded-full border border-gray-200 overflow-hidden flex items-center justify-center">
@@ -352,7 +392,6 @@ export default function OrderSummary({
                     </div>
                   )}
 
-                  {/* ✅ ACESSÓRIOS (AGORA APARECEM NO RESUMO) */}
                   {Array.isArray(selectedAccessoriesList) && selectedAccessoriesList.length > 0 && (
                     <div className="border-t border-gray-200 pt-6 space-y-6">
                       <p className="text-sm uppercase tracking-wide text-gray-500 font-semibold">
@@ -393,7 +432,6 @@ export default function OrderSummary({
                 </div>
               </div>
 
-              {/* TOTAL */}
               <div className="grid grid-cols-1 md:grid-cols-4 py-8 border-b border-gray-200">
                 <div className="text-lg font-normal mb-4 md:mb-0">Total</div>
                 <div className="md:col-span-3">
@@ -405,15 +443,13 @@ export default function OrderSummary({
             </div>
           </section>
 
-          {/* DADOS DO CLIENTE */}
           <section className="pt-10 border-t border-gray-200">
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
               <div className="lg:col-span-1">
                 <h3 className="text-2xl font-normal text-gray-900 mb-4">Finalização</h3>
                 <p className="text-sm text-gray-500">
                   O próximo passo enviará este veículo configurado para o módulo de{" "}
-                  <strong>Análise de Crédito</strong>, onde você poderá calcular as parcelas de
-                  Financiamento ou Consórcio.
+                  <strong>Análise de Crédito</strong>.
                 </p>
               </div>
 
@@ -436,7 +472,6 @@ export default function OrderSummary({
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 gap-10">
-                    {/* FORMULÁRIO */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white p-2">
                       <div className="md:col-span-2">
                         <h4 className="text-lg font-medium mb-4 pb-2 border-b border-gray-100">
@@ -454,13 +489,11 @@ export default function OrderSummary({
                             setClientName(e.target.value);
                             if (errors.clientName) setErrors({ ...errors, clientName: "" });
                           }}
-                          className={`w-full h-12 px-4 border rounded focus:outline-none transition-all text-sm
-                            ${
-                              errors.clientName
-                                ? "border-red-500 bg-red-50"
-                                : "border-gray-300 focus:border-black bg-white"
-                            }
-                          `}
+                          className={`w-full h-12 px-4 border rounded focus:outline-none transition-all text-sm ${
+                            errors.clientName
+                              ? "border-red-500 bg-red-50"
+                              : "border-gray-300 focus:border-black bg-white"
+                          }`}
                           placeholder="Digite o nome completo"
                         />
                         {errors.clientName && (
@@ -478,13 +511,11 @@ export default function OrderSummary({
                           value={clientCpf}
                           onChange={handleCpfChange}
                           maxLength={14}
-                          className={`w-full h-12 px-4 border rounded focus:outline-none transition-all text-sm
-                            ${
-                              errors.clientCpf
-                                ? "border-red-500 bg-red-50"
-                                : "border-gray-300 focus:border-black bg-white"
-                            }
-                          `}
+                          className={`w-full h-12 px-4 border rounded focus:outline-none transition-all text-sm ${
+                            errors.clientCpf
+                              ? "border-red-500 bg-red-50"
+                              : "border-gray-300 focus:border-black bg-white"
+                          }`}
                           placeholder="000.000.000-00"
                         />
                         {errors.clientCpf && (
@@ -504,13 +535,11 @@ export default function OrderSummary({
                             setClientEmail(e.target.value);
                             if (errors.clientEmail) setErrors({ ...errors, clientEmail: "" });
                           }}
-                          className={`w-full h-12 px-4 border rounded focus:outline-none transition-all text-sm
-                            ${
-                              errors.clientEmail
-                                ? "border-red-500 bg-red-50"
-                                : "border-gray-300 focus:border-black bg-white"
-                            }
-                          `}
+                          className={`w-full h-12 px-4 border rounded focus:outline-none transition-all text-sm ${
+                            errors.clientEmail
+                              ? "border-red-500 bg-red-50"
+                              : "border-gray-300 focus:border-black bg-white"
+                          }`}
                           placeholder="exemplo@email.com"
                         />
                         {errors.clientEmail && (
@@ -527,14 +556,12 @@ export default function OrderSummary({
                         <input
                           value={clientPhone}
                           onChange={handlePhoneChange}
-                          maxLength={PHONE_PREFIX_DISPLAY.length + 16} // "+55 (DD) 9XXXX-XXXX"
-                          className={`w-full h-12 px-4 border rounded focus:outline-none transition-all text-sm
-                            ${
-                              errors.clientPhone
-                                ? "border-red-500 bg-red-50"
-                                : "border-gray-300 focus:border-black bg-white"
-                            }
-                          `}
+                          maxLength={PHONE_PREFIX_DISPLAY.length + 16}
+                          className={`w-full h-12 px-4 border rounded focus:outline-none transition-all text-sm ${
+                            errors.clientPhone
+                              ? "border-red-500 bg-red-50"
+                              : "border-gray-300 focus:border-black bg-white"
+                          }`}
                           placeholder="+55 (91) 9XXXX-XXXX"
                         />
                         {errors.clientPhone && (
@@ -543,13 +570,49 @@ export default function OrderSummary({
                           </p>
                         )}
                         <p className="text-[11px] text-gray-400 mt-1">
-                          Dica: digite assim:{" "}
-                          <span className="font-mono">91 9XXXX XXXX</span> (o campo formata sozinho)
+                          Dica: digite assim: <span className="font-mono">91 9XXXX XXXX</span>
                         </p>
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                          Vendedor <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <UserRound
+                            size={16}
+                            className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+                          />
+                          <input
+                            value={sellerName}
+                            onChange={(e) => {
+                              setSellerName(e.target.value);
+                              if (errors.sellerName) setErrors({ ...errors, sellerName: "" });
+                            }}
+                            className={`w-full h-12 pl-11 pr-4 border rounded focus:outline-none transition-all text-sm ${
+                              errors.sellerName
+                                ? "border-red-500 bg-red-50"
+                                : "border-gray-300 focus:border-black bg-white"
+                            }`}
+                            placeholder="Ex: JOÃO SILVA"
+                          />
+                        </div>
+
+                        {errors.sellerName && (
+                          <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                            <AlertCircle size={10} /> {errors.sellerName}
+                          </p>
+                        )}
+
+                        <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+                          <span className="text-gray-400">Prévia salva:</span>
+                          <span className="px-2 py-1 rounded bg-gray-100 border border-gray-200 font-bold text-gray-700 uppercase">
+                            {sellerNamePreview || "—"}
+                          </span>
+                        </div>
                       </div>
                     </div>
 
-                    {/* SEÇÃO INFORMATIVA */}
                     <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
                       <h4 className="text-sm font-bold text-gray-700 uppercase mb-4 flex items-center gap-2">
                         <CheckCircle2 size={16} className="text-green-600" /> Próxima Etapa: Crédito

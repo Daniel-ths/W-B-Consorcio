@@ -25,17 +25,22 @@ import {
   Wallet,
   Banknote,
   CheckCircle2,
+  UserRound,
 } from "lucide-react";
 
 /**
- * Blazer EV RS — Landing + FINALIZAÇÃO NO FINAL (mesma lógica que você usou na Captiva)
+ * Blazer EV RS — Landing + FINALIZAÇÃO NO FINAL
  * ✅ Todos CTAs rolam pro final
  * ✅ Se logado: salva em sales e abre /vendedor/analise com query
  * ✅ Se não logado: bloqueia e mostra botão login
+ * ✅ Agora grava:
+ *   - seller_name = vendedor digitado
+ *   - details.vendedor_digitado
+ *   - approved_by_name = email do supervisor logado (se for supervisor)
  */
 
 // =========================
-// CONFIG (edite aqui)
+// CONFIG
 // =========================
 const CONFIG = {
   ano: "2024",
@@ -45,7 +50,6 @@ const CONFIG = {
   ctaHero: "Simular agora",
   ctaSecondary: "Solicitar contato",
 
-  // faixa preta (4 números)
   stats: [
     { value: "481", unit: "km", label: "de autonomia", icon: <BatteryCharging size={18} /> },
     { value: "~40", unit: "min", label: "até 80% da carga", icon: <PlugZap size={18} /> },
@@ -68,7 +72,6 @@ const CONFIG = {
   sectionText:
     "O Blazer EV RS combina design marcante, tecnologia e uma condução silenciosa com torque imediato. Ideal para quem quer um elétrico moderno sem complicação no dia a dia.",
 
-  // Galeria mosaico
   gallery: [
     "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/eletricos/22/galeria-05.avif",
     "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/eletricos/22/galeria-01.avif",
@@ -78,7 +81,6 @@ const CONFIG = {
     "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/eletricos/22/galeria-06.avif",
   ],
 
-  // ======= EXTERIOR (cores + imagem por cor) =======
   exterior: {
     trimLabel: "RS",
     headline: "Esportivo e 100% elétrico",
@@ -106,7 +108,6 @@ const CONFIG = {
     ],
   },
 
-  // ======= INTERIOR (cores + imagens em carousel por cor) =======
   interior: {
     trimLabel: "RS",
     colors: [
@@ -121,16 +122,12 @@ const CONFIG = {
     ],
   },
 
-  // ======= bloco inferior (benefícios) =======
   benefits: [
     { icon: <CarFront size={18} />, title: "Simulação rápida", desc: "consórcio ou financiamento" },
     { icon: <Wrench size={18} />, title: "Atendimento humano", desc: "sem complicação" },
     { icon: <FileText size={18} />, title: "Documentação orientada", desc: "do início ao fim" },
     { icon: <ShieldCheck size={18} />, title: "Transparência", desc: "condições claras" },
   ],
-
-  // (opcional) se quiser preço real pra gravar no sale + entrada 30%
-  // preco: 0,
 };
 
 // =========================
@@ -146,37 +143,58 @@ const maskCPF = (value: string) =>
 
 const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-// telefone fixo +55 
+const normalizeSellerName = (value: string) =>
+  String(value || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase();
+
+const cleanText = (value: any) => String(value || "").trim().toLowerCase();
+
+const SUPERVISOR_EMAILS = [
+  "glauco@wbcnac.com",
+  "rafael@wbcnac.com",
+  "alexandre@wbcnac.com",
+  "marcelo@wbcnac.com",
+  "felipe@wbcnac.com",
+  "marcos@wbcnac.com",
+].map((s) => s.toLowerCase().trim());
+
+const isSupervisorEmail = (email?: string | null) =>
+  !!email && SUPERVISOR_EMAILS.includes(cleanText(email));
+
 const PHONE_PREFIX_DISPLAY = "+55 ";
-const PHONE_PREFIX_E164 = "+55";
+const DEFAULT_DDD = "91";
 
-const maskPhoneAfterPrefix = (value: string) => {
-  const digits = value.replace(/\D/g, "").slice(0, 9);
-  if (!digits) return "";
-  if (digits.length <= 1) return digits;
-  if (digits.length <= 5) return `${digits.slice(0, 1)}${digits.slice(1)}`;
-  return `${digits.slice(0, 1)}${digits.slice(1, 5)}-${digits.slice(5)}`;
-};
+const onlyDigits = (v: string) => String(v || "").replace(/\D/g, "");
 
-const getPhoneDigitsAfterPrefix = (fullValue: string) => {
-  const digits = fullValue.replace(/\D/g, "");
-  if (digits.startsWith("5591")) return digits.slice(4).slice(0, 9);
-  return digits.slice(0, 9);
+const toE164Digits = (displayPhone: string) => {
+  const digits = onlyDigits(displayPhone);
+
+  if (digits.startsWith("55")) {
+    const national = digits.slice(2);
+
+    if (national.length === 10 || national.length === 11) return `55${national}`;
+
+    if ((national.length === 8 || national.length === 9) && DEFAULT_DDD) {
+      return `55${DEFAULT_DDD}${national}`;
+    }
+
+    return null;
+  }
+
+  if (digits.length === 10 || digits.length === 11) return `55${digits}`;
+
+  if ((digits.length === 8 || digits.length === 9) && DEFAULT_DDD) {
+    return `55${DEFAULT_DDD}${digits}`;
+  }
+
+  return null;
 };
 
 // =========================
 // helpers (análise)
 // =========================
-function buildAnaliseUrl() {
-  const params = new URLSearchParams({
-    modelo: CONFIG.titulo,
-    valor: "0",
-    entrada: "0",
-    imagem: CONFIG.heroImage,
-  });
-  return `/vendedor/analise?${params.toString()}`;
-}
-
 type TabKey = "exterior" | "interior";
 
 export default function BlazerEVRSPage() {
@@ -191,6 +209,7 @@ export default function BlazerEVRSPage() {
   const [clientName, setClientName] = useState("");
   const [clientCpf, setClientCpf] = useState("");
   const [clientEmail, setClientEmail] = useState("");
+  const [sellerName, setSellerName] = useState("");
   const [clientPhone, setClientPhone] = useState(PHONE_PREFIX_DISPLAY);
 
   const [loading, setLoading] = useState(false);
@@ -200,7 +219,10 @@ export default function BlazerEVRSPage() {
     clientCpf: "",
     clientEmail: "",
     clientPhone: "",
+    sellerName: "",
   });
+
+  const sellerNamePreview = useMemo(() => normalizeSellerName(sellerName), [sellerName]);
 
   const scrollToId = (id: string) => {
     const el = document.getElementById(id);
@@ -239,35 +261,34 @@ export default function BlazerEVRSPage() {
     if (errors.clientCpf) setErrors({ ...errors, clientCpf: "" });
   };
 
-const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  const typed = e.target.value || "";
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const typed = e.target.value || "";
 
-  // Se o usuário apagar tudo
-  if (typed.trim() === "" || typed === PHONE_PREFIX_DISPLAY) {
-    setClientPhone(PHONE_PREFIX_DISPLAY);
-    return;
-  }
+    if (typed.trim() === "" || typed === PHONE_PREFIX_DISPLAY) {
+      setClientPhone(PHONE_PREFIX_DISPLAY);
+      return;
+    }
 
-  let digits = typed.replace(/\D/g, "");
+    let digits = typed.replace(/\D/g, "");
 
-  // Remove 55 se colarem junto
-  if (digits.startsWith("55")) digits = digits.slice(2);
+    if (digits.startsWith("55")) digits = digits.slice(2);
 
-  digits = digits.slice(0, 11); // DDD + 9
+    digits = digits.slice(0, 11);
 
-  const ddd = digits.slice(0, 2);
-  const num = digits.slice(2);
+    const ddd = digits.slice(0, 2);
+    const num = digits.slice(2);
 
-  let formatted = "";
+    let formatted = "";
 
-  if (digits.length <= 2) formatted = `(${ddd}`;
-  else if (num.length <= 5) formatted = `(${ddd}) ${num}`;
-  else formatted = `(${ddd}) ${num.slice(0, 5)}-${num.slice(5)}`;
+    if (digits.length <= 2) formatted = `(${ddd}`;
+    else if (num.length <= 5) formatted = `(${ddd}) ${num}`;
+    else formatted = `(${ddd}) ${num.slice(0, 5)}-${num.slice(5)}`;
 
-  setClientPhone(PHONE_PREFIX_DISPLAY + formatted);
-};
+    setClientPhone(PHONE_PREFIX_DISPLAY + formatted);
 
-  // ✅ CTAs rolam pro final (igual sua Captiva)
+    if (errors.clientPhone) setErrors({ ...errors, clientPhone: "" });
+  };
+
   const goPrimary = () => scrollToId(orderSectionId);
 
   // =========================
@@ -356,7 +377,13 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
   const closeLightbox = () => setLightboxOpen(false);
 
   const handleFinishOrder = async () => {
-    let newErrors = { clientName: "", clientCpf: "", clientEmail: "", clientPhone: "" };
+    let newErrors = {
+      clientName: "",
+      clientCpf: "",
+      clientEmail: "",
+      clientPhone: "",
+      sellerName: "",
+    };
     let hasError = false;
 
     if (authLoading) return;
@@ -381,10 +408,21 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       hasError = true;
     }
 
-    const phoneDigits = getPhoneDigitsAfterPrefix(clientPhone);
-    if (phoneDigits.length < 9) {
-      newErrors.clientPhone = "Telefone obrigatório (digite os 9 dígitos após o 9).";
+    if (normalizeSellerName(sellerName).length < 3) {
+      newErrors.sellerName = "Informe o nome do vendedor que atendeu o cliente.";
       hasError = true;
+    }
+
+    const telefoneE164Digits = toE164Digits(clientPhone);
+    if (!telefoneE164Digits) {
+      newErrors.clientPhone = "Telefone inválido. Digite com DDD.";
+      hasError = true;
+    } else {
+      const national = telefoneE164Digits.slice(2);
+      if (national.length !== 10 && national.length !== 11) {
+        newErrors.clientPhone = "Telefone incompleto. Informe DDD + número.";
+        hasError = true;
+      }
     }
 
     setErrors(newErrors);
@@ -393,39 +431,64 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setLoading(true);
 
     try {
-      const telefoneE164 = `${PHONE_PREFIX_E164}${getPhoneDigitsAfterPrefix(clientPhone)}`;
+      const telefoneE164 = toE164Digits(clientPhone)!;
+      const normalizedSeller = normalizeSellerName(sellerName);
 
-      // aqui não tem preço definido, então vai 0 (igual seu buildAnaliseUrl)
-      const valor = 0;
-      const entrada = 0;
+      const loggedUserEmail = String(user?.email || "").trim().toLowerCase();
+      const loggedUserId = user?.id || null;
+      const userIsSupervisor = isSupervisorEmail(loggedUserEmail);
 
       const saleData = {
         car_id: `landing-${CONFIG.titulo.toLowerCase().replace(/\s+/g, "-")}`,
         car_name: CONFIG.titulo,
+
         seller_id: user.id,
-        client_name: clientName,
+        seller_name: normalizedSeller,
+
+        client_name: clientName.trim(),
         client_cpf: clientCpf,
-        client_email: clientEmail,
+        client_email: clientEmail.trim().toLowerCase(),
         client_phone: telefoneE164,
-        total_price: valor,
-        status: "Enviado para Análise",
-        interest_type: "Pendente (Aba Análise)",
+
+        total_price: 0,
+        status: "Aprovado",
+        interest_type: "Análise de Crédito",
+
         details: {
           exterior_color: CONFIG.exterior.colors[selectedExterior]?.name || "Padrão",
           interior_color: CONFIG.interior.colors[selectedInterior]?.name || "Padrão",
+
+          vendedor_digitado: normalizedSeller,
+          vendedor_usuario_logado_id: loggedUserId,
+          vendedor_usuario_logado_email: loggedUserEmail || null,
+
+          approved_by_email: userIsSupervisor ? loggedUserEmail : null,
+          approved_by_name: userIsSupervisor ? loggedUserEmail : "Sistema",
+          approved_by_id: userIsSupervisor ? loggedUserId : null,
         },
+
+        approved_at: new Date().toISOString(),
+        approved_by_id: userIsSupervisor ? loggedUserId : null,
+        approved_by_name: userIsSupervisor ? loggedUserEmail : "Sistema",
+
         created_at: new Date().toISOString(),
       };
 
-      await supabase.from("sales").insert([saleData]);
+      const { error } = await supabase.from("sales").insert([saleData]);
+      if (error) throw error;
 
       const query = new URLSearchParams({
-        nome: clientName,
+        nome: clientName.trim(),
         cpf: clientCpf,
+        email: clientEmail.trim().toLowerCase(),
         telefone: telefoneE164,
+        vendedor: normalizedSeller,
+        vendedor_id: user?.id || "",
+        vendedor_email: loggedUserEmail || "",
+        supervisor_email: userIsSupervisor ? loggedUserEmail : "",
         modelo: CONFIG.titulo,
-        valor: String(valor),
-        entrada: String(entrada),
+        valor: "0",
+        entrada: "0",
         renda: "0",
         imagem: CONFIG.heroImage,
       }).toString();
@@ -440,7 +503,6 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 
   return (
     <div className="min-h-screen bg-white text-gray-900">
-      {/* TOP */}
       <header className="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-gray-200">
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 h-14 flex items-center justify-between">
           <Link
@@ -459,7 +521,6 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         </div>
       </header>
 
-      {/* HERO */}
       <section className="relative">
         <div className="relative w-full h-[520px] md:h-[640px] overflow-hidden">
           <img src={CONFIG.heroImage} alt={CONFIG.titulo} className="w-full h-full object-cover" />
@@ -481,7 +542,6 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
           </div>
         </div>
 
-        {/* FAIXA PRETA */}
         <div className="bg-[#151515] text-white">
           <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-10">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-10">
@@ -506,23 +566,27 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         </div>
       </section>
 
-      {/* SEÇÃO IMAGEM + TEXTO */}
       <section className="bg-[#151515] text-white">
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-14">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
             <div className="rounded-none overflow-hidden bg-black/30">
-              <img src={CONFIG.sectionImage} alt="Detalhe" className="w-full h-[320px] md:h-[420px] object-cover" />
+              <img
+                src={CONFIG.sectionImage}
+                alt="Detalhe"
+                className="w-full h-[320px] md:h-[420px] object-cover"
+              />
             </div>
 
             <div className="max-w-xl">
               <h2 className="text-2xl md:text-3xl font-black leading-tight">{CONFIG.sectionTitle}</h2>
-              <p className="mt-4 text-sm md:text-base text-white/75 leading-relaxed">{CONFIG.sectionText}</p>
+              <p className="mt-4 text-sm md:text-base text-white/75 leading-relaxed">
+                {CONFIG.sectionText}
+              </p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* GALERIA MOSAICO */}
       <section className="bg-white">
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-14">
           <p className="text-sm text-gray-500">Galeria</p>
@@ -566,11 +630,12 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         </div>
       </section>
 
-      {/* CONFIGURADOR */}
       <section className="bg-white border-t border-gray-200">
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-16">
           <p className="text-center text-sm text-gray-500">{CONFIG.titulo}</p>
-          <h3 className="text-center text-3xl md:text-4xl font-black tracking-tight mt-2">{CONFIG.exterior.headline}</h3>
+          <h3 className="text-center text-3xl md:text-4xl font-black tracking-tight mt-2">
+            {CONFIG.exterior.headline}
+          </h3>
 
           <div className="mt-10 grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
             <div className="flex justify-center">
@@ -582,7 +647,9 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                     className={[
                       "w-full transition-all duration-300 ease-out will-change-transform",
                       isImgSwitching ? "opacity-0 scale-[0.985]" : "opacity-100 scale-100",
-                      tab === "exterior" ? "h-[360px] md:h-[420px] object-contain p-6" : "h-[360px] md:h-[420px] object-cover",
+                      tab === "exterior"
+                        ? "h-[360px] md:h-[420px] object-contain p-6"
+                        : "h-[360px] md:h-[420px] object-cover",
                     ].join(" ")}
                   />
 
@@ -623,7 +690,9 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                   onClick={() => handleTab("exterior")}
                   className={[
                     "text-sm font-black pb-2 transition-colors",
-                    tab === "exterior" ? "text-[#0b4b9a] border-b-2 border-[#0b4b9a]" : "text-gray-600 hover:text-gray-900",
+                    tab === "exterior"
+                      ? "text-[#0b4b9a] border-b-2 border-[#0b4b9a]"
+                      : "text-gray-600 hover:text-gray-900",
                   ].join(" ")}
                 >
                   Exterior
@@ -633,7 +702,9 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                   onClick={() => handleTab("interior")}
                   className={[
                     "text-sm font-black pb-2 transition-colors",
-                    tab === "interior" ? "text-[#0b4b9a] border-b-2 border-[#0b4b9a]" : "text-gray-600 hover:text-gray-900",
+                    tab === "interior"
+                      ? "text-[#0b4b9a] border-b-2 border-[#0b4b9a]"
+                      : "text-gray-600 hover:text-gray-900",
                   ].join(" ")}
                 >
                   Interior
@@ -642,9 +713,13 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 
               {tab === "exterior" ? (
                 <div className="mt-5">
-                  <p className="text-xs font-black uppercase tracking-widest text-gray-500">{CONFIG.exterior.trimLabel}</p>
+                  <p className="text-xs font-black uppercase tracking-widest text-gray-500">
+                    {CONFIG.exterior.trimLabel}
+                  </p>
 
-                  <p className="mt-2 text-sm font-black text-gray-900">{CONFIG.exterior.colors[selectedExterior]?.name ?? "Cor"}</p>
+                  <p className="mt-2 text-sm font-black text-gray-900">
+                    {CONFIG.exterior.colors[selectedExterior]?.name ?? "Cor"}
+                  </p>
 
                   <div className="mt-4 flex items-center gap-3">
                     {CONFIG.exterior.colors.map((c, idx) => (
@@ -653,7 +728,9 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                         onClick={() => handleSelectExterior(idx)}
                         className={[
                           "w-10 h-10 rounded-full border transition-all p-1",
-                          idx === selectedExterior ? "border-[#0b4b9a] ring-2 ring-[#0b4b9a]/20" : "border-gray-200 hover:border-gray-300",
+                          idx === selectedExterior
+                            ? "border-[#0b4b9a] ring-2 ring-[#0b4b9a]/20"
+                            : "border-gray-200 hover:border-gray-300",
                         ].join(" ")}
                         title={c.name}
                         aria-label={c.name}
@@ -673,15 +750,20 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                   <div className="mt-6 flex items-start gap-3 text-sm text-gray-600">
                     <ChevronDown size={18} className="mt-0.5 text-gray-400" />
                     <p>
-                      Clique em <span className="font-black">Solicitar contato</span> para iniciar a simulação de consórcio/financiamento.
+                      Clique em <span className="font-black">Solicitar contato</span> para iniciar a
+                      simulação de consórcio/financiamento.
                     </p>
                   </div>
                 </div>
               ) : (
                 <div className="mt-5">
-                  <p className="text-xs font-black uppercase tracking-widest text-gray-500">{CONFIG.interior.trimLabel}</p>
+                  <p className="text-xs font-black uppercase tracking-widest text-gray-500">
+                    {CONFIG.interior.trimLabel}
+                  </p>
 
-                  <p className="mt-2 text-sm font-black text-gray-900">{CONFIG.interior.colors[selectedInterior]?.name ?? "Interior"}</p>
+                  <p className="mt-2 text-sm font-black text-gray-900">
+                    {CONFIG.interior.colors[selectedInterior]?.name ?? "Interior"}
+                  </p>
 
                   <div className="mt-4 flex items-center gap-3">
                     {CONFIG.interior.colors.map((c, idx) => (
@@ -690,7 +772,9 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                         onClick={() => handleSelectInterior(idx)}
                         className={[
                           "w-10 h-10 rounded-full border transition-all p-1",
-                          idx === selectedInterior ? "border-[#0b4b9a] ring-2 ring-[#0b4b9a]/20" : "border-gray-200 hover:border-gray-300",
+                          idx === selectedInterior
+                            ? "border-[#0b4b9a] ring-2 ring-[#0b4b9a]/20"
+                            : "border-gray-200 hover:border-gray-300",
                         ].join(" ")}
                         title={c.name}
                         aria-label={c.name}
@@ -715,7 +799,10 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 
                   <div className="mt-6 flex items-start gap-3 text-sm text-gray-600">
                     <ChevronDown size={18} className="mt-0.5 text-gray-400" />
-                    <p>Você pode trocar o interior e navegar nas fotos pelas setas (quando houver mais de uma imagem).</p>
+                    <p>
+                      Você pode trocar o interior e navegar nas fotos pelas setas (quando houver mais
+                      de uma imagem).
+                    </p>
                   </div>
                 </div>
               )}
@@ -724,13 +811,14 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         </div>
       </section>
 
-      {/* ANTES DO FOOTER */}
       <section className="bg-white text-gray-900 border-t border-gray-200">
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-14">
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
             <div>
               <p className="text-sm font-black">Chevrolet {CONFIG.titulo}</p>
-              <p className="text-gray-500 text-sm mt-1">Consórcio ou financiamento • atendimento rápido</p>
+              <p className="text-gray-500 text-sm mt-1">
+                Consórcio ou financiamento • atendimento rápido
+              </p>
             </div>
 
             <button
@@ -755,22 +843,25 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 
           <div className="mt-10 text-xs text-gray-400">
             <p>
-              <span className="font-black text-gray-600">Aviso:</span> informações e imagens podem variar por versão/ano-modelo. Sujeito a análise.
+              <span className="font-black text-gray-600">Aviso:</span> informações e imagens podem
+              variar por versão/ano-modelo. Sujeito a análise.
             </p>
           </div>
         </div>
       </section>
 
-      {/* ================= FINALIZAÇÃO NO FINAL ================= */}
       <section id={orderSectionId} className="py-20 px-4 md:px-10 bg-white border-t border-gray-200">
         <div className="max-w-[1400px] mx-auto">
           <div className="mb-10">
-            <p className="text-[10px] font-black uppercase tracking-[0.35em] text-black/70 mb-3">Finalização</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.35em] text-black/70 mb-3">
+              Finalização
+            </p>
             <h2 className="text-3xl md:text-5xl font-black tracking-tight text-black">
               Iniciar proposta com <span className="text-black/60">dados do cliente</span>
             </h2>
             <p className="text-sm text-black/60 mt-3 max-w-3xl">
-              Preencha os dados do cliente para enviar para o módulo de <strong>Análise de Crédito</strong>. *Somente vendedores logados conseguem avançar.
+              Preencha os dados do cliente para enviar para o módulo de{" "}
+              <strong>Análise de Crédito</strong>. *Somente vendedores logados conseguem avançar.
             </p>
           </div>
 
@@ -780,15 +871,22 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                 <Lock className="text-gray-500" size={32} />
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-2">Funcionalidade Restrita</h3>
-              <p className="text-gray-500 mb-6 max-w-md">A finalização de propostas é exclusiva para vendedores logados.</p>
-              <Link href="/login" className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors">
+              <p className="text-gray-500 mb-6 max-w-md">
+                A finalização de propostas é exclusiva para vendedores logados.
+              </p>
+              <Link
+                href="/login"
+                className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors"
+              >
                 Fazer Login de Vendedor
               </Link>
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-6">
-                <h4 className="text-lg font-semibold text-gray-900 mb-6 pb-3 border-b border-gray-200">Informações do Cliente</h4>
+                <h4 className="text-lg font-semibold text-gray-900 mb-6 pb-3 border-b border-gray-200">
+                  Informações do Cliente
+                </h4>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div>
@@ -801,9 +899,11 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                         setClientName(e.target.value);
                         if (errors.clientName) setErrors({ ...errors, clientName: "" });
                       }}
-                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
-                        ${errors.clientName ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
-                      `}
+                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400 ${
+                        errors.clientName
+                          ? "border-red-500 bg-red-50"
+                          : "border-gray-300 focus:border-black bg-white"
+                      }`}
                       placeholder="Digite o nome completo"
                     />
                     {errors.clientName && (
@@ -819,11 +919,13 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                     </label>
                     <input
                       value={clientCpf}
-                      onChange={(e) => handleCpfChange(e as any)}
+                      onChange={(e) => handleCpfChange(e)}
                       maxLength={14}
-                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
-                        ${errors.clientCpf ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
-                      `}
+                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400 ${
+                        errors.clientCpf
+                          ? "border-red-500 bg-red-50"
+                          : "border-gray-300 focus:border-black bg-white"
+                      }`}
                       placeholder="000.000.000-00"
                     />
                     {errors.clientCpf && (
@@ -843,9 +945,11 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                         setClientEmail(e.target.value);
                         if (errors.clientEmail) setErrors({ ...errors, clientEmail: "" });
                       }}
-                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
-                        ${errors.clientEmail ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
-                      `}
+                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400 ${
+                        errors.clientEmail
+                          ? "border-red-500 bg-red-50"
+                          : "border-gray-300 focus:border-black bg-white"
+                      }`}
                       placeholder="exemplo@email.com"
                     />
                     {errors.clientEmail && (
@@ -862,17 +966,60 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                     <input
                       value={clientPhone}
                       onChange={handlePhoneChange}
-                      maxLength={PHONE_PREFIX_DISPLAY.length + 10}
-                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
-                        ${errors.clientPhone ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
-                      `}
-                      placeholder="+55 XXXX-XXXX"
+                      maxLength={PHONE_PREFIX_DISPLAY.length + 16}
+                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400 ${
+                        errors.clientPhone
+                          ? "border-red-500 bg-red-50"
+                          : "border-gray-300 focus:border-black bg-white"
+                      }`}
+                      placeholder="+55 (91) 9XXXX-XXXX"
                     />
                     {errors.clientPhone && (
                       <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
                         <AlertCircle size={10} /> {errors.clientPhone}
                       </p>
                     )}
+                    <p className="text-[11px] text-gray-400 mt-1">
+                      Dica: digite com DDD. Ex: <span className="font-mono">91 9XXXX XXXX</span>
+                    </p>
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                      Vendedor <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <UserRound
+                        size={16}
+                        className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+                      />
+                      <input
+                        value={sellerName}
+                        onChange={(e) => {
+                          setSellerName(e.target.value);
+                          if (errors.sellerName) setErrors({ ...errors, sellerName: "" });
+                        }}
+                        className={`w-full h-12 pl-11 pr-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400 ${
+                          errors.sellerName
+                            ? "border-red-500 bg-red-50"
+                            : "border-gray-300 focus:border-black bg-white"
+                        }`}
+                        placeholder="Ex: JOÃO SILVA"
+                      />
+                    </div>
+
+                    {errors.sellerName && (
+                      <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                        <AlertCircle size={10} /> {errors.sellerName}
+                      </p>
+                    )}
+
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+                      <span className="text-gray-400">Prévia salva:</span>
+                      <span className="px-2 py-1 rounded bg-gray-100 border border-gray-200 font-bold text-gray-700 uppercase">
+                        {sellerNamePreview || "—"}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -886,7 +1033,11 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                       <Loader2 className="animate-spin" size={18} />
                     ) : (
                       <>
-                        Avançar para Análise <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                        Avançar para Análise{" "}
+                        <ArrowRight
+                          size={18}
+                          className="group-hover:translate-x-1 transition-transform"
+                        />
                       </>
                     )}
                   </button>
@@ -916,17 +1067,27 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                 </div>
 
                 <p className="text-[11px] text-gray-400 mt-4 italic">
-                  * As taxas e coeficientes serão aplicados na próxima aba após a validação dos dados acima.
+                  * As taxas e coeficientes serão aplicados na próxima aba após a validação dos dados
+                  acima.
                 </p>
 
                 <div className="mt-6 p-4 rounded-xl border border-gray-200 bg-white">
                   <p className="text-[11px] text-gray-500 uppercase font-bold mb-2">Veículo</p>
                   <p className="text-sm font-semibold text-gray-900">{CONFIG.titulo}</p>
                   <p className="text-xs text-gray-500 mt-2">
-                    Exterior: <span className="font-bold">{CONFIG.exterior.colors[selectedExterior]?.name || "Padrão"}</span>
+                    Exterior:{" "}
+                    <span className="font-bold">
+                      {CONFIG.exterior.colors[selectedExterior]?.name || "Padrão"}
+                    </span>
                   </p>
                   <p className="text-xs text-gray-500">
-                    Interior: <span className="font-bold">{CONFIG.interior.colors[selectedInterior]?.name || "Padrão"}</span>
+                    Interior:{" "}
+                    <span className="font-bold">
+                      {CONFIG.interior.colors[selectedInterior]?.name || "Padrão"}
+                    </span>
+                  </p>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Vendedor: <span className="font-bold">{sellerNamePreview || "—"}</span>
                   </p>
                 </div>
               </div>
@@ -935,12 +1096,13 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         </div>
       </section>
 
-      {/* CTA FIXO */}
       <div className="fixed bottom-0 left-0 w-full z-50 bg-white border-t border-gray-200">
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-3 flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs font-black text-gray-900 truncate">{CONFIG.titulo}</p>
-            <p className="text-[11px] text-gray-500 truncate">Simule consórcio/financiamento agora</p>
+            <p className="text-[11px] text-gray-500 truncate">
+              Simule consórcio/financiamento agora
+            </p>
           </div>
 
           <button
@@ -954,21 +1116,33 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 
       <div className="h-16" />
 
-      {/* LIGHTBOX */}
       {lightboxOpen ? (
-        <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-center justify-center p-6" onClick={closeLightbox}>
-          <div className="max-w-5xl w-full bg-white rounded-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-center justify-center p-6"
+          onClick={closeLightbox}
+        >
+          <div
+            className="max-w-5xl w-full bg-white rounded-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
               <p className="text-sm font-black text-gray-900">
                 {CONFIG.titulo} • {tab === "exterior" ? "Exterior" : "Interior"}
               </p>
-              <button onClick={closeLightbox} className="text-xs font-black uppercase tracking-widest text-[#0b4b9a] hover:opacity-80">
+              <button
+                onClick={closeLightbox}
+                className="text-xs font-black uppercase tracking-widest text-[#0b4b9a] hover:opacity-80"
+              >
                 Fechar
               </button>
             </div>
 
             <div className="bg-white">
-              <img src={tab === "exterior" ? exteriorCurrent : interiorCurrent} alt="Imagem ampliada" className="w-full max-h-[75vh] object-contain" />
+              <img
+                src={tab === "exterior" ? exteriorCurrent : interiorCurrent}
+                alt="Imagem ampliada"
+                className="w-full max-h-[75vh] object-contain"
+              />
             </div>
           </div>
         </div>
