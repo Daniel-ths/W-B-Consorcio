@@ -118,6 +118,7 @@ function PedidoContent() {
       // (mantido para compat, mas NÃO usado no Ato/Entrada)
       entrada: safeNumber(searchParams.get("entrada")),
 
+      // ✅ parcela original / integral escolhida
       parcela: safeNumber(searchParams.get("parcela_escolhida")),
       prazo: searchParams.get("prazo_escolhido") || "0",
       total: safeNumber(searchParams.get("total_final")),
@@ -218,12 +219,18 @@ function PedidoContent() {
   }, [dados, lanceInfo, promo]);
 
   // =========================
-  // ✅ ATO/ENTRADA: SEMPRE = VALOR DA PARCELA INTEGRAL (pedido do cliente)
+  // ✅ ATO/ENTRADA: SEMPRE = PARCELA INTEGRAL DO PRIMEIRO PAGAMENTO
+  // pedido do cliente:
+  // "sobre o pagamento no ato (ato/entrada) tem que ser o valor da parcela integral no primeiro pagamento"
+  // Portanto NÃO usa parcela reduzida por lance.
   // =========================
   const atoEntrada = useMemo(() => {
-    const parcelaIntegral = safeNumber(valoresExibidos.parcelaUsada);
-    return parcelaIntegral > 0 ? parcelaIntegral : 0;
-  }, [valoresExibidos.parcelaUsada]);
+    const parcelaIntegralPrimeiroPagamento = safeNumber(dados.parcela);
+    if (parcelaIntegralPrimeiroPagamento > 0) return parcelaIntegralPrimeiroPagamento;
+
+    // fallback de segurança
+    return safeNumber(valoresExibidos.parcelaUsada);
+  }, [dados.parcela, valoresExibidos.parcelaUsada]);
 
   // ✅ agora NÃO faz consulta automática no load
   const [loadingValidacao, setLoadingValidacao] = useState(false);
@@ -873,7 +880,9 @@ Seja bem vindo!`;
 
               <div className="bg-white border border-zinc-200 rounded-lg overflow-hidden">
                 <div className="flex justify-between items-center p-3 border-b border-zinc-100">
-                  <span className="text-xs font-bold text-zinc-500 uppercase">Ato / Entrada</span>
+                  <span className="text-xs font-bold text-zinc-500 uppercase">
+                    Ato / Entrada
+                  </span>
                   <div className="flex-1 border-b border-dotted border-zinc-300 mx-4 relative top-1 hidden md:block"></div>
                   <span className="font-mono font-bold text-zinc-900">{formatMoney(atoEntrada)}</span>
                 </div>

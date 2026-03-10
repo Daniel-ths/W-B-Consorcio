@@ -16,6 +16,8 @@ import {
   CarFront,
   Clock3,
   FileText,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 
 const SUPERVISOR_EMAILS = [
@@ -25,6 +27,7 @@ const SUPERVISOR_EMAILS = [
   "marcelo@wbcnac.com",
   "felipe@wbcnac.com",
   "marcos@wbcnac.com",
+  "eder@wbcnac.com",
 ].map((s) => s.toLowerCase().trim());
 
 const cleanText = (v: any) => String(v || "").trim();
@@ -41,12 +44,31 @@ const supervisorLabel = (email: string) => {
   return value.split("@")[0].toUpperCase();
 };
 
+const normalizeLooseName = (v: any) =>
+  lowerText(v)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/g, "");
+
+const SUPERVISOR_NAME_MAP = SUPERVISOR_EMAILS.map((email) => {
+  const baseName = email.split("@")[0];
+  return {
+    email,
+    baseName,
+    normalized: normalizeLooseName(baseName),
+  };
+});
+
 const getISODateToday = () => {
   const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+  return new Intl.DateTimeFormat("en-CA").format(now); // mantém valor correto pro input type="date"
+};
+
+const formatInputDateToBR = (value: string) => {
+  if (!value) return "—";
+  const [year, month, day] = value.split("-");
+  if (!year || !month || !day) return value;
+  return `${day}/${month}/${year}`;
 };
 
 const formatDateBR = (isoLike: string) => {
@@ -68,18 +90,73 @@ const formatMoney = (val: number) =>
     currency: "BRL",
   }).format(Number(val || 0));
 
+const getSupervisorBySimilarName = (sale: any) => {
+  const candidates = [
+    sale?.approved_by_name,
+    sale?.approved_by_email,
+    sale?.details?.approved_by_name,
+    sale?.details?.approved_by_email,
+    sale?.seller_name,
+    sale?.details?.seller_name,
+    sale?.details?.vendedor_digitado,
+    sale?.profiles?.email,
+    sale?.details?.seller_email,
+    sale?.details?.vendedor_email,
+  ]
+    .map((v) => cleanText(v))
+    .filter(Boolean);
+
+  for (const raw of candidates) {
+    const value = lowerText(raw);
+
+    if (isSupervisorEmail(value)) return value;
+
+    const localPart = value.includes("@") ? value.split("@")[0] : value;
+    const normalizedCandidate = normalizeLooseName(localPart);
+
+    if (!normalizedCandidate) continue;
+
+    const exact = SUPERVISOR_NAME_MAP.find(
+      (s) => s.normalized === normalizedCandidate
+    );
+    if (exact) return exact.email;
+
+    const partial = SUPERVISOR_NAME_MAP.find(
+      (s) =>
+        normalizedCandidate.includes(s.normalized) ||
+        s.normalized.includes(normalizedCandidate)
+    );
+    if (partial) return partial.email;
+  }
+
+  return "";
+};
+
+/**
+ * ✅ Mantém a lógica antiga, mas reforça a detecção do supervisor.
+ * 1) tenta por email exato
+ * 2) se não achar, tenta por nome semelhante
+ */
 const getSupervisorEmail = (sale: any) => {
   const candidates = [
     sale?.approved_by_name,
     sale?.approved_by_email,
     sale?.details?.approved_by_name,
     sale?.details?.approved_by_email,
+
+    // fallbacks por email
+    sale?.profiles?.email,
+    isEmailLike(sale?.seller_name) ? sale?.seller_name : "",
+    sale?.details?.seller_email,
+    sale?.details?.vendedor_email,
   ]
     .map((v) => lowerText(v))
     .filter(Boolean);
 
-  const found = candidates.find((email) => isSupervisorEmail(email));
-  return found || "";
+  const foundByEmail = candidates.find((email) => isSupervisorEmail(email));
+  if (foundByEmail) return foundByEmail;
+
+  return getSupervisorBySimilarName(sale);
 };
 
 const getSellerDisplayName = (sale: any) => {
@@ -109,6 +186,10 @@ const getClientName = (sale: any) =>
 const getCarName = (sale: any) =>
   cleanText(sale?.car_name) || cleanText(sale?.details?.car_name) || "—";
 
+/**
+ * ✅ Para consulta do dia, prioriza created_at.
+ * Se não houver, usa os outros.
+ */
 const getReferenceDate = (sale: any) =>
   sale?.created_at || sale?.approved_at || sale?.updated_at || null;
 
@@ -197,6 +278,7 @@ export default function AdminConsultaDiasPage() {
   const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState<string>(getISODateToday());
   const [sales, setSales] = useState<any[]>([]);
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
   const fetchSales = async () => {
     setLoading(true);
@@ -245,7 +327,6 @@ export default function AdminConsultaDiasPage() {
 
       const referenceDate = getReferenceDate(sale);
       if (!referenceDate) continue;
-
       if (!isSameSelectedDay(referenceDate, selectedDay)) continue;
 
       const item = map.get(supervisor);
@@ -262,14 +343,20 @@ export default function AdminConsultaDiasPage() {
       });
     }
 
-    for (const [, item] of map) {
+    const list = Array.from(map.values());
+
+    for (const item of list) {
       item.atendimentos.sort(
         (a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()
       );
       item.total = item.atendimentos.length;
     }
 
-    return Array.from(map.values());
+    list.sort(
+      (a, b) => b.total - a.total || a.supervisorName.localeCompare(b.supervisorName, "pt-BR")
+    );
+
+    return list;
   }, [sales, selectedDay]);
 
   const resumo = useMemo(() => {
@@ -284,6 +371,13 @@ export default function AdminConsultaDiasPage() {
     };
   }, [groupedBySupervisor]);
 
+  const toggleGroup = (email: string) => {
+    setExpandedGroups((prev) => ({
+      ...prev,
+      [email]: !prev[email],
+    }));
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <header className="sticky top-0 z-30 bg-white border-b border-slate-200">
@@ -297,7 +391,7 @@ export default function AdminConsultaDiasPage() {
                 Consulta de Supervisores por Dia
               </h1>
               <p className="text-xs text-slate-400 font-bold">
-                Consulta reforçada com todos os tipos de entrada do painel admin
+                Agrupado por supervisor, com fallback por nome semelhante
               </p>
             </div>
           </div>
@@ -330,7 +424,7 @@ export default function AdminConsultaDiasPage() {
                 Selecione o dia da consulta
               </h2>
               <p className="text-xs text-slate-400 font-bold mt-1">
-                O sistema agora usa todos os campos possíveis para localizar supervisor, vendedor, cliente, veículo e data.
+                Mantida a lógica antiga, com reforço por email e por nome parecido do supervisor.
               </p>
             </div>
 
@@ -397,105 +491,121 @@ export default function AdminConsultaDiasPage() {
             <p className="text-sm font-bold uppercase">Carregando consulta diária...</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            {groupedBySupervisor.map((group) => (
-              <div
-                key={group.supervisorEmail}
-                className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden"
-              >
-                <div className="p-5 border-b border-slate-100 bg-slate-50">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                        Supervisor
-                      </p>
-                      <h3 className="text-lg font-black text-slate-900 truncate">
-                        {group.supervisorName}
-                      </h3>
-                      <p className="text-xs text-slate-500 font-bold truncate mt-1">
-                        {group.supervisorEmail}
-                      </p>
-                    </div>
+          <div className="space-y-4">
+            {groupedBySupervisor.map((group) => {
+              const isOpen = !!expandedGroups[group.supervisorEmail];
 
-                    <div className="shrink-0">
-                      <span className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-black text-white text-xs font-black">
-                        {group.total} atendimento{group.total === 1 ? "" : "s"}
-                      </span>
-                    </div>
-                  </div>
-
-                  <p className="text-[11px] text-slate-400 font-bold mt-3">
-                    Dia selecionado:{" "}
-                    <span className="text-slate-700">{formatDateBR(`${selectedDay}T00:00:00`)}</span>
-                  </p>
-                </div>
-
-                <div className="p-5">
-                  {group.total === 0 ? (
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm font-medium text-slate-500">
-                      Nenhum atendimento encontrado para este supervisor nesse dia.
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {group.atendimentos.map((item: any) => (
-                        <div
-                          key={item.id}
-                          className="rounded-2xl border border-slate-200 bg-white p-4 hover:bg-slate-50 transition-colors"
-                        >
-                          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2 mb-2">
-                                <UserRound size={15} className="text-slate-400" />
-                                <p className="text-sm font-black text-slate-900 uppercase truncate">
-                                  {item.seller_name}
-                                </p>
-                              </div>
-
-                              <p className="text-sm text-slate-700 font-medium">
-                                cliente:{" "}
-                                <span className="font-black text-slate-900">
-                                  {item.client_name}
-                                </span>
-                              </p>
-
-                              <div className="mt-2 space-y-1">
-                                <p className="text-[11px] text-slate-500 font-bold flex items-center gap-2">
-                                  <CarFront size={12} />
-                                  {item.car_name}
-                                </p>
-
-                                <p className="text-[11px] text-slate-500 font-bold flex items-center gap-2">
-                                  <Clock3 size={12} />
-                                  {formatTimeBR(item.time)}
-                                </p>
-                              </div>
-                            </div>
-
-                            <div className="md:text-right shrink-0">
-                              <span
-                                className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase border ${
-                                  item.status === "Aprovado"
-                                    ? "bg-green-50 text-green-700 border-green-200"
-                                    : item.status === "Recusado"
-                                    ? "bg-red-50 text-red-700 border-red-200"
-                                    : "bg-yellow-50 text-yellow-800 border-yellow-200"
-                                }`}
-                              >
-                                {item.status}
-                              </span>
-
-                              <p className="text-sm font-black text-slate-900 mt-2">
-                                {formatMoney(item.total_price)}
-                              </p>
-                            </div>
-                          </div>
+              return (
+                <div
+                  key={group.supervisorEmail}
+                  className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden"
+                >
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(group.supervisorEmail)}
+                    className="w-full p-5 border-b border-slate-100 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0 flex items-start gap-3">
+                        <div className="mt-0.5 text-slate-500">
+                          {isOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
                         </div>
-                      ))}
+
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                            Supervisor
+                          </p>
+                          <h3 className="text-lg font-black text-slate-900 truncate">
+                            {group.supervisorName}
+                          </h3>
+                          <p className="text-xs text-slate-500 font-bold truncate mt-1">
+                            {group.supervisorEmail}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="shrink-0">
+                        <span className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-black text-white text-xs font-black">
+                          {group.total} atendimento{group.total === 1 ? "" : "s"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] text-slate-400 font-bold mt-3">
+                      Dia selecionado:{" "}
+                      <span className="text-slate-700">{formatInputDateToBR(selectedDay)}</span>
+                    </p>
+                  </button>
+
+                  {isOpen && (
+                    <div className="p-5">
+                      {group.total === 0 ? (
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm font-medium text-slate-500">
+                          Nenhum atendimento encontrado para este supervisor nesse dia.
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {group.atendimentos.map((item: any) => (
+                            <div
+                              key={item.id}
+                              className="rounded-2xl border border-slate-200 bg-white p-4 hover:bg-slate-50 transition-colors"
+                            >
+                              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <UserRound size={15} className="text-slate-400" />
+                                    <p className="text-sm font-black text-slate-900 uppercase truncate">
+                                      {item.seller_name}
+                                    </p>
+                                  </div>
+
+                                  <p className="text-sm text-slate-700 font-medium">
+                                    Cliente:{" "}
+                                    <span className="font-black text-slate-900">
+                                      {item.client_name}
+                                    </span>
+                                  </p>
+
+                                  <div className="mt-2 space-y-1">
+                                    <p className="text-[11px] text-slate-500 font-bold flex items-center gap-2">
+                                      <CarFront size={12} />
+                                      {item.car_name}
+                                    </p>
+
+                                    <p className="text-[11px] text-slate-500 font-bold flex items-center gap-2">
+                                      <Clock3 size={12} />
+                                      {formatTimeBR(item.time)}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="md:text-right shrink-0">
+                                  <span
+                                    className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase border ${
+                                      item.status === "Aprovado"
+                                        ? "bg-green-50 text-green-700 border-green-200"
+                                        : item.status === "Recusado"
+                                        ? "bg-red-50 text-red-700 border-red-200"
+                                        : "bg-yellow-50 text-yellow-800 border-yellow-200"
+                                    }`}
+                                  >
+                                    {item.status}
+                                  </span>
+
+                                  <p className="text-sm font-black text-slate-900 mt-2">
+                                    {formatMoney(item.total_price)}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 

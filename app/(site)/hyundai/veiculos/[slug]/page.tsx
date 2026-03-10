@@ -5,17 +5,9 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import OrderSummary from "components/OrderSummary";
 
-import {
-  Loader2,
-  ChevronRight,
-  Lock,
-  Wallet,
-  Banknote,
-  CheckCircle2,
-  AlertCircle,
-  ArrowRight,
-} from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 /* =========================================================
    ✅ CONFIG MANUAL (VOCÊ EDITA AQUI)
@@ -23,15 +15,15 @@ import {
    - Cor base quando ainda não escolheu a cor (passo 1)
 ========================================================= */
 const HERO_BG_IMAGE_URL =
-  "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/73610802-natureza-fundo-natureza-papel-de-parede-meandros-rio-ventos-atraves-exuberante-verde-floresta-coberto-montanhas-debaixo-nublado-ceu-gratis-foto.jpg"; // <-- TROQUE
-const HERO_BASE_TINT = "#03030300"; // cor de fundo antes de escolher cor
+  "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/73610802-natureza-fundo-natureza-papel-de-parede-meandros-rio-ventos-atraves-exuberante-verde-floresta-coberto-montanhas-debaixo-nublado-ceu-gratis-foto.jpg";
+const HERO_BASE_TINT = "#03030300";
 
 /* =========================================================
    TIPOS
 ========================================================= */
 type SpecGroup = {
   id: string;
-  title: string; // ex: "ESTILO EXTERIOR"
+  title: string;
   description?: string;
   items?: string[];
 };
@@ -43,14 +35,9 @@ type VersionItem = {
   price: number;
   note?: string;
   heroLabel?: string;
-
-  // ✅ NOVO: cada versão tem capa
   cover_image_url?: string | null;
-
-  spec_groups?: SpecGroup[] | null; // itens de série por versão (opcional)
-  highlights?: string[] | null; // destaques por versão (opcional)
-
-  // ✅ NOVO: cores por versão (caso já esteja salvando assim)
+  spec_groups?: SpecGroup[] | null;
+  highlights?: string[] | null;
   colors?: ColorVariant[] | null;
 };
 
@@ -59,11 +46,8 @@ type ColorVariant = {
   name: string;
   internal?: string;
   extraPrice?: number;
-  swatch: string; // cor do carro (hex)
-  image_url: string; // imagem do carro nessa cor
-
-  // ✅ NOVO: cor de fundo (hex) para o hero QUANDO ESCOLHER A COR
-  // Se você não tiver isso no banco, ele cai no swatch automaticamente.
+  swatch: string;
+  image_url: string;
   bg_swatch?: string | null;
 };
 
@@ -75,14 +59,10 @@ type VehicleRow = {
   brand?: string | null;
   is_visible?: boolean | null;
   price_start?: number | null;
-
   versions?: VersionItem[] | null;
-
-  // ✅ legado (se ainda existir no banco)
   colors?: ColorVariant[] | null;
-
-  spec_groups?: SpecGroup[] | null; // itens de série global (fallback)
-  highlights?: string[] | null; // destaques global (fallback)
+  spec_groups?: SpecGroup[] | null;
+  highlights?: string[] | null;
 };
 
 const HY_BLUE = "#00A3C8";
@@ -106,516 +86,7 @@ function normalizeArray<T>(val: any): T[] {
 }
 
 /* =========================
-   OrderSummary (mesclado)
-========================= */
-
-// --- MÁSCARAS E HELPERS ---
-const maskCPF = (value: string) => {
-  return value
-    .replace(/\D/g, "")
-    .replace(/(\d{3})(\d)/, "$1.$2")
-    .replace(/(\d{3})(\d)/, "$1.$2")
-    .replace(/(\d{3})(\d{1,2})/, "$1-$2")
-    .replace(/(-\d{2})\d+?$/, "$1");
-};
-
-const validateEmail = (email: string) => {
-  const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return re.test(email);
-};
-
-const formatCurrency = (val: number) => {
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(val || 0);
-};
-
-// TELEFONE
-const PHONE_PREFIX_DISPLAY = "+55 ";
-const DEFAULT_DDD = "91";
-const onlyDigits = (v: string) => String(v || "").replace(/\D/g, "");
-
-const toE164Digits = (displayPhone: string) => {
-  const digits = onlyDigits(displayPhone);
-
-  if (digits.startsWith("55")) {
-    const national = digits.slice(2);
-    if (national.length === 10 || national.length === 11) return `55${national}`;
-    if ((national.length === 8 || national.length === 9) && DEFAULT_DDD) {
-      return `55${DEFAULT_DDD}${national}`;
-    }
-    return null;
-  }
-
-  if (digits.length === 10 || digits.length === 11) return `55${digits}`;
-  if ((digits.length === 8 || digits.length === 9) && DEFAULT_DDD) return `55${DEFAULT_DDD}${digits}`;
-  return null;
-};
-
-function OrderSummary({
-  currentCar,
-  selectedVersion,
-  selectedColor,
-  totalPrice,
-  user,
-  onEdit,
-  queryBaseParams,
-  accessoriesContent,
-  highlightsContent,
-}: {
-  currentCar: VehicleRow;
-  selectedVersion: VersionItem | null;
-  selectedColor: ColorVariant | null;
-  totalPrice: number;
-  user: any;
-  onEdit: () => void;
-  queryBaseParams: URLSearchParams;
-
-  // ✅ Acessórios: herdado de spec_groups (titulo + descrição)
-  accessoriesContent: { title: string; description?: string }[];
-
-  // ✅ Especificações: herdado de highlights (destaques)
-  highlightsContent: string[];
-}) {
-  const router = useRouter();
-
-  const [paymentMethod] = useState("Análise de Crédito");
-
-  const [clientName, setClientName] = useState("");
-  const [clientCpf, setClientCpf] = useState("");
-  const [clientEmail, setClientEmail] = useState("");
-  const [clientPhone, setClientPhone] = useState(PHONE_PREFIX_DISPLAY);
-
-  const [loading, setLoading] = useState(false);
-
-  const [errors, setErrors] = useState({
-    clientName: "",
-    clientCpf: "",
-    clientEmail: "",
-    clientPhone: "",
-  });
-
-  const handleCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setClientCpf(maskCPF(e.target.value));
-    if (errors.clientCpf) setErrors({ ...errors, clientCpf: "" });
-  };
-
-  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const typed = e.target.value || "";
-
-    if (typed.trim() === "" || typed === PHONE_PREFIX_DISPLAY) {
-      setClientPhone(PHONE_PREFIX_DISPLAY);
-      return;
-    }
-
-    let digits = typed.replace(/\D/g, "");
-    if (digits.startsWith("55")) digits = digits.slice(2);
-    digits = digits.slice(0, 11); // DDD + 9
-
-    const ddd = digits.slice(0, 2);
-    const num = digits.slice(2);
-
-    let formatted = "";
-    if (digits.length <= 2) formatted = `(${ddd}`;
-    else if (num.length <= 5) formatted = `(${ddd}) ${num}`;
-    else formatted = `(${ddd}) ${num.slice(0, 5)}-${num.slice(5)}`;
-
-    setClientPhone(PHONE_PREFIX_DISPLAY + formatted);
-  };
-
-  const handleFinishOrder = async () => {
-    let newErrors = { clientName: "", clientCpf: "", clientEmail: "", clientPhone: "" };
-    let hasError = false;
-
-    if (!user) {
-      alert("Você precisa estar logado para realizar esta ação.");
-      return;
-    }
-
-    if (clientName.trim().length < 3) {
-      newErrors.clientName = "Nome completo é obrigatório.";
-      hasError = true;
-    }
-
-    if (clientCpf.length < 14) {
-      newErrors.clientCpf = "CPF inválido ou incompleto.";
-      hasError = true;
-    }
-
-    if (!clientEmail || !validateEmail(clientEmail)) {
-      newErrors.clientEmail = "Insira um e-mail válido.";
-      hasError = true;
-    }
-
-    const telefoneE164Digits = toE164Digits(clientPhone);
-    if (!telefoneE164Digits) {
-      newErrors.clientPhone = "Telefone inválido. Digite com DDD (ex: +55 (91) 9XXXX-XXXX).";
-      hasError = true;
-    } else {
-      const national = telefoneE164Digits.slice(2);
-      if (national.length !== 10 && national.length !== 11) {
-        newErrors.clientPhone = "Telefone incompleto. Informe DDD + número (8 ou 9 dígitos).";
-        hasError = true;
-      }
-    }
-
-    setErrors(newErrors);
-    if (hasError) return;
-
-    setLoading(true);
-
-    const carNameResolved =
-      currentCar.model_name || (currentCar as any).name || (currentCar as any).model || `Veículo ID ${currentCar.id}`;
-
-    try {
-      const telefoneE164 = toE164Digits(clientPhone)!;
-
-      const saleData = {
-        car_id: currentCar.id,
-        car_name: carNameResolved,
-        seller_id: user.id,
-        client_name: clientName,
-        client_cpf: clientCpf,
-        client_email: clientEmail,
-        client_phone: telefoneE164,
-        total_price: totalPrice,
-        status: "Enviado para Análise",
-        interest_type: "Pendente (Aba Análise)",
-        details: {
-          version: selectedVersion?.title || "Padrão",
-          color: selectedColor?.name || "Padrão",
-          accessories_content: accessoriesContent,
-          highlights: highlightsContent,
-        },
-        created_at: new Date().toISOString(),
-      };
-
-      const { error } = await supabase.from("sales").insert([saleData]);
-      if (error) throw error;
-
-      const params = new URLSearchParams(queryBaseParams.toString());
-
-      const modeloCompleto = [carNameResolved, selectedVersion?.title, selectedColor?.name]
-        .filter(Boolean)
-        .join(" • ");
-
-      params.set("nome", clientName);
-      params.set("cpf", clientCpf);
-      params.set("telefone", telefoneE164);
-      params.set("modelo", modeloCompleto || carNameResolved);
-      params.set("valor", String(totalPrice || 0));
-      params.set("entrada", "0");
-      params.set("renda", "0");
-      params.set("imagem", (selectedColor?.image_url || currentCar.image_url || "") as string);
-
-      router.push(`/vendedor/analise?${params.toString()}`);
-    } catch (error: any) {
-      console.error("Erro ao processar:", error);
-      alert("Erro ao processar pedido: " + (error?.message || "erro"));
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="w-full bg-white font-sans text-[#1a1a1a]">
-      <div className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm flex-none">
-        <div className="max-w-[1400px] mx-auto px-6 h-32 flex items-center justify-between">
-          <h1 className="text-3xl font-light">
-            Seu {currentCar.model_name}
-            {selectedVersion?.title ? ` • ${selectedVersion.title}` : ""}
-          </h1>
-          <div className="flex items-center gap-6" />
-        </div>
-      </div>
-
-      <main className="w-full pb-20">
-        <div className="bg-[#f2f2f2] w-full py-12 flex justify-center items-center mb-12">
-          <div className="max-w-[1200px] w-full aspect-[21/9] relative">
-            <img
-              src={(selectedColor?.image_url || currentCar.image_url || "/placeholder-car.png") as string}
-              alt={currentCar.model_name}
-              className="w-full h-full object-contain drop-shadow-xl"
-            />
-          </div>
-        </div>
-
-        <div className="max-w-[1200px] mx-auto px-6">
-          <section className="mb-16 border-b border-gray-200 pb-12">
-            <div className="flex justify-between items-baseline mb-8 border-b border-gray-200 pb-4">
-              <h2 className="text-3xl font-normal">Resumo</h2>
-              <button onClick={onEdit} className="text-sm font-medium flex items-center gap-1 hover:underline">
-                Editar <ChevronRight size={14} />
-              </button>
-            </div>
-
-            <div className="space-y-0">
-              <div className="grid grid-cols-1 md:grid-cols-4 py-8 border-b border-gray-200">
-                <div className="text-lg font-normal mb-4 md:mb-0">Veículo</div>
-                <div className="md:col-span-3">
-                  <div className="flex items-center gap-6">
-                    <div className="w-24 h-16 bg-white border border-gray-200 rounded flex items-center justify-center p-1 overflow-hidden">
-                      <img
-                        src={(selectedColor?.image_url || currentCar.image_url || "") as string}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                    <div>
-                      <p className="text-lg font-normal">{currentCar.model_name}</p>
-                      {selectedVersion?.title ? (
-                        <p className="text-sm text-gray-500 mt-1">Versão: {selectedVersion.title}</p>
-                      ) : null}
-                      {selectedColor?.name ? (
-                        <p className="text-sm text-gray-500 mt-1">Cor: {selectedColor.name}</p>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* ✅ ESPECIFICAÇÕES: herdado de DESTAQUES (highlights) */}
-              <div className="grid grid-cols-1 md:grid-cols-4 py-8 border-b border-gray-200">
-                <div className="text-lg font-normal mb-4 md:mb-0">Especificações</div>
-                <div className="md:col-span-3">
-                  {highlightsContent.length ? (
-                    <div className="space-y-2">
-                      {highlightsContent.map((h, idx) => (
-                        <div key={idx} className="flex gap-2 text-sm text-gray-700">
-                          <span className="text-gray-400">•</span>
-                          <span>{h}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-sm text-gray-500">(Sem destaques cadastrados.)</div>
-                  )}
-                </div>
-              </div>
-
-              {/* ✅ ACESSÓRIOS: herdado de Itens de série (spec_groups) com TÍTULO + DESCRIÇÃO */}
-              <div className="grid grid-cols-1 md:grid-cols-4 py-8 border-b border-gray-200">
-                <div className="text-lg font-normal mb-4 md:mb-0">Acessórios</div>
-                <div className="md:col-span-3">
-                  {accessoriesContent.length ? (
-                    <div className="space-y-4">
-                      {accessoriesContent.map((a, idx) => (
-                        <div key={idx} className="border border-gray-200 rounded p-4 bg-white">
-                          <div className="text-sm font-semibold text-gray-900">{a.title}</div>
-                          <div className="text-xs text-gray-600 mt-1 leading-relaxed">
-                            {a.description ? a.description : "(Sem descrição)"}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-sm text-gray-500">(Sem conteúdo de itens de série para herdar.)</div>
-                  )}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-4 py-8 border-b border-gray-200">
-                <div className="text-lg font-normal mb-4 md:mb-0">Total</div>
-                <div className="md:col-span-3">
-                  <span className="text-3xl font-bold text-gray-900">{formatCurrency(totalPrice)}</span>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* DADOS DO CLIENTE */}
-          <section className="pt-10 border-t border-gray-200">
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-              <div className="lg:col-span-1">
-                <h3 className="text-2xl font-normal text-gray-900 mb-4">Finalização</h3>
-                <p className="text-sm text-gray-500">
-                  O próximo passo enviará este veículo configurado para o módulo de{" "}
-                  <strong>Análise de Crédito</strong>.
-                </p>
-                <div className="mt-4 text-[11px] text-gray-400">
-                  Método: <span className="font-semibold text-gray-600">{paymentMethod}</span>
-                </div>
-              </div>
-
-              <div className="lg:col-span-3">
-                {!user ? (
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-10 flex flex-col items-center justify-center text-center">
-                    <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mb-4">
-                      <Lock className="text-gray-500" size={32} />
-                    </div>
-                    <h3 className="text-xl font-bold text-gray-900 mb-2">Funcionalidade Restrita</h3>
-                    <p className="text-gray-500 mb-6 max-w-md">
-                      A finalização de propostas é exclusiva para vendedores logados.
-                    </p>
-                    <Link
-                      href="/login"
-                      className="bg-blue-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-blue-700 transition-colors"
-                    >
-                      Fazer Login de Vendedor
-                    </Link>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 gap-10">
-                    {/* FORM */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white p-2">
-                      <div className="md:col-span-2">
-                        <h4 className="text-lg font-medium mb-4 pb-2 border-b border-gray-100">
-                          Informações do Cliente
-                        </h4>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
-                          Nome Completo <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          value={clientName}
-                          onChange={(e) => {
-                            setClientName(e.target.value);
-                            if (errors.clientName) setErrors({ ...errors, clientName: "" });
-                          }}
-                          className={`w-full h-12 px-4 border rounded focus:outline-none transition-all text-sm ${
-                            errors.clientName
-                              ? "border-red-500 bg-red-50"
-                              : "border-gray-300 focus:border-black bg-white"
-                          }`}
-                          placeholder="Digite o nome completo"
-                        />
-                        {errors.clientName ? (
-                          <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
-                            <AlertCircle size={10} /> {errors.clientName}
-                          </p>
-                        ) : null}
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
-                          CPF <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          value={clientCpf}
-                          onChange={handleCpfChange}
-                          maxLength={14}
-                          className={`w-full h-12 px-4 border rounded focus:outline-none transition-all text-sm ${
-                            errors.clientCpf
-                              ? "border-red-500 bg-red-50"
-                              : "border-gray-300 focus:border-black bg-white"
-                          }`}
-                          placeholder="000.000.000-00"
-                        />
-                        {errors.clientCpf ? (
-                          <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
-                            <AlertCircle size={10} /> {errors.clientCpf}
-                          </p>
-                        ) : null}
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
-                          Email <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          value={clientEmail}
-                          onChange={(e) => {
-                            setClientEmail(e.target.value);
-                            if (errors.clientEmail) setErrors({ ...errors, clientEmail: "" });
-                          }}
-                          className={`w-full h-12 px-4 border rounded focus:outline-none transition-all text-sm ${
-                            errors.clientEmail
-                              ? "border-red-500 bg-red-50"
-                              : "border-gray-300 focus:border-black bg-white"
-                          }`}
-                          placeholder="exemplo@email.com"
-                        />
-                        {errors.clientEmail ? (
-                          <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
-                            <AlertCircle size={10} /> {errors.clientEmail}
-                          </p>
-                        ) : null}
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
-                          Telefone <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          value={clientPhone}
-                          onChange={handlePhoneChange}
-                          maxLength={PHONE_PREFIX_DISPLAY.length + 16}
-                          className={`w-full h-12 px-4 border rounded focus:outline-none transition-all text-sm ${
-                            errors.clientPhone
-                              ? "border-red-500 bg-red-50"
-                              : "border-gray-300 focus:border-black bg-white"
-                          }`}
-                          placeholder="+55 (91) 9XXXX-XXXX"
-                        />
-                        {errors.clientPhone ? (
-                          <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
-                            <AlertCircle size={10} /> {errors.clientPhone}
-                          </p>
-                        ) : null}
-                        <p className="text-[11px] text-gray-400 mt-1">
-                          Dica: digite assim: <span className="font-mono">91 9XXXX XXXX</span> (o campo formata sozinho)
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* INFO */}
-                    <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
-                      <h4 className="text-sm font-bold text-gray-700 uppercase mb-4 flex items-center gap-2">
-                        <CheckCircle2 size={16} className="text-green-600" /> Próxima Etapa: Crédito
-                      </h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 opacity-70">
-                        <div className="bg-white p-4 rounded border border-gray-200 flex items-center gap-3">
-                          <Banknote className="text-blue-600" size={24} />
-                          <div>
-                            <p className="text-sm font-bold text-gray-900 leading-none">Financiamento</p>
-                            <p className="text-[11px] text-gray-500 mt-1 uppercase">Aprovação em minutos</p>
-                          </div>
-                        </div>
-                        <div className="bg-white p-4 rounded border border-gray-200 flex items-center gap-3">
-                          <Wallet className="text-purple-600" size={24} />
-                          <div>
-                            <p className="text-sm font-bold text-gray-900 leading-none">Consórcio</p>
-                            <p className="text-[11px] text-gray-500 mt-1 uppercase">Cartas de crédito</p>
-                          </div>
-                        </div>
-                      </div>
-                      <p className="text-[11px] text-gray-400 mt-4 italic">
-                        * As taxas e coeficientes serão aplicados na próxima aba após a validação dos dados acima.
-                      </p>
-                    </div>
-
-                    <div className="flex justify-end">
-                      <button
-                        onClick={handleFinishOrder}
-                        disabled={loading}
-                        className="bg-[#1c1c1c] text-white font-bold py-5 px-16 rounded hover:bg-black transition-all flex items-center gap-3 shadow-lg disabled:opacity-70 text-sm uppercase tracking-widest group"
-                      >
-                        {loading ? (
-                          <Loader2 className="animate-spin" size={18} />
-                        ) : (
-                          <>
-                            Avançar para Análise{" "}
-                            <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </section>
-        </div>
-      </main>
-    </div>
-  );
-}
-
-/* =========================
-   Página principal (mesclada)
+   Página principal
 ========================= */
 
 export default function HyundaiVehicleSlugPage() {
@@ -644,14 +115,14 @@ export default function HyundaiVehicleSlugPage() {
   const [err, setErr] = useState<string | null>(null);
   const [vehicle, setVehicle] = useState<VehicleRow | null>(null);
 
-  // ✅ 1: versão | 2: cor | 3: acessórios (conteúdo herdado) | 4: OrderSummary
+  // ✅ 1: versão | 2: cor | 3: acessórios | 4: OrderSummary existente
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
 
   const [selectedVersionId, setSelectedVersionId] = useState<string>("");
   const [selectedColorId, setSelectedColorId] = useState<string>("");
   const [openSpecId, setOpenSpecId] = useState<string | null>(null);
 
-  // animações (conserto)
+  // animações
   const [imgKey, setImgKey] = useState(0);
   const [bgKey, setBgKey] = useState(0);
   const [colorChangedOnce, setColorChangedOnce] = useState(false);
@@ -661,6 +132,7 @@ export default function HyundaiVehicleSlugPage() {
 
   useEffect(() => {
     let mounted = true;
+
     (async () => {
       try {
         const { data } = await supabase.auth.getUser();
@@ -671,6 +143,7 @@ export default function HyundaiVehicleSlugPage() {
         setUser(null);
       }
     })();
+
     return () => {
       mounted = false;
     };
@@ -702,7 +175,9 @@ export default function HyundaiVehicleSlugPage() {
       try {
         const { data, error } = await supabase
           .from("vehicles")
-          .select("id, model_name, slug, image_url, brand, is_visible, price_start, versions, colors, spec_groups, highlights")
+          .select(
+            "id, model_name, slug, image_url, brand, is_visible, price_start, versions, colors, spec_groups, highlights"
+          )
           .eq("brand", "hyundai")
           .eq("slug", slug)
           .maybeSingle();
@@ -714,28 +189,25 @@ export default function HyundaiVehicleSlugPage() {
           setErr("Veículo não encontrado.");
           return;
         }
+
         if ((data as any).is_visible === false) {
           setErr("Este veículo está oculto.");
           return;
         }
 
         const v = data as VehicleRow;
-
         const safeVersions = normalizeArray<VersionItem>(v.versions);
 
         setVehicle(v);
 
-        // default
         const firstV = safeVersions[0];
         setSelectedVersionId(firstV?.id || "");
 
-        // ✅ cores: tenta pegar da versão (novo), senão usa vehicle.colors (legado)
         const firstVColors = normalizeArray<ColorVariant>((firstV as any)?.colors);
         const legacyColors = normalizeArray<ColorVariant>(v.colors);
-
         const firstColor = firstVColors[0] || legacyColors[0] || null;
-        setSelectedColorId(firstColor?.id || "");
 
+        setSelectedColorId(firstColor?.id || "");
         setImgKey((k) => k + 1);
         setBgKey((k) => k + 1);
         setColorChangedOnce(false);
@@ -761,7 +233,6 @@ export default function HyundaiVehicleSlugPage() {
     return versions.find((v) => v.id === selectedVersionId) || versions[0] || null;
   }, [versions, selectedVersionId]);
 
-  // ✅ Cores agora são POR VERSÃO; fallback para vehicle.colors se versão não tiver
   const colorVariants = useMemo<ColorVariant[]>(() => {
     const fromVersion = normalizeArray<ColorVariant>((selectedVersion as any)?.colors);
     if (fromVersion.length) return fromVersion;
@@ -772,7 +243,6 @@ export default function HyundaiVehicleSlugPage() {
     return colorVariants.find((c) => c.id === selectedColorId) || colorVariants[0] || null;
   }, [colorVariants, selectedColorId]);
 
-  // quando troca versão: reseta cor para primeira cor da versão (ou fallback)
   useEffect(() => {
     const first = colorVariants[0] || null;
     setSelectedColorId(first?.id || "");
@@ -781,21 +251,19 @@ export default function HyundaiVehicleSlugPage() {
     setOpenSpecId(null);
   }, [selectedVersionId]); // intencional
 
-  // ✅ Itens de série: por versão, fallback no veículo
   const specGroups = useMemo<SpecGroup[]>(() => {
     const fromVersion = normalizeArray<SpecGroup>((selectedVersion as any)?.spec_groups);
     if (fromVersion.length) return fromVersion;
     return normalizeArray<SpecGroup>(vehicle?.spec_groups);
   }, [selectedVersion, vehicle]);
 
-  // ✅ Destaques (Especificações): por versão, fallback no veículo
   const highlights = useMemo<string[]>(() => {
     const fromVersion = normalizeArray<string>((selectedVersion as any)?.highlights);
     if (fromVersion.length) return fromVersion;
     return normalizeArray<string>(vehicle?.highlights);
   }, [selectedVersion, vehicle]);
 
-  // ✅ ACESSÓRIOS: herdado do Itens de série (title + description)
+  // ✅ herdado do que já existe no carro/versão
   const accessoriesContent = useMemo(() => {
     return (specGroups || [])
       .map((g) => ({
@@ -805,24 +273,17 @@ export default function HyundaiVehicleSlugPage() {
       .filter((x) => !!x.title);
   }, [specGroups]);
 
-  // ✅ ESPECIFICAÇÕES (DESTAQUES): já vem pronto
   const highlightsContent = useMemo(
     () => (highlights || []).map((h) => String(h || "").trim()).filter(Boolean),
     [highlights]
   );
 
-  // ✅ IMAGEM PRINCIPAL:
-  // - Se estiver no passo 2+ e tiver imagem da cor -> usa
-  // - Senão usa capa da versão -> senão usa veículo.image_url
   const currentImageUrl = useMemo(() => {
     if (step >= 2 && selectedColor?.image_url) return selectedColor.image_url;
     const cover = (selectedVersion as any)?.cover_image_url;
     return cover || vehicle?.image_url || null;
   }, [step, selectedColor?.image_url, selectedVersion, vehicle?.image_url]);
 
-  // ✅ FUNDO DO HERO:
-  // - Só troca cor do fundo quando escolhe cor (passo 2) ou depois
-  // - bg_swatch (se existir) -> swatch -> base
   const heroTint = useMemo(() => {
     if (step >= 2) {
       const c = selectedColor?.bg_swatch || selectedColor?.swatch;
@@ -831,15 +292,13 @@ export default function HyundaiVehicleSlugPage() {
     return HERO_BASE_TINT;
   }, [step, selectedColor?.bg_swatch, selectedColor?.swatch]);
 
-  // animação quando troca cor: faz key e liga flag "colorChangedOnce"
   useEffect(() => {
     setImgKey((k) => k + 1);
     if (step >= 2) {
       setBgKey((k) => k + 1);
       setColorChangedOnce(true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedColorId]);
+  }, [selectedColorId, step]);
 
   const totalPrice = useMemo(() => {
     const base = selectedVersion?.price ?? vehicle?.price_start ?? 0;
@@ -850,8 +309,18 @@ export default function HyundaiVehicleSlugPage() {
   const Title = vehicle?.model_name || "Hyundai";
 
   const queryBaseParams = useMemo(() => {
-    return new URLSearchParams();
-  }, []);
+    const params = new URLSearchParams();
+
+    params.set("tipo", "ANALISE_CREDITO");
+    params.set("modelo", vehicle?.model_name || "");
+    params.set("valor", String(totalPrice || 0));
+    params.set("imagem", (selectedColor?.image_url || vehicle?.image_url || "") as string);
+
+    if (selectedVersion?.title) params.set("versao", selectedVersion.title);
+    if (selectedColor?.name) params.set("cor", selectedColor.name);
+
+    return params;
+  }, [vehicle?.model_name, vehicle?.image_url, selectedColor?.image_url, selectedColor?.name, selectedVersion?.title, totalPrice]);
 
   if (loading) {
     return (
@@ -890,7 +359,7 @@ export default function HyundaiVehicleSlugPage() {
 
   const basePriceDisplay = selectedVersion?.price ?? vehicle.price_start ?? 0;
 
-  // ✅ quando estiver no OrderSummary, renderiza ele inteiro
+  // ✅ agora usa o OrderSummary já existente por import
   if (step === 4) {
     return (
       <OrderSummary
@@ -915,21 +384,17 @@ export default function HyundaiVehicleSlugPage() {
           to   { opacity: 1; transform: translateY(0); }
         }
 
-        /* ✅ imagem: crossfade + leve pop (sempre que imgKey muda) */
         @keyframes hyVeh_imgIn {
           from { opacity: 0; transform: translateY(8px) scale(0.99); filter: blur(0.3px); }
           to   { opacity: 1; transform: translateY(0) scale(1); filter: blur(0px); }
         }
 
-        /* ✅ fundo: muda tint suavemente e dá um fade no overlay quando bgKey muda */
         @keyframes hyVeh_bgPulse {
           from { opacity: 0.55; transform: scale(1.01); }
           to   { opacity: 1; transform: scale(1); }
         }
 
         .hyVeh_animFadeUp { animation: hyVeh_fadeUp 260ms ease-out both; }
-
-        /* ✅ these classes now are stable */
         .hyVeh_animImg { animation: hyVeh_imgIn 320ms cubic-bezier(.2,.8,.2,1) both; }
         .hyVeh_bgPulse { animation: hyVeh_bgPulse 420ms cubic-bezier(.2,.8,.2,1) both; }
 
@@ -940,7 +405,6 @@ export default function HyundaiVehicleSlugPage() {
           transition: background-color 420ms cubic-bezier(.2,.8,.2,1);
         }
 
-        /* ✅ textura/foto atrás do veículo (manual no código) */
         .hyVeh_heroBg::before {
           content: "";
           position: absolute;
@@ -954,7 +418,6 @@ export default function HyundaiVehicleSlugPage() {
           transform: translateZ(0);
         }
 
-        /* ✅ overlay de luz/sombra + textura leve */
         .hyVeh_heroBg::after {
           content: "";
           position: absolute;
@@ -976,7 +439,6 @@ export default function HyundaiVehicleSlugPage() {
         }
       `}</style>
 
-      {/* topo */}
       <div className="bg-white border-b border-black/5">
         <div className="max-w-[1200px] mx-auto px-6 pt-6 pb-3">
           <div className="text-[12px] text-gray-500">
@@ -1038,10 +500,8 @@ export default function HyundaiVehicleSlugPage() {
         </div>
       </div>
 
-      {/* conteúdo */}
       <div className="max-w-[1200px] mx-auto px-6 py-8">
         <div className="grid grid-cols-12 gap-8 items-start">
-          {/* esquerda */}
           <div className="col-span-12 lg:col-span-4 hyVeh_animFadeUp">
             {step === 1 ? (
               <>
@@ -1072,7 +532,6 @@ export default function HyundaiVehicleSlugPage() {
                               {active ? <div className="h-2 w-2 rounded-full bg-black" /> : null}
                             </div>
 
-                            {/* ✅ mini capa da versão */}
                             <div className="w-14 h-10 bg-gray-50 border border-black/10 rounded overflow-hidden flex items-center justify-center">
                               {cover ? (
                                 <img src={cover} alt={v.title} />
@@ -1141,7 +600,6 @@ export default function HyundaiVehicleSlugPage() {
                 )}
               </>
             ) : (
-              // ✅ PASSO 3
               <>
                 <div className="text-[12px] text-gray-700 font-semibold mb-4">
                   Conteúdo herdado para <span className="font-bold">Acessórios</span> e{" "}
@@ -1152,9 +610,9 @@ export default function HyundaiVehicleSlugPage() {
                   <div className="text-[12px] font-semibold text-gray-900">Especificações (Destaques)</div>
                   <div className="mt-3">
                     {highlightsContent.length ? (
-                      <div className="space-y-2 text-[12px] text-gray-700">
+                      <div className="space-y-2">
                         {highlightsContent.map((h, idx) => (
-                          <div key={idx} className="flex gap-2">
+                          <div key={idx} className="flex gap-2 text-[12px] text-gray-700">
                             <span className="text-gray-400">•</span>
                             <span>{h}</span>
                           </div>
@@ -1187,7 +645,6 @@ export default function HyundaiVehicleSlugPage() {
             )}
           </div>
 
-          {/* direita */}
           <div className="col-span-12 lg:col-span-8 hyVeh_animFadeUp">
             <div className="text-[14px] text-gray-700">
               <span className="font-semibold">{Title}</span>
@@ -1209,11 +666,9 @@ export default function HyundaiVehicleSlugPage() {
             </div>
 
             <div className="mt-3 bg-white border border-black/10 rounded-md overflow-hidden">
-              {/* ✅ HERO: fundo com imagem manual + troca de cor (só quando escolhe cor) */}
               <div
                 className={[
                   "h-[280px] hyVeh_heroBg relative",
-                  // anima o overlay quando trocar cor (bgKey muda)
                   step >= 2 && colorChangedOnce ? "hyVeh_bgPulse" : "",
                 ].join(" ")}
                 key={bgKey}
@@ -1274,6 +729,7 @@ export default function HyundaiVehicleSlugPage() {
                     specGroups.map((g) => {
                       const opened = openSpecId === g.id;
                       const items = Array.isArray(g.items) ? g.items : [];
+
                       return (
                         <div key={g.id} className="border-b border-black/10 last:border-b-0">
                           <button
@@ -1324,7 +780,6 @@ export default function HyundaiVehicleSlugPage() {
         </div>
       </div>
 
-      {/* barra inferior */}
       <div className="sticky bottom-0 left-0 right-0 bg-white border-t border-black/10">
         <div className="max-w-[1200px] mx-auto px-6 py-3 flex items-center justify-between">
           <button
