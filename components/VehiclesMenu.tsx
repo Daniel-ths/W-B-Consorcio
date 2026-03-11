@@ -6,23 +6,16 @@ import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 
 // --- CONFIGURAÇÃO DA ORDEM DO MENU ---
-// ✅ FIX: separa "Hatches e Sedans" em duas categorias
 const MENU_ORDER = [
   { label: "Elétricos", dbKeywords: ["eletrico", "elétrico", "ev", "bolt"] },
   { label: "SUVs", dbKeywords: ["suv", "tracker", "equinox", "trailblazer", "spin"] },
   { label: "Picapes", dbKeywords: ["picape", "pickup", "montana", "s10", "silverado"] },
-
-  // ✅ dividido:
   { label: "Hatches", dbKeywords: ["hatch", "hatchback", "onix", "compacto"] },
   { label: "Sedans", dbKeywords: ["sedan", "cruze"] },
-
   { label: "Esportivos", dbKeywords: ["esportivo", "camaro", "corvette", "ss"] },
   { label: "Seminovos", dbKeywords: [] },
 ];
 
-// =========================
-// ✅ CARDS FIXOS (LANDING PAGES) — CAPA SELECIONÁVEL
-// =========================
 const ELECTRIC_LP_CARDS: Array<{
   title: string;
   href: string;
@@ -43,7 +36,6 @@ const ELECTRIC_LP_CARDS: Array<{
   },
 ];
 
-// ✅ Esportivos (LPs)
 const SPORT_LP_CARDS: Array<{
   title: string;
   href: string;
@@ -58,7 +50,6 @@ const SPORT_LP_CARDS: Array<{
   },
 ];
 
-// ✅ SUVs (LPs) — NOVOS QUE VOCÊ FEZ
 const SUV_LP_CARDS: Array<{
   title: string;
   href: string;
@@ -85,7 +76,6 @@ const SUV_LP_CARDS: Array<{
   },
 ];
 
-// ✅ Picapes (LPs) — NOVAS (S10 e Silverado)
 const PICKUP_LP_CARDS: Array<{
   title: string;
   href: string;
@@ -117,7 +107,6 @@ const formatBRL0 = (val: number) =>
     maximumFractionDigits: 0,
   }).format(val);
 
-// Normaliza string pra comparar (remove acento/pontuação e baixa)
 const norm = (s: string) =>
   (s || "")
     .toLowerCase()
@@ -125,6 +114,28 @@ const norm = (s: string) =>
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9\s-]/g, "")
     .trim();
+
+// cache simples em memória para não repetir preload
+const preloadedImages = new Set<string>();
+
+function preloadImages(urls: string[]) {
+  const uniqueUrls = Array.from(
+    new Set(
+      urls
+        .map((u) => String(u || "").trim())
+        .filter(Boolean)
+    )
+  );
+
+  uniqueUrls.forEach((url) => {
+    if (preloadedImages.has(url)) return;
+
+    const img = new window.Image();
+    img.decoding = "async";
+    img.src = url;
+    preloadedImages.add(url);
+  });
+}
 
 function FixedCardsGrid({
   cards,
@@ -146,6 +157,9 @@ function FixedCardsGrid({
             <img
               src={(card.coverImage || "").trim()}
               alt={card.title}
+              loading="eager"
+              decoding="async"
+              fetchPriority="high"
               className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-500"
             />
           </div>
@@ -179,40 +193,103 @@ export default function VehiclesMenu({ onClose }: VehiclesMenuProps) {
 
     async function fetchData() {
       try {
-        // ✅ ISOLAMENTO CHEVROLET
-        // IMPORTANTE: brand no banco deve ser exatamente "chevrolet"
         const { data: vecs } = await supabase
           .from("vehicles")
           .select("*, categories(name)")
           .eq("is_visible", true)
-          .eq("brand", "chevrolet") // ✅ AQUI resolve a mistura
+          .eq("brand", "chevrolet")
           .order("price_start", { ascending: true });
 
         if (!mounted) return;
-        if (vecs) setVehicles(vecs);
+
+        const safeVehicles = Array.isArray(vecs) ? vecs : [];
+        setVehicles(safeVehicles);
+
+        // ✅ pré-carrega capas fixas + imagens do banco
+        const fixedUrls = [
+          ...ELECTRIC_LP_CARDS.map((c) => c.coverImage),
+          ...SPORT_LP_CARDS.map((c) => c.coverImage),
+          ...SUV_LP_CARDS.map((c) => c.coverImage),
+          ...PICKUP_LP_CARDS.map((c) => c.coverImage),
+        ];
+
+        // prioriza as primeiras imagens do banco
+        const dbUrls = safeVehicles
+          .map((v: any) => String(v?.image_url || "").trim())
+          .filter(Boolean);
+
+        // primeiro as fixas, depois até 30 do banco para não exagerar
+        preloadImages([...fixedUrls, ...dbUrls.slice(0, 30)]);
       } catch (error) {
         console.error("Erro ao buscar menu:", error);
       } finally {
         if (!mounted) return;
-        setTimeout(() => setLoading(false), 500);
+        setLoading(false);
       }
     }
 
     fetchData();
+
     return () => {
       mounted = false;
     };
   }, []);
 
-  // nomes das LPs pra remover duplicados no grid do DB
+  // ✅ quando troca categoria, reforça preload da categoria atual
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const categorySpecificUrls: string[] = [];
+
+    if (selectedLabel === "Elétricos") {
+      categorySpecificUrls.push(...ELECTRIC_LP_CARDS.map((c) => c.coverImage));
+    }
+
+    if (selectedLabel === "SUVs") {
+      categorySpecificUrls.push(...SUV_LP_CARDS.map((c) => c.coverImage));
+    }
+
+    if (selectedLabel === "Picapes") {
+      categorySpecificUrls.push(...PICKUP_LP_CARDS.map((c) => c.coverImage));
+    }
+
+    if (selectedLabel === "Esportivos") {
+      categorySpecificUrls.push(...SPORT_LP_CARDS.map((c) => c.coverImage));
+    }
+
+    const categoryVehicles = vehicles.filter((v) => {
+      const categoryName = norm(v?.categories?.name || "");
+      const modelName = norm(v?.model_name || "");
+      const joined = `${categoryName} ${modelName}`;
+
+      const config = MENU_ORDER.find((c) => c.label === selectedLabel);
+      if (!config) return false;
+
+      if (selectedLabel === "Hatches") return categoryName.includes("hatch");
+      if (selectedLabel === "Sedans") return categoryName.includes("sedan");
+      if (selectedLabel === "Seminovos") return false;
+
+      return (config.dbKeywords || []).some((kw) => joined.includes(norm(kw)));
+    });
+
+    categorySpecificUrls.push(
+      ...categoryVehicles
+        .map((v: any) => String(v?.image_url || "").trim())
+        .filter(Boolean)
+        .slice(0, 18)
+    );
+
+    preloadImages(categorySpecificUrls);
+  }, [selectedLabel, vehicles]);
+
   const fixedNames = useMemo(() => {
     const byLabel: Record<string, string[]> = {
-      "Elétricos": ELECTRIC_LP_CARDS.map((c) => norm(c.title)),
-      "Esportivos": SPORT_LP_CARDS.map((c) => norm(c.title)),
-      "SUVs": SUV_LP_CARDS.map((c) => norm(c.title)),
-      "Picapes": PICKUP_LP_CARDS.map((c) => norm(c.title)),
-      "Hatches": [],
-      "Sedans": [],
+      Elétricos: ELECTRIC_LP_CARDS.map((c) => norm(c.title)),
+      Esportivos: SPORT_LP_CARDS.map((c) => norm(c.title)),
+      SUVs: SUV_LP_CARDS.map((c) => norm(c.title)),
+      Picapes: PICKUP_LP_CARDS.map((c) => norm(c.title)),
+      Hatches: [],
+      Sedans: [],
     };
     return byLabel;
   }, []);
@@ -317,6 +394,8 @@ export default function VehiclesMenu({ onClose }: VehiclesMenuProps) {
                   src="https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/chevrolet-logo.svg"
                   className="h-8 mx-auto mb-6 opacity-80"
                   alt="Logo"
+                  loading="eager"
+                  decoding="async"
                 />
                 <h3 className="text-4xl font-extrabold text-gray-800 uppercase tracking-tighter mb-2">
                   Seminovos
@@ -337,7 +416,6 @@ export default function VehiclesMenu({ onClose }: VehiclesMenuProps) {
             </div>
           ) : (
             <div className="w-full animate-in fade-in slide-in-from-left-4 duration-300">
-              {/* FIXOS POR CATEGORIA */}
               {selectedLabel === "Elétricos" ? (
                 <div className="mb-10">
                   <FixedCardsGrid cards={ELECTRIC_LP_CARDS} onClose={onClose} />
@@ -362,10 +440,9 @@ export default function VehiclesMenu({ onClose }: VehiclesMenuProps) {
                 </div>
               ) : null}
 
-              {/* GRID DO BANCO */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 w-full">
                 {filteredVehicles.length > 0 ? (
-                  filteredVehicles.map((car) => (
+                  filteredVehicles.map((car, index) => (
                     <Link
                       key={car.id}
                       href={`/configurador?id=${car.id}`}
@@ -376,6 +453,9 @@ export default function VehiclesMenu({ onClose }: VehiclesMenuProps) {
                         <img
                           src={(car.image_url || "").trim()}
                           alt={car.model_name}
+                          loading={index < 6 ? "eager" : "lazy"}
+                          decoding="async"
+                          fetchPriority={index < 3 ? "high" : "auto"}
                           className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-500"
                         />
                       </div>

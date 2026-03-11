@@ -53,10 +53,10 @@ function guessCategory(modelName: string): "SUV" | "HATCHBACK" | "SEDAN" | "UTIL
   ) {
     return "SUV";
   }
+
   return "SUV";
 }
 
-/** ✅ garante URL “usável” (remove espaços, encode e trim) */
 function safeImgUrl(url: string | null | undefined) {
   const u = String(url || "").trim();
   if (!u) return "";
@@ -92,8 +92,9 @@ export default function HyundaiVehiclesMenu({ onClose }: Props) {
   const [imgFailed, setImgFailed] = useState<Record<string, boolean>>({});
   const [hoverId, setHoverId] = useState<string | number | null>(null);
   const [tabAnimKey, setTabAnimKey] = useState(0);
+  const [pageDirection, setPageDirection] = useState<"next" | "prev">("next");
 
-  // ✅ debounce pequeno pra evitar flicker de hover rápido
+  const preloadedRef = useRef<Set<string>>(new Set());
   const hoverTRef = useRef<number | null>(null);
 
   const setHoverSafe = (id: string | number) => {
@@ -146,11 +147,11 @@ export default function HyundaiVehiclesMenu({ onClose }: Props) {
     };
   }, []);
 
-  // ✅ ao trocar tab, reset página e anima
   useEffect(() => {
     setPage(0);
     setTabAnimKey((k) => k + 1);
     setHoverId(null);
+    setPageDirection("next");
   }, [activeTab]);
 
   const list = useMemo(() => vehicles || [], [vehicles]);
@@ -182,9 +183,17 @@ export default function HyundaiVehiclesMenu({ onClose }: Props) {
     return filteredAll.slice(start, start + PAGE_SIZE);
   }, [filteredAll, safePage]);
 
-  // ✅ setas funcionando bem: sempre usa o totalPages atual
-  const goPrev = () => setPage((p) => (p - 1 + totalPages) % totalPages);
-  const goNext = () => setPage((p) => (p + 1) % totalPages);
+  const goPrev = () => {
+    setPageDirection("prev");
+    setPage((p) => (p - 1 + totalPages) % totalPages);
+    setTabAnimKey((k) => k + 1);
+  };
+
+  const goNext = () => {
+    setPageDirection("next");
+    setPage((p) => (p + 1) % totalPages);
+    setTabAnimKey((k) => k + 1);
+  };
 
   const renderPager = () => {
     const dots = Math.min(3, totalPages);
@@ -195,16 +204,23 @@ export default function HyundaiVehiclesMenu({ onClose }: Props) {
         {Array.from({ length: dots }).map((_, i) => {
           const active = i === activeIndex;
           return active ? (
-            <span key={i} className="h-[7px] w-[64px] rounded-full bg-gray-700" aria-hidden="true" />
+            <span
+              key={i}
+              className="h-[7px] w-[64px] rounded-full bg-gray-700 transition-all duration-300"
+              aria-hidden="true"
+            />
           ) : (
-            <span key={i} className="h-[7px] w-[7px] rounded-full bg-gray-400" aria-hidden="true" />
+            <span
+              key={i}
+              className="h-[7px] w-[7px] rounded-full bg-gray-400 transition-all duration-300"
+              aria-hidden="true"
+            />
           );
         })}
       </div>
     );
   };
 
-  /** ✅ imagem do menu com fallback: catalog_cover_url -> image_url */
   const getMenuImage = (v: VehicleRow) => {
     const key = String(v.id);
     const cover = safeImgUrl(v.catalog_cover_url);
@@ -219,10 +235,6 @@ export default function HyundaiVehiclesMenu({ onClose }: Props) {
     setImgFailed((prev) => ({ ...prev, [key]: true }));
   };
 
-  // ✅ featured com prioridade SUV:
-  // 1) hover (se existir)
-  // 2) primeiro SUV (no conjunto filtrado atual)
-  // 3) fallback: primeiro item
   const featured = useMemo(() => {
     if (hoverId != null) {
       const found = filteredAll.find((v) => String(v.id) === String(hoverId));
@@ -233,18 +245,67 @@ export default function HyundaiVehiclesMenu({ onClose }: Props) {
     return firstSUV || filteredAll[0] || null;
   }, [filteredAll, hoverId]);
 
-  // ✅ ao trocar página, se o featured atual não estiver mais no filteredAll, mantém a regra de prioridade SUV
   useEffect(() => {
     if (!featured) {
       setHoverId(null);
       return;
     }
+
     if (hoverId != null) {
       const ok = filteredAll.some((v) => String(v.id) === String(hoverId));
       if (!ok) setHoverId(null);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [safePage, filteredAll.length]);
+  }, [safePage, filteredAll, featured, hoverId]);
+
+  useEffect(() => {
+    if (!list.length) return;
+
+    const urls = new Set<string>();
+
+    for (const v of list) {
+      const cover = safeImgUrl(v.catalog_cover_url);
+      const main = safeImgUrl(v.image_url);
+
+      if (cover) urls.add(cover);
+      if (main) urls.add(main);
+    }
+
+    urls.forEach((url) => {
+      if (!url || preloadedRef.current.has(url)) return;
+
+      const img = new window.Image();
+      img.decoding = "async";
+      img.loading = "eager";
+      img.src = url;
+
+      preloadedRef.current.add(url);
+    });
+  }, [list]);
+
+  useEffect(() => {
+    const currentUrls = new Set<string>();
+
+    if (featured) {
+      const img = getMenuImage(featured);
+      if (img) currentUrls.add(img);
+    }
+
+    for (const v of gridItems) {
+      const img = getMenuImage(v);
+      if (img) currentUrls.add(img);
+    }
+
+    currentUrls.forEach((url) => {
+      if (!url || preloadedRef.current.has(url)) return;
+
+      const img = new window.Image();
+      img.decoding = "async";
+      img.loading = "eager";
+      img.src = url;
+
+      preloadedRef.current.add(url);
+    });
+  }, [gridItems, featured, imgFailed]);
 
   if (loading) return <div className="p-4 text-xs font-bold text-slate-500"></div>;
   if (errorMsg) return <div className="p-4 text-xs font-bold text-red-600">{errorMsg}</div>;
@@ -273,15 +334,89 @@ export default function HyundaiVehiclesMenu({ onClose }: Props) {
             transform: translateX(0);
           }
         }
+
+        @keyframes hyPageInRight {
+          from {
+            opacity: 0;
+            transform: translateX(22px) translateY(4px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0) translateY(0);
+          }
+        }
+
+        @keyframes hyPageInLeft {
+          from {
+            opacity: 0;
+            transform: translateX(-22px) translateY(4px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0) translateY(0);
+          }
+        }
+
+        @keyframes hyFadeUp {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
         .hy-tab-anim {
           animation: hyTabIn 220ms ease-out both;
         }
+
+        .hy-page-next {
+          animation: hyPageInRight 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+
+        .hy-page-prev {
+          animation: hyPageInLeft 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+
+        .hy-fade-up {
+          animation: hyFadeUp 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+
         .hy-card {
           border-radius: 18px;
           overflow: hidden;
           border: 1px solid rgba(229, 231, 235, 1);
           background: white;
           box-shadow: 0 10px 26px rgba(0, 0, 0, 0.06);
+        }
+
+        .hy-arrow-shell {
+          position: absolute;
+          top: 50%;
+          transform: translateY(-50%);
+          z-index: 30;
+          width: 46px;
+          height: 46px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.92);
+          border: 1px solid rgba(229, 231, 235, 1);
+          box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+          transition: all 180ms ease;
+          backdrop-filter: blur(8px);
+        }
+
+        .hy-arrow-shell:hover {
+          transform: translateY(-50%) scale(1.06);
+          box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12);
+        }
+
+        .hy-arrow-shell:active {
+          transform: translateY(-50%) scale(0.97);
         }
       `}</style>
 
@@ -294,19 +429,22 @@ export default function HyundaiVehiclesMenu({ onClose }: Props) {
                 href={`${HY_VEHICLE_PUBLIC_BASE}/${featured.slug}`}
                 onClick={() => onClose?.()}
                 className="block select-none"
+                prefetch
               >
-                <div className="text-[42px] leading-none font-medium text-gray-900 tracking-tight mt-1">
+                <div className="text-[42px] leading-none font-medium text-gray-900 tracking-tight mt-1 hy-fade-up">
                   {featured.model_name}
                 </div>
 
-                <div className="mt-6 w-full h-[360px] flex items-center hy-card bg-gray-50">
-                  {/* ✅ removido indicador/placeholder "Sem imagem" */}
+                <div className="mt-6 w-full h-[360px] flex items-center hy-card bg-gray-50 hy-fade-up">
                   {getMenuImage(featured) ? (
                     <img
                       src={getMenuImage(featured)}
                       alt={featured.model_name}
-                      className="w-full h-full object-contain p-4"
+                      className="w-full h-full object-contain p-4 transition-transform duration-500 hover:scale-[1.02]"
                       draggable={false}
+                      loading="eager"
+                      decoding="async"
+                      fetchPriority="high"
                       onError={() => onImgError(featured)}
                     />
                   ) : (
@@ -314,7 +452,7 @@ export default function HyundaiVehiclesMenu({ onClose }: Props) {
                   )}
                 </div>
 
-                <div className="mt-10 grid grid-cols-4 gap-10">
+                <div className="mt-10 grid grid-cols-4 gap-10 hy-fade-up">
                   <SpecItem label="Motor" value={featured.motor} />
                   <SpecItem label="Transmissão" value={featured.transmissao} />
                   <SpecItem label="Potência máxima" value={featured.potencia_maxima} />
@@ -333,81 +471,103 @@ export default function HyundaiVehiclesMenu({ onClose }: Props) {
                   <button
                     key={t}
                     onClick={() => setActiveTab(t)}
-                    className={`relative pb-2 font-medium ${active ? "text-gray-900" : "text-gray-800"}`}
+                    className={`relative pb-2 font-medium transition-colors duration-200 ${
+                      active ? "text-gray-900" : "text-gray-800 hover:text-gray-900"
+                    }`}
                   >
                     {t} <span className="text-gray-500 font-normal">({(counts as any)[t] || 0})</span>
                     {active && (
-                      <span className="absolute left-0 right-0 -bottom-[2px] h-[2px]" style={{ backgroundColor: HY_BLUE }} />
+                      <span
+                        className="absolute left-0 right-0 -bottom-[2px] h-[2px] rounded-full"
+                        style={{ backgroundColor: HY_BLUE }}
+                      />
                     )}
                   </button>
                 );
               })}
             </div>
 
-            <div key={tabAnimKey} className="relative mt-9 hy-tab-anim">
+            {/* área fixa para setas */}
+            <div className="relative mt-9 min-h-[420px]">
               <button
                 type="button"
                 onClick={goPrev}
-                className="absolute -left-11 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-800 select-none"
+                className="hy-arrow-shell left-[-56px] text-gray-500 hover:text-gray-800 select-none"
                 aria-label="Anterior"
               >
-                <span className="text-4xl leading-none">‹</span>
+                <span className="text-[34px] leading-none">‹</span>
               </button>
 
               <button
                 type="button"
                 onClick={goNext}
-                className="absolute -right-11 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-800 select-none"
+                className="hy-arrow-shell right-[-56px] text-gray-500 hover:text-gray-800 select-none"
                 aria-label="Próximo"
               >
-                <span className="text-4xl leading-none">›</span>
+                <span className="text-[34px] leading-none">›</span>
               </button>
 
-              <div className="grid grid-cols-3 gap-x-12 gap-y-14">
-                {gridItems.map((v) => {
-                  const img = getMenuImage(v);
-                  const isActive = featured && String(featured.id) === String(v.id);
+              <div
+                key={`${tabAnimKey}-${safePage}-${pageDirection}`}
+                className={pageDirection === "next" ? "hy-page-next" : "hy-page-prev"}
+              >
+                <div className="grid grid-cols-3 gap-x-12 gap-y-14">
+                  {gridItems.map((v, index) => {
+                    const img = getMenuImage(v);
+                    const isActive = featured && String(featured.id) === String(v.id);
 
-                  return (
-                    <Link
-                      key={String(v.id)}
-                      href={`${HY_VEHICLE_PUBLIC_BASE}/${v.slug}`}
-                      onClick={() => onClose?.()}
-                      onMouseEnter={() => setHoverSafe(v.id)}
-                      className={`group text-center transition-transform duration-200 ${
-                        isActive ? "scale-[1.02]" : "hover:scale-[1.02]"
-                      }`}
-                    >
-                      <div
-                        className={`h-[104px] flex items-center justify-center rounded-2xl border transition-colors ${
-                          isActive ? "border-cyan-300 bg-cyan-50" : "border-gray-200 bg-white group-hover:bg-gray-50"
+                    return (
+                      <Link
+                        key={String(v.id)}
+                        href={`${HY_VEHICLE_PUBLIC_BASE}/${v.slug}`}
+                        onClick={() => onClose?.()}
+                        onMouseEnter={() => setHoverSafe(v.id)}
+                        className={`group text-center transition-transform duration-300 ${
+                          isActive ? "scale-[1.02]" : "hover:scale-[1.02]"
                         }`}
+                        prefetch
+                        style={{
+                          animation: `hyFadeUp 380ms cubic-bezier(0.22,1,0.36,1) both`,
+                          animationDelay: `${index * 45}ms`,
+                        }}
                       >
-                        {img ? (
-                          <img
-                            src={img}
-                            alt={v.model_name}
-                            className="w-full h-full object-contain p-2"
-                            draggable={false}
-                            onError={() => onImgError(v)}
-                          />
-                        ) : (
-                          <div className="w-full h-full" />
-                        )}
-                      </div>
+                        <div
+                          className={`h-[104px] flex items-center justify-center rounded-2xl border transition-all duration-300 ${
+                            isActive
+                              ? "border-cyan-300 bg-cyan-50 shadow-[0_8px_24px_rgba(0,163,200,0.10)]"
+                              : "border-gray-200 bg-white group-hover:bg-gray-50 group-hover:shadow-[0_8px_20px_rgba(0,0,0,0.06)]"
+                          }`}
+                        >
+                          {img ? (
+                            <img
+                              src={img}
+                              alt={v.model_name}
+                              className="w-full h-full object-contain p-2 transition-transform duration-300 group-hover:scale-[1.04]"
+                              draggable={false}
+                              loading="eager"
+                              decoding="async"
+                              onError={() => onImgError(v)}
+                            />
+                          ) : (
+                            <div className="w-full h-full" />
+                          )}
+                        </div>
 
-                      <div className={`mt-4 text-[14px] font-medium transition-opacity ${isActive ? "text-gray-900" : "text-gray-900 group-hover:opacity-80"}`}>
-                        {v.model_name}
-                      </div>
-                    </Link>
-                  );
-                })}
+                        <div
+                          className={`mt-4 text-[14px] font-medium transition-all duration-200 ${
+                            isActive ? "text-gray-900" : "text-gray-900 group-hover:opacity-80"
+                          }`}
+                        >
+                          {v.model_name}
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+
+                {renderPager()}
               </div>
-
-              {renderPager()}
             </div>
-
-            {/* ✅ removido o “Ver todos os veículos →” / indicador extra (você tinha apagado a seção no final) */}
           </div>
         </div>
       </div>

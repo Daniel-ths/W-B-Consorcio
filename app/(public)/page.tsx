@@ -11,7 +11,6 @@ export default function ChooseBrandPage() {
   const router = useRouter();
   const [entering, setEntering] = useState<Brand | null>(null);
 
-  // refs pra limpar timeouts corretamente
   const navTimeoutRef = useRef<number | null>(null);
   const resetTimeoutRef = useRef<number | null>(null);
 
@@ -26,8 +25,6 @@ export default function ChooseBrandPage() {
         key: "hyundai",
         name: "Hyundai",
         logo: "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/avatars/580b585b2edbce24c47b2c77.png",
-        // se quiser bloquear por enquanto:
-        // disabled: true,
       },
     ],
     []
@@ -47,19 +44,16 @@ export default function ChooseBrandPage() {
     setEntering(b);
     clearTimers();
 
-    // navega após animação
     navTimeoutRef.current = window.setTimeout(() => {
       router.push(`/${b.key}`);
     }, 520);
 
-    // failsafe: se por algum motivo não navegar, volta o overlay
     resetTimeoutRef.current = window.setTimeout(() => {
       setEntering(null);
       clearTimers();
     }, 5000);
   };
 
-  // atalhos (desktop)
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (entering) return;
@@ -73,16 +67,17 @@ export default function ChooseBrandPage() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [brands, entering]);
 
-  // cleanup ao desmontar
   useEffect(() => {
     return () => clearTimers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
-    <main className="min-h-screen w-full overflow-hidden bg-white text-zinc-900 dark:bg-zinc-950 dark:text-white">
-      {/* ===== Background animado (leve) ===== */}
-      <div className="pointer-events-none absolute inset-0">
+    <main className="fixed inset-0 h-[100svh] w-full overflow-hidden bg-white text-zinc-900 dark:bg-zinc-950 dark:text-white">
+      {/* camada fixa de fundo para nunca aparecer branco */}
+      <div className="absolute inset-0 bg-white dark:bg-zinc-950" />
+
+      {/* ===== Background animado ===== */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute inset-0 opacity-[0.07] dark:opacity-[0.10] bg-grid" />
         <div className="blob blob-1" />
         <div className="blob blob-2" />
@@ -91,13 +86,13 @@ export default function ChooseBrandPage() {
       </div>
 
       {/* ===== Conteúdo ===== */}
-      <div className="relative z-10 min-h-screen flex items-center justify-center px-4 sm:px-6">
+      <div className="relative z-10 flex h-full w-full items-center justify-center px-4 py-6 sm:px-6 sm:py-8">
         <div className="w-full max-w-lg sm:max-w-xl md:max-w-4xl">
           {/* Header */}
           <div className="mb-8 sm:mb-10 text-center">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-zinc-200/70 dark:border-white/10 bg-white/70 dark:bg-white/5 backdrop-blur">
               <span className="h-1.5 w-1.5 rounded-full bg-zinc-900/70 dark:bg-white/70" />
-              <span className="text-[10px] sm:text-[11px] tracking-[0.28em] uppercase text-zinc-600 dark:text-zinc-300">
+              <span className="text-[10px] sm:text-[11px] tracking-[0.22em] sm:tracking-[0.28em] uppercase text-zinc-600 dark:text-zinc-300">
                 Nacional Consórcios
               </span>
             </div>
@@ -106,7 +101,7 @@ export default function ChooseBrandPage() {
               Escolha a marca
             </h1>
 
-            <p className="hidden sm:block mt-3 text-sm text-zinc-600 dark:text-zinc-300">
+            <p className="mt-3 text-xs sm:text-sm text-zinc-600 dark:text-zinc-300 px-4 sm:px-0">
               Você pode alternar entre marcas a qualquer momento.
             </p>
           </div>
@@ -120,7 +115,7 @@ export default function ChooseBrandPage() {
                 disabled={!!b.disabled}
                 className={`
                   group relative w-full overflow-hidden
-                  rounded-[26px] sm:rounded-[28px]
+                  rounded-[24px] sm:rounded-[28px]
                   border border-zinc-200/70 dark:border-white/10
                   bg-white/75 dark:bg-white/5 backdrop-blur-md
                   transition-transform duration-300
@@ -132,13 +127,15 @@ export default function ChooseBrandPage() {
                   <div className="absolute -top-20 -right-20 h-56 w-56 rounded-full bg-zinc-200/50 dark:bg-white/10 blur-3xl" />
                 </div>
 
-                <div className="p-6 sm:p-8 md:p-10 flex items-center justify-between gap-4">
+                <div className="p-5 sm:p-8 md:p-10 flex items-center justify-between gap-4">
                   <div className="flex items-center gap-4 min-w-0">
                     <div className="h-14 w-14 sm:h-16 sm:w-16 rounded-2xl border border-zinc-200/70 dark:border-white/10 bg-white/85 dark:bg-white/10 flex items-center justify-center shrink-0">
                       <img
                         src={b.logo}
                         alt={b.name}
-                        className="h-7 sm:h-8 w-auto object-contain"
+                        className={`w-auto object-contain ${
+                          b.key === "hyundai" ? "h-8 sm:h-9" : "h-7 sm:h-8"
+                        }`}
                       />
                     </div>
 
@@ -156,14 +153,14 @@ export default function ChooseBrandPage() {
                 <div className="h-[2px] w-full bg-zinc-900/5 dark:bg-white/10" />
                 <div className="h-[2px] w-0 md:group-hover:w-full transition-all duration-500 bg-zinc-900/20 dark:bg-white/20" />
 
-                <div className="pointer-events-none absolute inset-0 rounded-[26px] sm:rounded-[28px] ring-0 md:group-hover:ring-2 ring-zinc-900/10 dark:ring-white/15 transition-all" />
+                <div className="pointer-events-none absolute inset-0 rounded-[24px] sm:rounded-[28px] ring-0 md:group-hover:ring-2 ring-zinc-900/10 dark:ring-white/15 transition-all" />
               </button>
             ))}
           </div>
         </div>
       </div>
 
-      {/* ===== Overlay de entrada (CENTRALIZADO MOBILE) ===== */}
+      {/* ===== Overlay de entrada ===== */}
       <div
         className={`fixed inset-0 z-[9999] transition-all duration-500 ${
           entering ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
@@ -171,7 +168,7 @@ export default function ChooseBrandPage() {
       >
         <div className="absolute inset-0 bg-white/75 dark:bg-black/70 backdrop-blur-xl" />
 
-        <div className="relative z-10 grid place-items-center min-h-[100svh] p-6">
+        <div className="relative z-10 grid place-items-center h-[100svh] p-6">
           <div className="w-full max-w-xs sm:max-w-sm flex flex-col items-center gap-4 text-center">
             {entering?.logo && (
               <div className="h-16 w-16 sm:h-20 sm:w-20 rounded-3xl border border-zinc-200/70 dark:border-white/10 bg-white/85 dark:bg-white/10 flex items-center justify-center">
@@ -198,15 +195,40 @@ export default function ChooseBrandPage() {
         </div>
       </div>
 
-      {/* ===== CSS ===== */}
       <style jsx global>{`
+        html,
+        body {
+          margin: 0;
+          padding: 0;
+          width: 100%;
+          height: 100%;
+          overflow: hidden;
+          overscroll-behavior: none;
+          background: #ffffff;
+        }
+
+        .dark html,
+        .dark body,
+        html.dark,
+        body.dark {
+          background: #09090b;
+        }
+
+        #__next {
+          height: 100%;
+          overflow: hidden;
+        }
+
         .bg-grid {
-          background-image: linear-gradient(to right, rgba(0, 0, 0, 0.35) 1px, transparent 1px),
+          background-image:
+            linear-gradient(to right, rgba(0, 0, 0, 0.35) 1px, transparent 1px),
             linear-gradient(to bottom, rgba(0, 0, 0, 0.35) 1px, transparent 1px);
           background-size: 56px 56px;
         }
+
         .dark .bg-grid {
-          background-image: linear-gradient(to right, rgba(255, 255, 255, 0.35) 1px, transparent 1px),
+          background-image:
+            linear-gradient(to right, rgba(255, 255, 255, 0.35) 1px, transparent 1px),
             linear-gradient(to bottom, rgba(255, 255, 255, 0.35) 1px, transparent 1px);
         }
 
@@ -220,6 +242,7 @@ export default function ChooseBrandPage() {
           animation: floaty 14s ease-in-out infinite;
           mix-blend-mode: multiply;
         }
+
         .dark .blob {
           opacity: 0.22;
           mix-blend-mode: screen;
@@ -227,13 +250,18 @@ export default function ChooseBrandPage() {
 
         @media (max-width: 640px) {
           .blob {
-            width: 360px;
-            height: 360px;
-            filter: blur(50px);
-            opacity: 0.35;
+            width: 320px;
+            height: 320px;
+            filter: blur(44px);
+            opacity: 0.32;
           }
+
           .dark .blob {
             opacity: 0.18;
+          }
+
+          .bg-grid {
+            background-size: 40px 40px;
           }
         }
 
@@ -243,12 +271,14 @@ export default function ChooseBrandPage() {
           background: radial-gradient(circle at 30% 30%, #60a5fa, transparent 55%);
           animation-delay: 0s;
         }
+
         .blob-2 {
           right: -160px;
           top: 18%;
           background: radial-gradient(circle at 30% 30%, #22c55e, transparent 55%);
           animation-delay: -3s;
         }
+
         .blob-3 {
           left: 18%;
           bottom: -220px;
@@ -271,6 +301,7 @@ export default function ChooseBrandPage() {
         .loading-bar {
           animation: load 520ms ease-out forwards;
         }
+
         @keyframes load {
           from {
             width: 0%;
