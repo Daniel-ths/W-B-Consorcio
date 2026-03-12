@@ -34,15 +34,7 @@ import {
 
 /**
  * Captiva EV 2026 — Landing + FINALIZAÇÃO no final
- * ✅ Todos CTAs rolam pro final
- * ✅ Se logado: salva em sales e abre /vendedor/analise com query
- * ✅ Se não logado: bloqueia e mostra botão login
- * ✅ Igual ao OrderSummary:
- *    - nome, cpf, email, telefone
- *    - nome do vendedor digitado
- *    - grava seller_name
- *    - grava details.vendedor_digitado
- *    - se o logado for supervisor, grava approved_by_name com o email dele
+ * ✅ Corrigido erro de bigint no car_id
  */
 
 // =========================
@@ -236,15 +228,6 @@ const toE164Digits = (displayPhone: string) => {
   return null;
 };
 
-const formatCurrency = (val: number) => {
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(val || 0);
-};
-
 const parsePriceToNumber = (value: string) => {
   const digits = String(value || "").replace(/[^\d]/g, "");
   return digits ? Number(digits) : 0;
@@ -309,13 +292,10 @@ export default function CaptivaEVPage() {
 
   const goPrimary = () => scrollToOrder();
 
-  // ===== Página (UI) =====
   const [tab, setTab] = useState<TabKey>("exterior");
-
   const [selectedExterior, setSelectedExterior] = useState(0);
   const [selectedInterior, setSelectedInterior] = useState(0);
   const [interiorIndex, setInteriorIndex] = useState(0);
-
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
   const [isImgSwitching, setIsImgSwitching] = useState(false);
@@ -332,7 +312,6 @@ export default function CaptivaEVPage() {
   }, []);
 
   const exteriorCurrent = CONFIG.exterior.colors[selectedExterior]?.img?.trim() || CONFIG.heroImage;
-
   const interiorColor = CONFIG.interior.colors[selectedInterior];
   const interiorImages = (interiorColor?.images ?? []).map((x) => x.trim()).filter(Boolean);
   const interiorCurrent = interiorImages[interiorIndex] || interiorImages[0] || CONFIG.heroImage;
@@ -344,7 +323,6 @@ export default function CaptivaEVPage() {
 
     animTimer.current = window.setTimeout(() => {
       setDisplayedSrc(nextSrc);
-
       animTimer.current = window.setTimeout(() => {
         setIsImgSwitching(false);
       }, 90);
@@ -401,7 +379,6 @@ export default function CaptivaEVPage() {
     let digits = typed.replace(/\D/g, "");
 
     if (digits.startsWith("55")) digits = digits.slice(2);
-
     digits = digits.slice(0, 11);
 
     const ddd = digits.slice(0, 2);
@@ -482,8 +459,22 @@ export default function CaptivaEVPage() {
 
       const totalPrice = parsePriceToNumber(CONFIG.precoAPartir);
 
+      let resolvedCarId: number | null = null;
+
+      const { data: foundVehicle } = await supabase
+        .from("vehicles")
+        .select("id, model_name")
+        .eq("brand", "chevrolet")
+        .ilike("model_name", `%${CONFIG.titulo}%`)
+        .limit(1)
+        .maybeSingle();
+
+      if (foundVehicle?.id != null) {
+        resolvedCarId = Number(foundVehicle.id);
+      }
+
       const saleData = {
-        car_id: `landing-${CONFIG.titulo.toLowerCase().replace(/\s+/g, "-")}`,
+        car_id: resolvedCarId,
         car_name: CONFIG.titulo,
 
         seller_id: user.id,
@@ -509,6 +500,10 @@ export default function CaptivaEVPage() {
           approved_by_email: userIsSupervisor ? loggedUserEmail : null,
           approved_by_name: userIsSupervisor ? loggedUserEmail : "Sistema",
           approved_by_id: userIsSupervisor ? loggedUserId : null,
+
+          landing_slug: "landing-captiva-ev",
+          landing_page: CONFIG.titulo,
+          landing_mode: true,
         },
 
         approved_at: new Date().toISOString(),
@@ -547,7 +542,6 @@ export default function CaptivaEVPage() {
 
   return (
     <div className="min-h-screen bg-white text-gray-900">
-      {/* TOP */}
       <header className="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-gray-200">
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 h-14 flex items-center justify-between">
           <Link
@@ -566,7 +560,6 @@ export default function CaptivaEVPage() {
         </div>
       </header>
 
-      {/* HERO */}
       <section className="relative">
         <div className="relative w-full h-[520px] md:h-[640px] overflow-hidden">
           <img src={CONFIG.heroImage} alt={CONFIG.titulo} className="w-full h-full object-cover" />
@@ -592,7 +585,6 @@ export default function CaptivaEVPage() {
           </div>
         </div>
 
-        {/* FAIXA PRETA: HIGHLIGHTS */}
         <div className="bg-[#151515] text-white">
           <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-10">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 md:gap-8">
@@ -610,7 +602,6 @@ export default function CaptivaEVPage() {
           </div>
         </div>
 
-        {/* FAIXA PRETA: STATS */}
         <div className="bg-[#0f0f0f] text-white border-t border-white/10">
           <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-10">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-10">
@@ -635,7 +626,6 @@ export default function CaptivaEVPage() {
         </div>
       </section>
 
-      {/* SEÇÃO IMAGEM + TEXTO (escura) */}
       <section className="bg-[#151515] text-white">
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-14">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
@@ -669,7 +659,6 @@ export default function CaptivaEVPage() {
         </div>
       </section>
 
-      {/* GALERIA MOSAICO */}
       <section className="bg-white">
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-14">
           <p className="text-sm text-gray-500">Galeria</p>
@@ -713,7 +702,6 @@ export default function CaptivaEVPage() {
         </div>
       </section>
 
-      {/* CONFIGURADOR */}
       <section className="bg-white border-t border-gray-200">
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-16">
           <p className="text-center text-sm text-gray-500">{CONFIG.titulo}</p>
@@ -798,7 +786,6 @@ export default function CaptivaEVPage() {
               {tab === "exterior" ? (
                 <div className="mt-5">
                   <p className="text-xs font-black uppercase tracking-widest text-gray-500">{CONFIG.exterior.trimLabel}</p>
-
                   <p className="mt-2 text-sm font-black text-gray-900">{CONFIG.exterior.colors[selectedExterior]?.name ?? "Cor"}</p>
 
                   <div className="mt-4 flex items-center gap-3">
@@ -835,7 +822,6 @@ export default function CaptivaEVPage() {
               ) : (
                 <div className="mt-5">
                   <p className="text-xs font-black uppercase tracking-widest text-gray-500">{CONFIG.interior.trimLabel}</p>
-
                   <p className="mt-2 text-sm font-black text-gray-900">{CONFIG.interior.colors[selectedInterior]?.name ?? "Interior"}</p>
 
                   <div className="mt-4 flex items-center gap-3">
@@ -879,7 +865,6 @@ export default function CaptivaEVPage() {
         </div>
       </section>
 
-      {/* CARREGAMENTO */}
       <section className="bg-white border-t border-gray-200">
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-16">
           <p className="text-xs font-black uppercase tracking-widest text-gray-500">{CONFIG.charging.eyebrow}</p>
@@ -902,7 +887,6 @@ export default function CaptivaEVPage() {
         </div>
       </section>
 
-      {/* ANTES DO FOOTER */}
       <section className="bg-white text-gray-900 border-t border-gray-200">
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-14">
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
@@ -939,7 +923,6 @@ export default function CaptivaEVPage() {
         </div>
       </section>
 
-      {/* FINALIZAÇÃO */}
       <section id={orderSectionId} className="py-20 px-4 md:px-10 bg-white border-t border-gray-200">
         <div className="max-w-[1400px] mx-auto">
           <div className="mb-10">
@@ -1175,7 +1158,6 @@ export default function CaptivaEVPage() {
         </div>
       </section>
 
-      {/* CTA FIXO */}
       <div className="fixed bottom-0 left-0 w-full z-50 bg-white border-t border-gray-200">
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-3 flex items-center justify-between gap-3">
           <div className="min-w-0">
@@ -1194,7 +1176,6 @@ export default function CaptivaEVPage() {
 
       <div className="h-16" />
 
-      {/* LIGHTBOX */}
       {lightboxOpen ? (
         <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-center justify-center p-6" onClick={closeLightbox}>
           <div className="max-w-5xl w-full bg-white rounded-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>

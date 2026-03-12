@@ -25,14 +25,42 @@ import {
   Wallet,
   Banknote,
   CheckCircle2,
+  UserRound,
 } from "lucide-react";
 
 /**
- * TRAILBLAZER — com FINALIZAÇÃO no final (igual Camaro/Spin)
- * ✅ Todos CTAs rolam pro final (não abre /vendedor/analise direto)
- * ✅ Se logado: preenche dados, salva em sales e abre /vendedor/analise com query preenchida
+ * TRAILBLAZER — com FINALIZAÇÃO no final
+ * ✅ Corrigido bigint do car_id
+ * ✅ Melhorado carregamento/preload de imagens
+ * ✅ Se logado: salva em sales e abre /vendedor/analise
  * ✅ Se não logado: bloqueia e mostra botão login
+ * ✅ Agora com vendedor digitado / seller_name / supervisor igual aos outros
  */
+
+// =========================
+// PRELOAD HELPERS
+// =========================
+const preloadedImages = new Set<string>();
+
+function preloadImages(urls: string[]) {
+  if (typeof window === "undefined") return;
+
+  const uniqueUrls = Array.from(
+    new Set(
+      urls
+        .map((u) => String(u || "").trim())
+        .filter(Boolean)
+    )
+  );
+
+  uniqueUrls.forEach((url) => {
+    if (preloadedImages.has(url)) return;
+    const img = new window.Image();
+    img.decoding = "async";
+    img.src = url;
+    preloadedImages.add(url);
+  });
+}
 
 // =========================
 // CONFIG
@@ -119,11 +147,14 @@ const CONFIG = {
 // helpers
 // =========================
 const formatBRL0 = (val: number) =>
-  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(val);
+  new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    maximumFractionDigits: 0,
+  }).format(val);
 
 type TabKey = "exterior" | "interior";
 
-// --- MÁSCARAS / HELPERS (OrderSummary) ---
 const maskCPF = (value: string) =>
   value
     .replace(/\D/g, "")
@@ -134,36 +165,39 @@ const maskCPF = (value: string) =>
 
 const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-// --- TELEFONE FIXO +55  ---
 const PHONE_PREFIX_DISPLAY = "+55 ";
 const PHONE_PREFIX_E164 = "+55";
 
-// ✅ Agora aceita DDD (2) + celular (9) = 11 dígitos após +55
-const maskPhoneAfterPrefix = (value: string) => {
-  const digits = String(value || "").replace(/\D/g, "").slice(0, 11); // 2 (DDD) + 9 (celular)
-  if (!digits) return "";
-
-  const ddd = digits.slice(0, 2);
-  const rest = digits.slice(2); // 9 dígitos
-
-  // Digitação progressiva
-  if (digits.length <= 2) return `(${ddd}`;
-  if (rest.length === 0) return `(${ddd})`;
-  if (rest.length <= 5) return `(${ddd}) ${rest}`;
-  return `(${ddd}) ${rest.slice(0, 5)}-${rest.slice(5)}`; // (DD) 9XXXX-XXXX
-};
-
-// ✅ Retorna SOMENTE 11 dígitos (DDD + 9) e remove país se colarem com 55
 const getPhoneDigitsAfterPrefix = (fullValue: string) => {
   let digits = String(fullValue || "").replace(/\D/g, "");
   if (digits.startsWith("55")) digits = digits.slice(2);
   return digits.slice(0, 11);
 };
 
+const cleanText = (value: any) => String(value || "").trim();
+const lowerText = (value: any) => cleanText(value).toLowerCase();
+
+const normalizeSellerName = (value: string) =>
+  String(value || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase();
+
+const SUPERVISOR_EMAILS = [
+  "glauco@wbcnac.com",
+  "rafael@wbcnac.com",
+  "alexandre@wbcnac.com",
+  "marcelo@wbcnac.com",
+  "felipe@wbcnac.com",
+  "marcos@wbcnac.com",
+].map((s) => s.toLowerCase().trim());
+
+const isSupervisorEmail = (email?: string | null) =>
+  !!email && SUPERVISOR_EMAILS.includes(lowerText(email));
+
 export default function TrailblazerElectricStylePage() {
   const router = useRouter();
 
-  // ===== FINALIZAÇÃO NO FINAL =====
   const orderSectionId = "order-summary";
 
   const [authLoading, setAuthLoading] = useState(true);
@@ -173,6 +207,7 @@ export default function TrailblazerElectricStylePage() {
   const [clientCpf, setClientCpf] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [clientPhone, setClientPhone] = useState(PHONE_PREFIX_DISPLAY);
+  const [sellerName, setSellerName] = useState("");
 
   const [loading, setLoading] = useState(false);
 
@@ -181,7 +216,10 @@ export default function TrailblazerElectricStylePage() {
     clientCpf: "",
     clientEmail: "",
     clientPhone: "",
+    sellerName: "",
   });
+
+  const sellerNamePreview = useMemo(() => normalizeSellerName(sellerName), [sellerName]);
 
   const scrollToId = (id: string) => {
     const el = document.getElementById(id);
@@ -189,7 +227,6 @@ export default function TrailblazerElectricStylePage() {
     el.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  // ✅ pega usuário logado
   useEffect(() => {
     let mounted = true;
 
@@ -216,41 +253,51 @@ export default function TrailblazerElectricStylePage() {
     };
   }, []);
 
+  useEffect(() => {
+    preloadImages([
+      CONFIG.heroImage,
+      CONFIG.sectionImage,
+      CONFIG.gallery[0],
+      CONFIG.gallery[1],
+      CONFIG.exterior.colors[0]?.img || "",
+      CONFIG.exterior.colors[1]?.img || "",
+      CONFIG.interior.colors[0]?.images?.[0] || "",
+    ]);
+  }, []);
+
   const handleCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setClientCpf(maskCPF(e.target.value));
     if (errors.clientCpf) setErrors({ ...errors, clientCpf: "" });
   };
 
-  // ✅ FIX DDD +55 (agora aceita qualquer DDD e 11 dígitos após +55)
-const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  const typed = e.target.value || "";
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const typed = e.target.value || "";
 
-  // Se o usuário apagar tudo
-  if (typed.trim() === "" || typed === PHONE_PREFIX_DISPLAY) {
-    setClientPhone(PHONE_PREFIX_DISPLAY);
-    return;
-  }
+    if (typed.trim() === "" || typed === PHONE_PREFIX_DISPLAY) {
+      setClientPhone(PHONE_PREFIX_DISPLAY);
+      return;
+    }
 
-  let digits = typed.replace(/\D/g, "");
+    let digits = typed.replace(/\D/g, "");
 
-  // Remove 55 se colarem junto
-  if (digits.startsWith("55")) digits = digits.slice(2);
+    if (digits.startsWith("55")) digits = digits.slice(2);
 
-  digits = digits.slice(0, 11); // DDD + 9
+    digits = digits.slice(0, 11);
 
-  const ddd = digits.slice(0, 2);
-  const num = digits.slice(2);
+    const ddd = digits.slice(0, 2);
+    const num = digits.slice(2);
 
-  let formatted = "";
+    let formatted = "";
 
-  if (digits.length <= 2) formatted = `(${ddd}`;
-  else if (num.length <= 5) formatted = `(${ddd}) ${num}`;
-  else formatted = `(${ddd}) ${num.slice(0, 5)}-${num.slice(5)}`;
+    if (digits.length <= 2) formatted = `(${ddd}`;
+    else if (num.length <= 5) formatted = `(${ddd}) ${num}`;
+    else formatted = `(${ddd}) ${num.slice(0, 5)}-${num.slice(5)}`;
 
-  setClientPhone(PHONE_PREFIX_DISPLAY + formatted);
-};
+    setClientPhone(PHONE_PREFIX_DISPLAY + formatted);
 
-  // ✅ todos CTAs chamam isso (não navega mais pro analise direto)
+    if (errors.clientPhone) setErrors({ ...errors, clientPhone: "" });
+  };
+
   const goPrimary = () => scrollToId(orderSectionId);
 
   const [tab, setTab] = useState<TabKey>("exterior");
@@ -261,13 +308,16 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
-  // animação (fade + leve zoom)
   const [isImgSwitching, setIsImgSwitching] = useState(false);
-  const [displayedSrc, setDisplayedSrc] = useState(CONFIG.exterior.colors[0]?.img?.trim() || CONFIG.heroImage);
+  const [displayedSrc, setDisplayedSrc] = useState(
+    CONFIG.exterior.colors[0]?.img?.trim() || CONFIG.heroImage
+  );
   const animTimer = useRef<number | null>(null);
 
   const mosaic = useMemo(() => {
-    const g = (CONFIG.gallery ?? []).map((x) => (typeof x === "string" ? x.trim() : x)).filter(Boolean);
+    const g = (CONFIG.gallery ?? [])
+      .map((x) => (typeof x === "string" ? x.trim() : x))
+      .filter(Boolean);
     while (g.length < 6) g.push((CONFIG.gallery?.[0] || CONFIG.heroImage).trim());
     return g.slice(0, 6);
   }, []);
@@ -277,6 +327,17 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
   const interiorColor = CONFIG.interior.colors[selectedInterior];
   const interiorImages = (interiorColor?.images ?? []).map((x) => x.trim()).filter(Boolean);
   const interiorCurrent = interiorImages[interiorIndex] || interiorImages[0] || CONFIG.heroImage;
+
+  useEffect(() => {
+    preloadImages([
+      exteriorCurrent,
+      interiorCurrent,
+      CONFIG.exterior.colors[selectedExterior + 1]?.img || "",
+      CONFIG.exterior.colors[selectedExterior - 1]?.img || "",
+      interiorImages[interiorIndex + 1] || "",
+      interiorImages[interiorIndex - 1] || "",
+    ]);
+  }, [selectedExterior, selectedInterior, interiorIndex, exteriorCurrent, interiorCurrent, interiorImages]);
 
   const switchImageTo = (nextSrc: string) => {
     if (animTimer.current) window.clearTimeout(animTimer.current);
@@ -327,7 +388,13 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
   const closeLightbox = () => setLightboxOpen(false);
 
   const handleFinishOrder = async () => {
-    let newErrors = { clientName: "", clientCpf: "", clientEmail: "", clientPhone: "" };
+    let newErrors = {
+      clientName: "",
+      clientCpf: "",
+      clientEmail: "",
+      clientPhone: "",
+      sellerName: "",
+    };
     let hasError = false;
 
     if (authLoading) return;
@@ -352,7 +419,11 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       hasError = true;
     }
 
-    // ✅ FIX: agora valida DDD + 9 dígitos (11 após o +55)
+    if (normalizeSellerName(sellerName).length < 3) {
+      newErrors.sellerName = "Informe o nome do vendedor que atendeu o cliente.";
+      hasError = true;
+    }
+
     const phoneDigits = getPhoneDigitsAfterPrefix(clientPhone);
     if (phoneDigits.length < 11) {
       newErrors.clientPhone = "Telefone obrigatório (DDD + 9 dígitos). Ex: (91) 91234-5678";
@@ -365,33 +436,79 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setLoading(true);
 
     try {
-      // ✅ FIX: E164 correto: +55 + (DDD+9)
       const telefoneE164 = `${PHONE_PREFIX_E164}${getPhoneDigitsAfterPrefix(clientPhone)}`;
+      const normalizedSeller = normalizeSellerName(sellerName);
+
+      const loggedUserEmail = String(user?.email || "").trim().toLowerCase();
+      const loggedUserId = user?.id || null;
+      const userIsSupervisor = isSupervisorEmail(loggedUserEmail);
+
+      let resolvedCarId: number | null = null;
+
+      const { data: foundVehicle } = await supabase
+        .from("vehicles")
+        .select("id, model_name")
+        .eq("brand", "chevrolet")
+        .ilike("model_name", `%${CONFIG.titulo}%`)
+        .limit(1)
+        .maybeSingle();
+
+      if (foundVehicle?.id != null) {
+        resolvedCarId = Number(foundVehicle.id);
+      }
 
       const saleData = {
-        car_id: `landing-${CONFIG.titulo.toLowerCase().replace(/\s+/g, "-")}`,
+        car_id: resolvedCarId,
         car_name: CONFIG.titulo,
+
         seller_id: user.id,
-        client_name: clientName,
+        seller_name: normalizedSeller,
+
+        client_name: clientName.trim(),
         client_cpf: clientCpf,
-        client_email: clientEmail,
+        client_email: clientEmail.trim().toLowerCase(),
         client_phone: telefoneE164,
+
         total_price: CONFIG.priceStart || 0,
-        status: "Enviado para Análise",
-        interest_type: "Pendente (Aba Análise)",
+        status: "Aprovado",
+        interest_type: "Análise de Crédito",
+
         details: {
           exterior_color: CONFIG.exterior.colors[selectedExterior]?.name || "Padrão",
           interior_color: CONFIG.interior.colors[selectedInterior]?.name || "Padrão",
+
+          vendedor_digitado: normalizedSeller,
+          vendedor_usuario_logado_id: loggedUserId,
+          vendedor_usuario_logado_email: loggedUserEmail || null,
+
+          approved_by_email: userIsSupervisor ? loggedUserEmail : null,
+          approved_by_name: userIsSupervisor ? loggedUserEmail : "Sistema",
+          approved_by_id: userIsSupervisor ? loggedUserId : null,
+
+          landing_slug: "landing-trailblazer",
+          landing_page: CONFIG.titulo,
+          landing_mode: true,
         },
+
+        approved_at: new Date().toISOString(),
+        approved_by_id: userIsSupervisor ? loggedUserId : null,
+        approved_by_name: userIsSupervisor ? loggedUserEmail : "Sistema",
+
         created_at: new Date().toISOString(),
       };
 
-      await supabase.from("sales").insert([saleData]);
+      const { error } = await supabase.from("sales").insert([saleData]);
+      if (error) throw error;
 
       const query = new URLSearchParams({
-        nome: clientName,
+        nome: clientName.trim(),
         cpf: clientCpf,
+        email: clientEmail.trim().toLowerCase(),
         telefone: telefoneE164,
+        vendedor: normalizedSeller,
+        vendedor_id: user?.id || "",
+        vendedor_email: loggedUserEmail || "",
+        supervisor_email: userIsSupervisor ? loggedUserEmail : "",
         modelo: CONFIG.titulo,
         valor: String(CONFIG.priceStart || 0),
         entrada: "0",
@@ -409,7 +526,6 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 
   return (
     <div className="min-h-screen bg-white text-gray-900">
-      {/* TOP */}
       <header className="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-gray-200">
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 h-14 flex items-center justify-between">
           <Link
@@ -428,10 +544,16 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         </div>
       </header>
 
-      {/* HERO */}
       <section className="relative">
-        <div className="relative w-full h-[520px] md:h-[640px] overflow-hidden">
-          <img src={CONFIG.heroImage} alt={CONFIG.titulo} className="w-full h-full object-cover" />
+        <div className="relative w-full h-[520px] md:h-[640px] overflow-hidden bg-gray-100">
+          <img
+            src={CONFIG.heroImage}
+            alt={CONFIG.titulo}
+            loading="eager"
+            fetchPriority="high"
+            decoding="async"
+            className="w-full h-full object-cover"
+          />
           <div className="absolute inset-0 bg-gradient-to-r from-black/45 via-black/10 to-transparent" />
 
           <div className="absolute top-10 left-6 md:left-12 text-white">
@@ -459,7 +581,6 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
           </div>
         </div>
 
-        {/* FAIXA PRETA */}
         <div className="bg-[#151515] text-white">
           <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-10">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-10">
@@ -486,12 +607,18 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         </div>
       </section>
 
-      {/* SEÇÃO IMAGEM + TEXTO */}
       <section className="bg-[#151515] text-white">
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-14">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
             <div className="rounded-none overflow-hidden bg-black/30">
-              <img src={CONFIG.sectionImage} alt="Detalhe" className="w-full h-[320px] md:h-[420px] object-cover" />
+              <img
+                src={CONFIG.sectionImage}
+                alt="Detalhe"
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
+                className="w-full h-[320px] md:h-[420px] object-cover"
+              />
             </div>
 
             <div className="max-w-xl">
@@ -521,7 +648,6 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         </div>
       </section>
 
-      {/* GALERIA MOSAICO */}
       <section className="bg-white">
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-14">
           <p className="text-sm text-gray-500">Galeria</p>
@@ -531,25 +657,32 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 
           <div className="mt-8 grid grid-cols-12 gap-3">
             <div className="col-span-12 lg:col-span-6 rounded-none overflow-hidden bg-gray-100">
-              <img src={mosaic[0]} alt="Galeria 1" className="w-full h-[340px] md:h-[460px] object-cover" />
+              <img
+                src={mosaic[0]}
+                alt="Galeria 1"
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
+                className="w-full h-[340px] md:h-[460px] object-cover"
+              />
             </div>
 
             <div className="col-span-12 lg:col-span-6 grid grid-cols-12 gap-3">
               <div className="col-span-12 md:col-span-6 rounded-none overflow-hidden bg-gray-100">
-                <img src={mosaic[1]} alt="Galeria 2" className="w-full h-[220px] object-cover" />
+                <img src={mosaic[1]} alt="Galeria 2" loading="lazy" decoding="async" className="w-full h-[220px] object-cover" />
               </div>
               <div className="col-span-12 md:col-span-6 rounded-none overflow-hidden bg-gray-100">
-                <img src={mosaic[2]} alt="Galeria 3" className="w-full h-[220px] object-cover" />
+                <img src={mosaic[2]} alt="Galeria 3" loading="lazy" decoding="async" className="w-full h-[220px] object-cover" />
               </div>
 
               <div className="col-span-12 md:col-span-4 rounded-none overflow-hidden bg-gray-100">
-                <img src={mosaic[3]} alt="Galeria 4" className="w-full h-[210px] object-cover" />
+                <img src={mosaic[3]} alt="Galeria 4" loading="lazy" decoding="async" className="w-full h-[210px] object-cover" />
               </div>
               <div className="col-span-12 md:col-span-4 rounded-none overflow-hidden bg-gray-100">
-                <img src={mosaic[4]} alt="Galeria 5" className="w-full h-[210px] object-cover" />
+                <img src={mosaic[4]} alt="Galeria 5" loading="lazy" decoding="async" className="w-full h-[210px] object-cover" />
               </div>
               <div className="col-span-12 md:col-span-4 rounded-none overflow-hidden bg-gray-100">
-                <img src={mosaic[5]} alt="Galeria 6" className="w-full h-[210px] object-cover" />
+                <img src={mosaic[5]} alt="Galeria 6" loading="lazy" decoding="async" className="w-full h-[210px] object-cover" />
               </div>
             </div>
           </div>
@@ -565,22 +698,23 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         </div>
       </section>
 
-      {/* CONFIGURADOR */}
       <section className="bg-white border-t border-gray-200">
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-16">
           <p className="text-center text-sm text-gray-500">{CONFIG.titulo}</p>
           <h3 className="text-center text-3xl md:text-4xl font-black tracking-tight mt-2">
-  {CONFIG.exterior.headline}
-</h3>
+            {CONFIG.exterior.headline}
+          </h3>
 
           <div className="mt-10 grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
-            {/* ESQUERDA */}
             <div className="flex justify-center">
               <div className="relative w-full max-w-[780px]">
                 <div className="relative rounded-2xl overflow-hidden bg-white border border-gray-200">
                   <img
                     src={displayedSrc}
                     alt={tab === "exterior" ? "Exterior" : "Interior"}
+                    loading="eager"
+                    fetchPriority="high"
+                    decoding="async"
                     className={[
                       "w-full transition-all duration-300 ease-out will-change-transform",
                       isImgSwitching ? "opacity-0 scale-[0.985]" : "opacity-100 scale-100",
@@ -621,7 +755,6 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
               </div>
             </div>
 
-            {/* DIREITA */}
             <div className="max-w-md">
               <div className="flex items-center gap-5 border-b border-gray-200 pb-3">
                 <button
@@ -741,7 +874,6 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         </div>
       </section>
 
-      {/* ANTES DO FOOTER */}
       <section className="bg-white text-gray-900 border-t border-gray-200">
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-14">
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
@@ -778,7 +910,6 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         </div>
       </section>
 
-      {/* ================= FINALIZAÇÃO NO FINAL ================= */}
       <section id={orderSectionId} className="py-20 px-4 md:px-10 bg-white border-t border-gray-200">
         <div className="max-w-[1400px] mx-auto">
           <div className="mb-10">
@@ -807,7 +938,6 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* FORM */}
               <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-6">
                 <h4 className="text-lg font-semibold text-gray-900 mb-6 pb-3 border-b border-gray-200">
                   Informações do Cliente
@@ -824,9 +954,9 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                         setClientName(e.target.value);
                         if (errors.clientName) setErrors({ ...errors, clientName: "" });
                       }}
-                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
-                        ${errors.clientName ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
-                      `}
+                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400 ${
+                        errors.clientName ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"
+                      }`}
                       placeholder="Digite o nome completo"
                     />
                     {errors.clientName && (
@@ -844,9 +974,9 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                       value={clientCpf}
                       onChange={handleCpfChange}
                       maxLength={14}
-                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
-                        ${errors.clientCpf ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
-                      `}
+                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400 ${
+                        errors.clientCpf ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"
+                      }`}
                       placeholder="000.000.000-00"
                     />
                     {errors.clientCpf && (
@@ -866,9 +996,9 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                         setClientEmail(e.target.value);
                         if (errors.clientEmail) setErrors({ ...errors, clientEmail: "" });
                       }}
-                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
-                        ${errors.clientEmail ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
-                      `}
+                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400 ${
+                        errors.clientEmail ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"
+                      }`}
                       placeholder="exemplo@email.com"
                     />
                     {errors.clientEmail && (
@@ -885,10 +1015,10 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                     <input
                       value={clientPhone}
                       onChange={handlePhoneChange}
-                      maxLength={22} // ✅ +55 (DD) 9XXXX-XXXX
-                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
-                        ${errors.clientPhone ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
-                      `}
+                      maxLength={22}
+                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400 ${
+                        errors.clientPhone ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"
+                      }`}
                       placeholder="+55 (91) 91234-5678"
                     />
                     {errors.clientPhone && (
@@ -896,6 +1026,42 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                         <AlertCircle size={10} /> {errors.clientPhone}
                       </p>
                     )}
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                      Vendedor <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <UserRound
+                        size={16}
+                        className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+                      />
+                      <input
+                        value={sellerName}
+                        onChange={(e) => {
+                          setSellerName(e.target.value);
+                          if (errors.sellerName) setErrors({ ...errors, sellerName: "" });
+                        }}
+                        className={`w-full h-12 pl-11 pr-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400 ${
+                          errors.sellerName ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"
+                        }`}
+                        placeholder="Ex: JOÃO SILVA"
+                      />
+                    </div>
+
+                    {errors.sellerName && (
+                      <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                        <AlertCircle size={10} /> {errors.sellerName}
+                      </p>
+                    )}
+
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+                      <span className="text-gray-400">Prévia salva:</span>
+                      <span className="px-2 py-1 rounded bg-gray-100 border border-gray-200 font-bold text-gray-700 uppercase">
+                        {sellerNamePreview || "—"}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -917,7 +1083,6 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                 </div>
               </div>
 
-              {/* INFO */}
               <div className="bg-gray-50 rounded-2xl p-6 border border-gray-200">
                 <h4 className="text-sm font-bold text-gray-700 uppercase mb-4 flex items-center gap-2">
                   <CheckCircle2 size={16} className="text-green-600" /> Próxima Etapa: Crédito
@@ -949,12 +1114,10 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                   <p className="text-sm font-semibold text-gray-900">{CONFIG.titulo}</p>
                   <p className="text-sm text-gray-600 mt-1">A partir de {formatBRL0(CONFIG.priceStart)}</p>
                   <p className="text-xs text-gray-500 mt-2">
-                    Exterior:{" "}
-                    <span className="font-bold">{CONFIG.exterior.colors[selectedExterior]?.name || "Padrão"}</span>
+                    Exterior: <span className="font-bold">{CONFIG.exterior.colors[selectedExterior]?.name || "Padrão"}</span>
                   </p>
                   <p className="text-xs text-gray-500">
-                    Interior:{" "}
-                    <span className="font-bold">{CONFIG.interior.colors[selectedInterior]?.name || "Padrão"}</span>
+                    Interior: <span className="font-bold">{CONFIG.interior.colors[selectedInterior]?.name || "Padrão"}</span>
                   </p>
                 </div>
               </div>
@@ -963,7 +1126,6 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         </div>
       </section>
 
-      {/* CTA FIXO */}
       <div className="fixed bottom-0 left-0 w-full z-50 bg-white border-t border-gray-200">
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-3 flex items-center justify-between gap-3">
           <div className="min-w-0">
@@ -982,7 +1144,6 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 
       <div className="h-16" />
 
-      {/* LIGHTBOX */}
       {lightboxOpen ? (
         <div
           className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-center justify-center p-6"
@@ -1005,6 +1166,8 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
               <img
                 src={tab === "exterior" ? exteriorCurrent : interiorCurrent}
                 alt="Imagem ampliada"
+                loading="eager"
+                decoding="async"
                 className="w-full max-h-[75vh] object-contain"
               />
             </div>

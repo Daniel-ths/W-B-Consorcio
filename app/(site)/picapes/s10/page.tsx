@@ -29,13 +29,34 @@ import {
 
 /**
  * S10 — com FINALIZAÇÃO no final
- * ✅ Todos CTAs rolam pro final
- * ✅ Igual ao OrderSummary:
- *    - nome, cpf, email, telefone
- *    - nome do vendedor digitado
- * ✅ Salva em sales
- * ✅ Se usuário logado for supervisor, grava approved_by_name com email dele
+ * ✅ Corrigido bigint do car_id
+ * ✅ Melhorado preload/carregamento de imagens
  */
+
+// =========================
+// preload helpers
+// =========================
+const preloadedImages = new Set<string>();
+
+function preloadImages(urls: string[]) {
+  if (typeof window === "undefined") return;
+
+  const uniqueUrls = Array.from(
+    new Set(
+      urls
+        .map((u) => String(u || "").trim())
+        .filter(Boolean)
+    )
+  );
+
+  uniqueUrls.forEach((url) => {
+    if (preloadedImages.has(url)) return;
+    const img = new window.Image();
+    img.decoding = "async";
+    img.src = url;
+    preloadedImages.add(url);
+  });
+}
 
 // =========================
 // CONFIG — S10
@@ -253,6 +274,19 @@ export default function S10Page() {
     };
   }, []);
 
+  // preload inicial das imagens mais importantes
+  useEffect(() => {
+    preloadImages([
+      CONFIG.heroImage,
+      CONFIG.sectionImage,
+      CONFIG.gallery[0],
+      CONFIG.gallery[1],
+      CONFIG.exterior.colors[0]?.img || "",
+      CONFIG.exterior.colors[1]?.img || "",
+      CONFIG.interior.colors[0]?.images?.[0] || "",
+    ]);
+  }, []);
+
   const handleCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setClientCpf(maskCPF(e.target.value));
     if (errors.clientCpf) setErrors({ ...errors, clientCpf: "" });
@@ -316,6 +350,18 @@ export default function S10Page() {
   const interiorColor = CONFIG.interior.colors[selectedInterior];
   const interiorImages = (interiorColor?.images ?? []).map((x) => x.trim()).filter(Boolean);
   const interiorCurrent = interiorImages[interiorIndex] || interiorImages[0] || CONFIG.heroImage;
+
+  // preload dinâmico conforme troca cor/interior
+  useEffect(() => {
+    preloadImages([
+      exteriorCurrent,
+      interiorCurrent,
+      CONFIG.exterior.colors[selectedExterior + 1]?.img || "",
+      CONFIG.exterior.colors[selectedExterior - 1]?.img || "",
+      interiorImages[interiorIndex + 1] || "",
+      interiorImages[interiorIndex - 1] || "",
+    ]);
+  }, [selectedExterior, selectedInterior, interiorIndex, exteriorCurrent, interiorCurrent, interiorImages]);
 
   const switchImageTo = (nextSrc: string) => {
     if (animTimer.current) window.clearTimeout(animTimer.current);
@@ -427,8 +473,22 @@ export default function S10Page() {
       const loggedUserId = user?.id || null;
       const userIsSupervisor = isSupervisorEmail(loggedUserEmail);
 
+      let resolvedCarId: number | null = null;
+
+      const { data: foundVehicle } = await supabase
+        .from("vehicles")
+        .select("id, model_name")
+        .eq("brand", "chevrolet")
+        .ilike("model_name", `%${CONFIG.titulo}%`)
+        .limit(1)
+        .maybeSingle();
+
+      if (foundVehicle?.id != null) {
+        resolvedCarId = Number(foundVehicle.id);
+      }
+
       const saleData = {
-        car_id: `landing-${CONFIG.titulo.toLowerCase().replace(/\s+/g, "-")}`,
+        car_id: resolvedCarId,
         car_name: CONFIG.titulo,
 
         seller_id: user.id,
@@ -454,6 +514,10 @@ export default function S10Page() {
           approved_by_email: userIsSupervisor ? loggedUserEmail : null,
           approved_by_name: userIsSupervisor ? loggedUserEmail : "Sistema",
           approved_by_id: userIsSupervisor ? loggedUserId : null,
+
+          landing_slug: "landing-s10-ltz",
+          landing_page: CONFIG.titulo,
+          landing_mode: true,
         },
 
         approved_at: new Date().toISOString(),
@@ -510,10 +574,16 @@ export default function S10Page() {
         </div>
       </header>
 
-      {/* HERO */}
       <section className="relative">
-        <div className="relative w-full h-[520px] md:h-[640px] overflow-hidden">
-          <img src={CONFIG.heroImage} alt={CONFIG.titulo} className="w-full h-full object-cover" />
+        <div className="relative w-full h-[520px] md:h-[640px] overflow-hidden bg-gray-100">
+          <img
+            src={CONFIG.heroImage}
+            alt={CONFIG.titulo}
+            loading="eager"
+            fetchPriority="high"
+            decoding="async"
+            className="w-full h-full object-cover"
+          />
           <div className="absolute inset-0 bg-gradient-to-r from-black/45 via-black/10 to-transparent" />
 
           <div className="absolute top-10 left-6 md:left-12 text-white">
@@ -541,7 +611,6 @@ export default function S10Page() {
           </div>
         </div>
 
-        {/* FAIXA PRETA */}
         <div className="bg-[#151515] text-white">
           <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-10">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-10">
@@ -574,7 +643,6 @@ export default function S10Page() {
         </div>
       </section>
 
-      {/* SEÇÃO IMAGEM + TEXTO */}
       <section className="bg-[#151515] text-white">
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-14">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
@@ -582,6 +650,9 @@ export default function S10Page() {
               <img
                 src={CONFIG.sectionImage}
                 alt="Detalhe"
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
                 className="w-full h-[320px] md:h-[420px] object-cover"
               />
             </div>
@@ -596,7 +667,6 @@ export default function S10Page() {
         </div>
       </section>
 
-      {/* GALERIA MOSAICO */}
       <section className="bg-white">
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-14">
           <p className="text-sm text-gray-500">Galeria</p>
@@ -606,25 +676,32 @@ export default function S10Page() {
 
           <div className="mt-8 grid grid-cols-12 gap-3">
             <div className="col-span-12 lg:col-span-6 rounded-none overflow-hidden bg-gray-100">
-              <img src={mosaic[0]} alt="Galeria 1" className="w-full h-[340px] md:h-[460px] object-cover" />
+              <img
+                src={mosaic[0]}
+                alt="Galeria 1"
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
+                className="w-full h-[340px] md:h-[460px] object-cover"
+              />
             </div>
 
             <div className="col-span-12 lg:col-span-6 grid grid-cols-12 gap-3">
               <div className="col-span-12 md:col-span-6 rounded-none overflow-hidden bg-gray-100">
-                <img src={mosaic[1]} alt="Galeria 2" className="w-full h-[220px] object-cover" />
+                <img src={mosaic[1]} alt="Galeria 2" loading="lazy" decoding="async" className="w-full h-[220px] object-cover" />
               </div>
               <div className="col-span-12 md:col-span-6 rounded-none overflow-hidden bg-gray-100">
-                <img src={mosaic[2]} alt="Galeria 3" className="w-full h-[220px] object-cover" />
+                <img src={mosaic[2]} alt="Galeria 3" loading="lazy" decoding="async" className="w-full h-[220px] object-cover" />
               </div>
 
               <div className="col-span-12 md:col-span-4 rounded-none overflow-hidden bg-gray-100">
-                <img src={mosaic[3]} alt="Galeria 4" className="w-full h-[210px] object-cover" />
+                <img src={mosaic[3]} alt="Galeria 4" loading="lazy" decoding="async" className="w-full h-[210px] object-cover" />
               </div>
               <div className="col-span-12 md:col-span-4 rounded-none overflow-hidden bg-gray-100">
-                <img src={mosaic[4]} alt="Galeria 5" className="w-full h-[210px] object-cover" />
+                <img src={mosaic[4]} alt="Galeria 5" loading="lazy" decoding="async" className="w-full h-[210px] object-cover" />
               </div>
               <div className="col-span-12 md:col-span-4 rounded-none overflow-hidden bg-gray-100">
-                <img src={mosaic[5]} alt="Galeria 6" className="w-full h-[210px] object-cover" />
+                <img src={mosaic[5]} alt="Galeria 6" loading="lazy" decoding="async" className="w-full h-[210px] object-cover" />
               </div>
             </div>
           </div>
@@ -640,7 +717,6 @@ export default function S10Page() {
         </div>
       </section>
 
-      {/* CONFIGURADOR */}
       <section className="bg-white border-t border-gray-200">
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-16">
           <p className="text-center text-sm text-gray-500">{CONFIG.titulo}</p>
@@ -655,6 +731,9 @@ export default function S10Page() {
                   <img
                     src={displayedSrc}
                     alt={tab === "exterior" ? "Exterior" : "Interior"}
+                    loading="eager"
+                    fetchPriority="high"
+                    decoding="async"
                     className={[
                       "w-full transition-all duration-300 ease-out will-change-transform",
                       isImgSwitching ? "opacity-0 scale-[0.985]" : "opacity-100 scale-100",
@@ -836,7 +915,6 @@ export default function S10Page() {
         </div>
       </section>
 
-      {/* ANTES DO FOOTER */}
       <section className="bg-white text-gray-900 border-t border-gray-200">
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-14">
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
@@ -881,7 +959,6 @@ export default function S10Page() {
         </div>
       </section>
 
-      {/* FINALIZAÇÃO */}
       <section id={orderSectionId} className="py-20 px-4 md:px-10 bg-white border-t border-gray-200">
         <div className="max-w-[1400px] mx-auto">
           <div className="mb-10">
@@ -915,7 +992,6 @@ export default function S10Page() {
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* FORM */}
               <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-6">
                 <h4 className="text-lg font-semibold text-gray-900 mb-6 pb-3 border-b border-gray-200">
                   Informações do Cliente
@@ -1064,7 +1140,6 @@ export default function S10Page() {
                 </div>
               </div>
 
-              {/* INFO */}
               <div className="bg-gray-50 rounded-2xl p-6 border border-gray-200">
                 <h4 className="text-sm font-bold text-gray-700 uppercase mb-4 flex items-center gap-2">
                   <CheckCircle2 size={16} className="text-green-600" /> Próxima Etapa: Crédito
@@ -1122,7 +1197,6 @@ export default function S10Page() {
         </div>
       </section>
 
-      {/* CTA FIXO */}
       <div className="fixed bottom-0 left-0 w-full z-50 bg-white border-t border-gray-200">
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-3 flex items-center justify-between gap-3">
           <div className="min-w-0">
@@ -1145,7 +1219,6 @@ export default function S10Page() {
 
       <div className="h-16" />
 
-      {/* LIGHTBOX */}
       {lightboxOpen ? (
         <div
           className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-center justify-center p-6"
@@ -1171,6 +1244,8 @@ export default function S10Page() {
               <img
                 src={tab === "exterior" ? exteriorCurrent : interiorCurrent}
                 alt="Imagem ampliada"
+                loading="eager"
+                decoding="async"
                 className="w-full max-h-[75vh] object-contain"
               />
             </div>

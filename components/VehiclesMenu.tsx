@@ -115,10 +115,11 @@ const norm = (s: string) =>
     .replace(/[^a-z0-9\s-]/g, "")
     .trim();
 
-// cache simples em memória para não repetir preload
 const preloadedImages = new Set<string>();
 
 function preloadImages(urls: string[]) {
+  if (typeof window === "undefined") return;
+
   const uniqueUrls = Array.from(
     new Set(
       urls
@@ -129,7 +130,6 @@ function preloadImages(urls: string[]) {
 
   uniqueUrls.forEach((url) => {
     if (preloadedImages.has(url)) return;
-
     const img = new window.Image();
     img.decoding = "async";
     img.src = url;
@@ -145,7 +145,7 @@ function FixedCardsGrid({
   onClose: () => void;
 }) {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 w-full">
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 xl:gap-8 w-full">
       {cards.map((card) => (
         <Link
           key={card.href}
@@ -153,7 +153,7 @@ function FixedCardsGrid({
           onClick={onClose}
           className="group block text-center relative"
         >
-          <div className="h-32 bg-gray-50 rounded-lg mb-4 flex items-center justify-center overflow-hidden mix-blend-multiply group-hover:bg-gray-100 transition-colors">
+          <div className="h-28 lg:h-32 bg-gray-50 rounded-lg mb-4 flex items-center justify-center overflow-hidden mix-blend-multiply group-hover:bg-gray-100 transition-colors">
             <img
               src={(card.coverImage || "").trim()}
               alt={card.title}
@@ -205,7 +205,6 @@ export default function VehiclesMenu({ onClose }: VehiclesMenuProps) {
         const safeVehicles = Array.isArray(vecs) ? vecs : [];
         setVehicles(safeVehicles);
 
-        // ✅ pré-carrega capas fixas + imagens do banco
         const fixedUrls = [
           ...ELECTRIC_LP_CARDS.map((c) => c.coverImage),
           ...SPORT_LP_CARDS.map((c) => c.coverImage),
@@ -213,12 +212,10 @@ export default function VehiclesMenu({ onClose }: VehiclesMenuProps) {
           ...PICKUP_LP_CARDS.map((c) => c.coverImage),
         ];
 
-        // prioriza as primeiras imagens do banco
         const dbUrls = safeVehicles
           .map((v: any) => String(v?.image_url || "").trim())
           .filter(Boolean);
 
-        // primeiro as fixas, depois até 30 do banco para não exagerar
         preloadImages([...fixedUrls, ...dbUrls.slice(0, 30)]);
       } catch (error) {
         console.error("Erro ao buscar menu:", error);
@@ -235,7 +232,6 @@ export default function VehiclesMenu({ onClose }: VehiclesMenuProps) {
     };
   }, []);
 
-  // ✅ quando troca categoria, reforça preload da categoria atual
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -330,22 +326,25 @@ export default function VehiclesMenu({ onClose }: VehiclesMenuProps) {
 
   if (loading)
     return (
-      <div className="w-full bg-white border-t border-gray-200 shadow-xl pt-16">
-        <div className="max-w-[1400px] mx-auto p-10 min-h-[450px] flex">
-          <div className="w-1/4 border-r border-gray-100 pr-8 space-y-2 animate-pulse">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <div key={i} className="h-12 bg-gray-100 rounded-lg w-full"></div>
-            ))}
-          </div>
-          <div className="w-3/4 pl-12">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 animate-pulse">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="flex flex-col items-center space-y-3">
-                  <div className="h-32 bg-gray-100 rounded-lg w-full"></div>
-                  <div className="h-4 bg-gray-100 rounded w-2/3"></div>
-                  <div className="h-3 bg-gray-100 rounded w-1/2"></div>
-                </div>
+      <div className="w-full bg-white border-t border-gray-200 shadow-xl pt-12 lg:pt-14">
+        <div className="max-w-[1400px] mx-auto px-5 lg:px-8 xl:px-10 py-8">
+          <div className="flex min-h-[430px]">
+            <div className="w-[220px] xl:w-1/4 shrink-0 border-r border-gray-100 pr-5 xl:pr-8 space-y-2 animate-pulse">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div key={i} className="h-12 bg-gray-100 rounded-lg w-full" />
               ))}
+            </div>
+
+            <div className="flex-1 pl-6 lg:pl-8 xl:pl-12">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 xl:gap-8 animate-pulse">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex flex-col items-center space-y-3">
+                    <div className="h-32 bg-gray-100 rounded-lg w-full" />
+                    <div className="h-4 bg-gray-100 rounded w-2/3" />
+                    <div className="h-3 bg-gray-100 rounded w-1/2" />
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -354,131 +353,135 @@ export default function VehiclesMenu({ onClose }: VehiclesMenuProps) {
 
   return (
     <div
-      className="w-full bg-white border-t border-gray-200 shadow-xl pt-16 animate-in fade-in slide-in-from-top-2 duration-500"
+      className="w-full bg-white border-t border-gray-200 shadow-xl pt-12 lg:pt-14 animate-in fade-in slide-in-from-top-2 duration-500"
       onMouseLeave={onClose}
     >
-      <div className="max-w-[1400px] mx-auto p-10 min-h-[450px] flex">
-        {/* ESQUERDA: CATEGORIAS */}
-        <div className="w-1/4 border-r border-gray-100 pr-8 space-y-1">
-          {MENU_ORDER.map((item) => (
-            <div
-              key={item.label}
-              onMouseEnter={() => setSelectedLabel(item.label)}
-              className={`cursor-pointer px-4 py-3 rounded-lg text-sm font-bold uppercase tracking-wide flex items-center justify-between transition-all 
-                ${
-                  selectedLabel === item.label
-                    ? "text-blue-600 bg-blue-50"
-                    : "text-gray-500 hover:bg-gray-50"
-                }`}
-            >
-              <span
-                className={
-                  item.label === "Seminovos"
-                    ? "border-l-4 border-transparent pl-0"
-                    : ""
-                }
+      <div className="max-w-[1400px] mx-auto px-5 lg:px-8 xl:px-10 py-8">
+        <div className="flex min-h-[430px] items-start">
+          {/* ESQUERDA: CATEGORIAS */}
+          <div className="w-[220px] xl:w-1/4 shrink-0 border-r border-gray-100 pr-5 xl:pr-8 space-y-1">
+            {MENU_ORDER.map((item) => (
+              <div
+                key={item.label}
+                onMouseEnter={() => setSelectedLabel(item.label)}
+                className={`cursor-pointer px-4 py-3 rounded-lg text-sm font-bold uppercase tracking-wide flex items-center justify-between transition-all
+                  ${
+                    selectedLabel === item.label
+                      ? "text-blue-600 bg-blue-50"
+                      : "text-gray-500 hover:bg-gray-50"
+                  }`}
               >
-                {item.label}
-              </span>
-              {selectedLabel === item.label && <ArrowRight size={16} />}
-            </div>
-          ))}
-        </div>
-
-        {/* DIREITA: CONTEÚDO */}
-        <div className="w-3/4 pl-12 flex items-center justify-center">
-          {selectedLabel === "Seminovos" ? (
-            <div className="animate-in fade-in slide-in-from-left-4 duration-300 w-full flex justify-center">
-              <div className="w-full max-w-2xl bg-gray-50 p-12 text-center rounded-sm">
-                <img
-                  src="https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/chevrolet-logo.svg"
-                  className="h-8 mx-auto mb-6 opacity-80"
-                  alt="Logo"
-                  loading="eager"
-                  decoding="async"
-                />
-                <h3 className="text-4xl font-extrabold text-gray-800 uppercase tracking-tighter mb-2">
-                  Seminovos
-                </h3>
-                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-8">
-                  Qualidade Certificada Chevrolet
-                </p>
-                <div className="flex justify-center gap-4">
-                  <Link
-                    href="/vendedor/seminovos"
-                    onClick={onClose}
-                    className="px-6 py-3 bg-blue-600 text-white text-xs font-bold uppercase tracking-wide hover:bg-blue-700 transition-colors"
-                  >
-                    Consultar
-                  </Link>
-                </div>
+                <span
+                  className={
+                    item.label === "Seminovos"
+                      ? "border-l-4 border-transparent pl-0"
+                      : ""
+                  }
+                >
+                  {item.label}
+                </span>
+                {selectedLabel === item.label && <ArrowRight size={16} />}
               </div>
+            ))}
+          </div>
+
+          {/* DIREITA: CONTEÚDO COM SCROLL */}
+          <div className="flex-1 min-w-0 pl-6 lg:pl-8 xl:pl-12">
+            <div className="max-h-[70vh] overflow-y-auto pr-2">
+              {selectedLabel === "Seminovos" ? (
+                <div className="animate-in fade-in slide-in-from-left-4 duration-300 w-full flex justify-center">
+                  <div className="w-full max-w-2xl bg-gray-50 p-8 lg:p-10 xl:p-12 text-center rounded-sm">
+                    <img
+                      src="https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/chevrolet-logo.svg"
+                      className="h-8 mx-auto mb-6 opacity-80"
+                      alt="Logo"
+                      loading="eager"
+                      decoding="async"
+                    />
+                    <h3 className="text-3xl lg:text-4xl font-extrabold text-gray-800 uppercase tracking-tighter mb-2">
+                      Seminovos
+                    </h3>
+                    <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-8">
+                      Qualidade Certificada Chevrolet
+                    </p>
+                    <div className="flex justify-center gap-4">
+                      <Link
+                        href="/vendedor/seminovos"
+                        onClick={onClose}
+                        className="px-6 py-3 bg-blue-600 text-white text-xs font-bold uppercase tracking-wide hover:bg-blue-700 transition-colors"
+                      >
+                        Consultar
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="w-full animate-in fade-in slide-in-from-left-4 duration-300">
+                  {selectedLabel === "Elétricos" ? (
+                    <div className="mb-8">
+                      <FixedCardsGrid cards={ELECTRIC_LP_CARDS} onClose={onClose} />
+                    </div>
+                  ) : null}
+
+                  {selectedLabel === "SUVs" ? (
+                    <div className="mb-8">
+                      <FixedCardsGrid cards={SUV_LP_CARDS} onClose={onClose} />
+                    </div>
+                  ) : null}
+
+                  {selectedLabel === "Picapes" ? (
+                    <div className="mb-8">
+                      <FixedCardsGrid cards={PICKUP_LP_CARDS} onClose={onClose} />
+                    </div>
+                  ) : null}
+
+                  {selectedLabel === "Esportivos" ? (
+                    <div className="mb-8">
+                      <FixedCardsGrid cards={SPORT_LP_CARDS} onClose={onClose} />
+                    </div>
+                  ) : null}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 xl:gap-8 w-full">
+                    {filteredVehicles.length > 0 ? (
+                      filteredVehicles.map((car, index) => (
+                        <Link
+                          key={car.id}
+                          href={`/configurador?id=${car.id}`}
+                          onClick={onClose}
+                          className="group block text-center relative"
+                        >
+                          <div className="h-28 lg:h-32 bg-gray-50 rounded-lg mb-4 flex items-center justify-center overflow-hidden mix-blend-multiply group-hover:bg-gray-100 transition-colors">
+                            <img
+                              src={(car.image_url || "").trim()}
+                              alt={car.model_name}
+                              loading={index < 6 ? "eager" : "lazy"}
+                              decoding="async"
+                              fetchPriority={index < 3 ? "high" : "auto"}
+                              className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-500"
+                            />
+                          </div>
+
+                          <h4 className="text-sm font-bold text-gray-900 uppercase group-hover:text-blue-600 transition-colors">
+                            {car.model_name}
+                          </h4>
+
+                          <p className="text-xs text-gray-500 mt-1 font-semibold">
+                            A partir de {formatBRL0(car.price_start)}
+                          </p>
+
+                          <span className="text-[10px] text-blue-600 font-bold uppercase mt-2 inline-block border-b border-transparent group-hover:border-blue-600">
+                            Saiba mais
+                          </span>
+                        </Link>
+                      ))
+                    ) : (
+                      <div className="col-span-full text-center py-16 text-gray-400" />
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
-          ) : (
-            <div className="w-full animate-in fade-in slide-in-from-left-4 duration-300">
-              {selectedLabel === "Elétricos" ? (
-                <div className="mb-10">
-                  <FixedCardsGrid cards={ELECTRIC_LP_CARDS} onClose={onClose} />
-                </div>
-              ) : null}
-
-              {selectedLabel === "SUVs" ? (
-                <div className="mb-10">
-                  <FixedCardsGrid cards={SUV_LP_CARDS} onClose={onClose} />
-                </div>
-              ) : null}
-
-              {selectedLabel === "Picapes" ? (
-                <div className="mb-10">
-                  <FixedCardsGrid cards={PICKUP_LP_CARDS} onClose={onClose} />
-                </div>
-              ) : null}
-
-              {selectedLabel === "Esportivos" ? (
-                <div className="mb-10">
-                  <FixedCardsGrid cards={SPORT_LP_CARDS} onClose={onClose} />
-                </div>
-              ) : null}
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 w-full">
-                {filteredVehicles.length > 0 ? (
-                  filteredVehicles.map((car, index) => (
-                    <Link
-                      key={car.id}
-                      href={`/configurador?id=${car.id}`}
-                      onClick={onClose}
-                      className="group block text-center relative"
-                    >
-                      <div className="h-32 bg-gray-50 rounded-lg mb-4 flex items-center justify-center overflow-hidden mix-blend-multiply group-hover:bg-gray-100 transition-colors">
-                        <img
-                          src={(car.image_url || "").trim()}
-                          alt={car.model_name}
-                          loading={index < 6 ? "eager" : "lazy"}
-                          decoding="async"
-                          fetchPriority={index < 3 ? "high" : "auto"}
-                          className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-500"
-                        />
-                      </div>
-
-                      <h4 className="text-sm font-bold text-gray-900 uppercase group-hover:text-blue-600 transition-colors">
-                        {car.model_name}
-                      </h4>
-
-                      <p className="text-xs text-gray-500 mt-1 font-semibold">
-                        A partir de {formatBRL0(car.price_start)}
-                      </p>
-
-                      <span className="text-[10px] text-blue-600 font-bold uppercase mt-2 inline-block border-b border-transparent group-hover:border-blue-600">
-                        Saiba mais
-                      </span>
-                    </Link>
-                  ))
-                ) : (
-                  <div className="col-span-full text-center py-20 text-gray-400" />
-                )}
-              </div>
-            </div>
-          )}
+          </div>
         </div>
       </div>
     </div>

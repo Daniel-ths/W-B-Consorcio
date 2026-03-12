@@ -22,6 +22,10 @@ const PHONE_PREFIX_DISPLAY = "+55 ";
 // ✅ fallback caso algum fluxo ainda envie sem DDD (apenas 8/9 dígitos)
 const DEFAULT_DDD = "91";
 
+// ✅ regra do consórcio
+const TAXA_ADM_TOTAL_FALLBACK = 0.4346; // 43,46%
+const REDUZIDA_PERCENT_CATEGORIA = 0.7665; // 76,65%
+
 // ✅ Formata SOMENTE o número (8/9) para: 9XXXX-XXXX
 const maskPhoneBRNumber = (digitsOnly: string) => {
   const digits = String(digitsOnly || "").replace(/\D/g, "").slice(0, 9);
@@ -36,11 +40,11 @@ const formatPhoneForDisplay = (digitsE164: string) => {
 
   if (!digits.startsWith("55")) return "---";
 
-  const national = digits.slice(2); // remove "55"
-  if (national.length !== 10 && national.length !== 11) return "---"; // DDD(2)+fixo(8)=10 | DDD(2)+cel(9)=11
+  const national = digits.slice(2);
+  if (national.length !== 10 && national.length !== 11) return "---";
 
   const ddd = national.slice(0, 2);
-  const number = national.slice(2); // 8 ou 9 dígitos
+  const number = national.slice(2);
 
   return `${PHONE_PREFIX_DISPLAY}${ddd} ${maskPhoneBRNumber(number)}`;
 };
@@ -51,14 +55,11 @@ function sanitizePhoneFromOtherPage(input: string): string | null {
 
   const digits = String(input).replace(/\D/g, "");
 
-  // 1) veio com país
   if (digits.startsWith("55")) {
-    const national = digits.slice(2); // remove 55
+    const national = digits.slice(2);
 
-    // já está correto: DDD(2)+numero(8/9)
     if (national.length === 10 || national.length === 11) return `55${national}`;
 
-    // veio com 55 mas sem DDD (apenas 8/9) -> aplica fallback
     if ((national.length === 8 || national.length === 9) && DEFAULT_DDD) {
       const ddd = String(DEFAULT_DDD).replace(/\D/g, "").slice(0, 2);
       if (ddd.length === 2) return `55${ddd}${national}`;
@@ -67,7 +68,6 @@ function sanitizePhoneFromOtherPage(input: string): string | null {
     return null;
   }
 
-  // 2) veio sem país: pode ser DDD+numero (10/11) ou só numero (8/9)
   if (digits.length === 10 || digits.length === 11) return `55${digits}`;
 
   if ((digits.length === 8 || digits.length === 9) && DEFAULT_DDD) {
@@ -83,15 +83,13 @@ const safeNumber = (v: any) => {
   return Number.isFinite(n) ? n : 0;
 };
 
-// ✅ FRASE FIXA (pedido do cliente)
 const BEST_BID_TEXT = "MELHOR MOMENTO PARA OFERTAR LANCE: ENTRE 7X E 8X PARCELA.";
 
-// ✅ remove emojis/unicode e reduz tamanho (evita gateway recusar SMS)
 function makeSmsSafe(raw: string, maxLen = 150) {
   const ascii = String(raw || "")
     .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "") // remove acentos combinados
-    .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, ""); // remove unicode fora do ASCII básico
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, "");
 
   const clean = ascii
     .replace(/\r\n/g, "\n")
@@ -111,22 +109,15 @@ function PedidoContent() {
       tipo: searchParams.get("tipo") || "CONSORCIO",
       cpf: searchParams.get("cpf") || "",
       modelo: searchParams.get("modelo") || "Veículo Selecionado",
-
-      // ✅ aqui é o "crédito com acessórios" (não mostrar "categoria")
       valor: safeNumber(searchParams.get("valor")),
-
-      // (mantido para compat, mas NÃO usado no Ato/Entrada)
       entrada: safeNumber(searchParams.get("entrada")),
-
-      // ✅ parcela original / integral escolhida
       parcela: safeNumber(searchParams.get("parcela_escolhida")),
       prazo: searchParams.get("prazo_escolhido") || "0",
       total: safeNumber(searchParams.get("total_final")),
       imagem: searchParams.get("imagem") || "",
-
-      // ✅ VINDO DA OUTRA PÁGINA
       nome: searchParams.get("nome") || "",
-      telefone: searchParams.get("telefone") || "", // ex: +55...
+      telefone: searchParams.get("telefone") || "",
+      taxaAdmTotal: safeNumber(searchParams.get("taxa_adm_total")) || TAXA_ADM_TOTAL_FALLBACK,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [searchParams.toString()]
@@ -155,7 +146,7 @@ function PedidoContent() {
   }, [searchParams.toString()]);
 
   // =========================
-  // ✅ PROMO DO VENDEDOR (vindo da página anterior)
+  // ✅ PROMO DO VENDEDOR
   // =========================
   const promo = useMemo(() => {
     const codigo = (searchParams.get("cupom_codigo") || "").trim();
@@ -191,18 +182,27 @@ function PedidoContent() {
   }, [searchParams.toString()]);
 
   // =========================
-  // ✅ NÚMEROS EXIBIDOS (somente prazo/parcela; SEM "total final")
+  // ✅ RECALCULA INTEGRAL E REDUZIDA SEMPRE
   // =========================
-  const valoresExibidos = useMemo(() => {
+  const calculoConsorcio = useMemo(() => {
     const prazoBase = parseInt(dados.prazo || "0", 10) || 0;
-    const parcelaBase = dados.parcela || 0;
-
     const prazoUsado =
       lanceInfo.hasLance && lanceInfo.prazoFinal > 0 ? lanceInfo.prazoFinal : prazoBase;
-    const parcelaUsada =
-      lanceInfo.hasLance && lanceInfo.parcelaFinal > 0 ? lanceInfo.parcelaFinal : parcelaBase;
 
-    // Desconto (se existir) — sem mexer no "crédito"
+    const creditoBase = Math.max(0, dados.valor - dados.entrada);
+    const creditoUsado =
+      lanceInfo.hasLance && lanceInfo.creditoAposLance > 0
+        ? lanceInfo.creditoAposLance
+        : creditoBase;
+
+    const valorCategoria = creditoUsado * (1 + dados.taxaAdmTotal);
+
+    const parcelaIntegral =
+      prazoUsado > 0 ? valorCategoria / prazoUsado : 0;
+
+    const parcelaReduzida =
+      prazoUsado > 0 ? (valorCategoria * REDUZIDA_PERCENT_CATEGORIA) / prazoUsado : 0;
+
     let desconto = 0;
     if (promo.hasPromo) {
       const base = dados.valor || 0;
@@ -213,53 +213,39 @@ function PedidoContent() {
 
     return {
       prazoUsado,
-      parcelaUsada,
+      parcelaIntegral,
+      parcelaReduzida,
       desconto,
     };
   }, [dados, lanceInfo, promo]);
 
-  // =========================
-  // ✅ ATO/ENTRADA: SEMPRE = PARCELA INTEGRAL DO PRIMEIRO PAGAMENTO
-  // pedido do cliente:
-  // "sobre o pagamento no ato (ato/entrada) tem que ser o valor da parcela integral no primeiro pagamento"
-  // Portanto NÃO usa parcela reduzida por lance.
-  // =========================
+  // ✅ ATO = integral
   const atoEntrada = useMemo(() => {
-    const parcelaIntegralPrimeiroPagamento = safeNumber(dados.parcela);
-    if (parcelaIntegralPrimeiroPagamento > 0) return parcelaIntegralPrimeiroPagamento;
+    return safeNumber(calculoConsorcio.parcelaIntegral);
+  }, [calculoConsorcio.parcelaIntegral]);
 
-    // fallback de segurança
-    return safeNumber(valoresExibidos.parcelaUsada);
-  }, [dados.parcela, valoresExibidos.parcelaUsada]);
+  // ✅ PARCELAMENTO = reduzida
+  const parcelaReduzidaExibida = useMemo(() => {
+    return safeNumber(calculoConsorcio.parcelaReduzida);
+  }, [calculoConsorcio.parcelaReduzida]);
 
-  // ✅ agora NÃO faz consulta automática no load
   const [loadingValidacao, setLoadingValidacao] = useState(false);
   const [verificando, setVerificando] = useState(false);
 
-  // ✅ botão principal (salvar + sms condicional)
   const [loadingEnviar, setLoadingEnviar] = useState(false);
   const [pedidoSalvo, setPedidoSalvo] = useState(false);
 
   const [apiData, setApiData] = useState<any>(null);
-
-  // ✅ começa com o nome vindo da outra página (fallback)
   const [nomeManual, setNomeManual] = useState(dados.nome || "");
-
   const [dataAtual, setDataAtual] = useState("");
 
-  // ✅ telefone do cliente vindo da outra página (digits p/ SMS e DB)
-  const telefoneDigits = sanitizePhoneFromOtherPage(dados.telefone); // "55DDDNÚMERO"
-
-  // ✅ telefone formatado p/ exibir COM DDD: "+55 91 9XXXX-XXXX"
+  const telefoneDigits = sanitizePhoneFromOtherPage(dados.telefone);
   const telefoneTela = telefoneDigits ? formatPhoneForDisplay(telefoneDigits) : "---";
 
   const formatMoney = (val: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(val);
 
-  // ✅ protocolo estável (gera no client pra evitar hydration mismatch)
   const [numeroPedido, setNumeroPedido] = useState<string>("");
-
-  // ✅ aprovador (nome do vendedor logado)
   const [aprovadorNome, setAprovadorNome] = useState<string>("");
 
   useEffect(() => {
@@ -273,7 +259,6 @@ function PedidoContent() {
 
     if (!nomeManual && dados.nome) setNomeManual(dados.nome);
 
-    // ✅ gera o protocolo apenas no client (evita Server != Client)
     setNumeroPedido((prev) => {
       if (prev) return prev;
       return Math.floor(Math.random() * 1000000)
@@ -281,7 +266,6 @@ function PedidoContent() {
         .padStart(6, "0");
     });
 
-    // ✅ carrega aprovador (vendedor logado) para exibir na área de análise
     (async () => {
       try {
         const {
@@ -299,31 +283,23 @@ function PedidoContent() {
 
         if (profile?.full_name) nome = profile.full_name;
 
-        // fallback: pega antes do @ e coloca em caixa alta
         if (!nome || nome === user.email) {
           const beforeAt = String(user.email || "").split("@")[0] || "";
           nome = beforeAt ? beforeAt.toUpperCase() : String(user.email || "");
         }
 
         setAprovadorNome(String(nome || "").toUpperCase());
-      } catch {
-        // silencioso
-      }
+      } catch {}
     })();
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // =========================
-  // ✅ mensagem do SMS (com aprovador + frase fixa de melhor momento)
-  // =========================
   const SMS_TESTE = (nome: string, protocolo: string, aprovador: string) => {
-    const aprov = aprovador ? `\nAprovador: ${aprovador}` : "";
     return `Parabéns, ${nome}!🎉 Seu CPF foi aprovado e você está mais perto de conquistar seu carro novo.
 Seja bem vindo!`;
   };
 
-  // ✅ Consulta CPF = SOMENTE no clique (preenche dados + sem SMS)
   const consultarCpf = async () => {
     if (!dados.cpf) {
       alert("Informe/Envie um CPF para consultar.");
@@ -366,7 +342,6 @@ Seja bem vindo!`;
     }
   };
 
-  // Atalhos de Dados
   const situacaoReceita =
     apiData?.situacao ||
     apiData?.response?.content?.nome?.conteudo?.situacao_receita ||
@@ -380,8 +355,6 @@ Seja bem vindo!`;
 
   const cpfIsRegular = String(situacaoReceita || "PENDENTE").toUpperCase() === "REGULAR";
 
-  // ✅ SMS (só é chamado depois do envio para análise)
-  // ✅ CORREÇÃO: sanitiza mensagem + lê resp.text() pra não "sumir" erro
   async function enviarSms(nomeCliente: string) {
     if (!telefoneDigits) {
       alert(
@@ -390,13 +363,10 @@ Seja bem vindo!`;
       return false;
     }
 
-    // debug rápido (se vier tamanho errado você vê no console)
     console.log("[sms] telefoneDigits:", telefoneDigits, "len:", telefoneDigits.length);
 
     const protocolo = numeroPedido || "------";
     const rawMessage = SMS_TESTE(nomeCliente || "cliente", protocolo, aprovadorNome || "");
-
-    // ✅ evita recusa por emoji/unicode/tamanho
     const message = makeSmsSafe(rawMessage, 150);
 
     try {
@@ -404,20 +374,17 @@ Seja bem vindo!`;
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          number: telefoneDigits, // ✅ "55DDDNÚMERO"
+          number: telefoneDigits,
           message,
           user_reply: true,
         }),
       });
 
-      // ✅ pega bruto: se o backend retornar HTML/texto, você vai ver
       const text = await resp.text();
       let json: any = null;
       try {
         json = text ? JSON.parse(text) : null;
-      } catch {
-        // não era JSON
-      }
+      } catch {}
 
       if (!resp.ok || json?.error) {
         console.warn("[sms] HTTP:", resp.status);
@@ -435,8 +402,6 @@ Seja bem vindo!`;
     }
   }
 
-  // ✅ SALVAR PROPOSTA no banco (sempre salva)
-  // ✅ REGRA NOVA: TODOS OS PEDIDOS FEITOS NA ÁREA DE CONTRATO DEVEM IR PARA O ADMIN COMO "APROVADO"
   const salvarNoBanco = async () => {
     if (!nomeManual) {
       alert("Preencha/consulte os dados do cliente antes de enviar.");
@@ -480,19 +445,13 @@ Seja bem vindo!`;
         car_name: dados.modelo,
         client_name: nomeManual.toUpperCase(),
         client_cpf: dados.cpf,
-
-        // ✅ tudo que é feito na área de contrato já entra no painel como aprovado
         status: "Aprovado",
-
-        // ✅ o valor do carro é o CRÉDITO (com acessórios)
         total_price: dados.valor,
         interest_type: dados.tipo,
         client_phone: telefoneDigits,
         created_at: new Date().toISOString(),
-
         protocol_number: numeroPedido,
         cpf_status: String(situacaoReceita || "PENDENTE").toUpperCase(),
-
         promo_code: promo.codigo || null,
         promo_label: promo.label || null,
         promo_discount_percent: promo.discountPercent || 0,
@@ -500,10 +459,9 @@ Seja bem vindo!`;
         promo_plating_free: promo.platingFree ? true : false,
         promo_accessories_free: promo.accessoriesFree ? true : false,
         promo_note: promo.obs || null,
-
         lance_value: lanceInfo.hasLance ? lanceInfo.lanceValor : 0,
-        prazo_final: valoresExibidos.prazoUsado || 0,
-        parcela_final: valoresExibidos.parcelaUsada || 0,
+        prazo_final: calculoConsorcio.prazoUsado || 0,
+        parcela_final: parcelaReduzidaExibida || 0,
       };
 
       const { error } = await supabase.from("sales").insert([payload]);
@@ -517,7 +475,6 @@ Seja bem vindo!`;
     }
   };
 
-  // ✅ BOTÃO PRINCIPAL: salva no banco sempre; SMS SEMPRE tenta enviar
   const handleEnviarParaAnalise = async () => {
     if (pedidoSalvo) return;
 
@@ -542,7 +499,6 @@ Seja bem vindo!`;
 
   return (
     <div className="min-h-screen bg-zinc-100 font-sans text-zinc-900 pb-32 md:pb-20 print:bg-white print:p-0">
-      {/* HEADER DO APP */}
       <header className="px-4 md:px-6 py-4 bg-zinc-900 border-b border-zinc-800 sticky top-0 z-50 print:hidden shadow-xl safe-area-top">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <button
@@ -579,17 +535,14 @@ Seja bem vindo!`;
         </div>
       </header>
 
-      {/* ÁREA DA FOLHA DE PAPEL */}
       <main className="w-full md:max-w-[210mm] mx-auto py-4 md:py-8 px-4 md:px-0 print:max-w-full print:p-0 print:m-0">
         <div className="bg-white shadow-lg md:shadow-2xl rounded-2xl md:rounded-none overflow-hidden w-full min-h-[80vh] md:min-h-[297mm] flex flex-col relative print:shadow-none print:w-full">
-          {/* MARCA D'ÁGUA DE FUNDO */}
           <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none select-none overflow-hidden">
             <h1 className="text-[80px] md:text-[150px] font-black -rotate-45 text-black whitespace-nowrap">
               NACIONAL CONSÓRCIOS
             </h1>
           </div>
 
-          {/* --- HEADER DO DOCUMENTO --- */}
           <div className="p-6 md:p-10 pb-4 md:pb-6 border-b-4 border-black flex flex-col md:flex-row justify-between items-start md:items-start gap-6 md:gap-0 relative z-10 bg-white">
             <div className="flex flex-col gap-1 w-full md:w-auto">
               <div className="flex justify-between items-center md:block">
@@ -667,9 +620,7 @@ Seja bem vindo!`;
             </div>
           </div>
 
-          {/* --- CORPO DO DOCUMENTO --- */}
           <div className="p-6 md:p-10 space-y-8 flex-1 relative z-10">
-            {/* 1. DADOS DO CLIENTE */}
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b border-black pb-2">
                 <h3 className="text-sm font-black uppercase flex items-center gap-2">
@@ -834,7 +785,6 @@ Seja bem vindo!`;
               </div>
             </div>
 
-            {/* 2. OBJETO DO CONTRATO */}
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b border-black pb-2">
                 <h3 className="text-sm font-black uppercase flex items-center gap-2">
@@ -867,7 +817,6 @@ Seja bem vindo!`;
               </div>
             </div>
 
-            {/* 3. FLUXO DE PAGAMENTO */}
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b border-black pb-2">
                 <h3 className="text-sm font-black uppercase flex items-center gap-2">
@@ -904,24 +853,24 @@ Seja bem vindo!`;
                   <div className="flex flex-col">
                     <span className="text-xs font-black uppercase text-zinc-900">Parcelamento</span>
                     <span className="text-[10px] font-bold text-zinc-500">
-                      Plano em {valoresExibidos.prazoUsado} meses
+                      Plano em {calculoConsorcio.prazoUsado} meses
                     </span>
                   </div>
                   <div className="text-right">
                     <span className="block text-xl md:text-2xl font-black text-zinc-900">
-                      {formatMoney(valoresExibidos.parcelaUsada)}
+                      {formatMoney(parcelaReduzidaExibida)}
                     </span>
-                    <span className="text-[9px] font-bold text-zinc-500 uppercase">Valor da Parcela</span>
+                    <span className="text-[9px] font-bold text-zinc-500 uppercase">Valor da Parcela Reduzida</span>
                   </div>
                 </div>
 
-                {promo.hasPromo && valoresExibidos.desconto > 0 ? (
+                {promo.hasPromo && calculoConsorcio.desconto > 0 ? (
                   <div className="flex justify-between items-center p-3 bg-white border-t border-zinc-100">
                     <span className="text-[10px] font-bold text-zinc-400 uppercase">
                       Desconto aplicado {promo.discountPercent ? `(${promo.discountPercent}%)` : ""}
                     </span>
                     <span className="font-mono font-bold text-emerald-700 text-xs">
-                      - {formatMoney(valoresExibidos.desconto)}
+                      - {formatMoney(calculoConsorcio.desconto)}
                     </span>
                   </div>
                 ) : null}
@@ -967,7 +916,6 @@ Seja bem vindo!`;
               ) : null}
             </div>
 
-            {/* CAMPO DE OBSERVAÇÕES */}
             <div className="border-2 border-dashed border-zinc-300 rounded-lg p-4 min-h-[100px] md:min-h-[120px] bg-zinc-50/50 print:bg-white relative">
               <p className="absolute top-2 left-3 text-[9px] font-bold text-zinc-400 uppercase bg-white px-1">
                 Observações / Acessórios
@@ -978,8 +926,8 @@ Seja bem vindo!`;
                   {lanceInfo.hasLance ? (
                     <p>
                       • Lance aplicado: <span className="font-mono font-bold">{formatMoney(lanceInfo.lanceValor)}</span>{" "}
-                      | Prazo: <span className="font-mono font-bold">{valoresExibidos.prazoUsado}x</span> | Parcela:{" "}
-                      <span className="font-mono font-bold">{formatMoney(valoresExibidos.parcelaUsada)}</span>
+                      | Prazo: <span className="font-mono font-bold">{calculoConsorcio.prazoUsado}x</span> | Parcela reduzida:{" "}
+                      <span className="font-mono font-bold">{formatMoney(parcelaReduzidaExibida)}</span>
                     </p>
                   ) : null}
 
@@ -1002,7 +950,6 @@ Seja bem vindo!`;
             </div>
           </div>
 
-          {/* --- FOOTER DO DOCUMENTO --- */}
           <div className="mt-auto p-6 md:p-10 pt-0">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16 items-end mb-8 pt-8 border-t border-black">
               <div className="text-center order-2 md:order-1">
