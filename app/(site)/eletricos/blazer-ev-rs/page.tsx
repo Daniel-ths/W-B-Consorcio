@@ -33,10 +33,8 @@ import {
  * ✅ Todos CTAs rolam pro final
  * ✅ Se logado: salva em sales e abre /vendedor/analise com query
  * ✅ Se não logado: bloqueia e mostra botão login
- * ✅ Agora grava:
- *   - seller_name = vendedor digitado
- *   - details.vendedor_digitado
- *   - approved_by_name = email do supervisor logado (se for supervisor)
+ * ✅ Corrigido: car_id agora busca o id numérico real no banco
+ * ✅ Evita erro bigint com "landing-blazer-ev-rs"
  */
 
 // =========================
@@ -200,7 +198,6 @@ type TabKey = "exterior" | "interior";
 export default function BlazerEVRSPage() {
   const router = useRouter();
 
-  // ===== FINALIZAÇÃO NO FINAL =====
   const orderSectionId = "order-summary";
 
   const [authLoading, setAuthLoading] = useState(true);
@@ -438,8 +435,23 @@ export default function BlazerEVRSPage() {
       const loggedUserId = user?.id || null;
       const userIsSupervisor = isSupervisorEmail(loggedUserEmail);
 
+      // ✅ Busca um id numérico real do veículo no banco
+      let resolvedCarId: number | null = null;
+
+      const { data: foundVehicle } = await supabase
+        .from("vehicles")
+        .select("id, model_name")
+        .eq("brand", "chevrolet")
+        .ilike("model_name", `%${CONFIG.titulo}%`)
+        .limit(1)
+        .maybeSingle();
+
+      if (foundVehicle?.id != null) {
+        resolvedCarId = Number(foundVehicle.id);
+      }
+
       const saleData = {
-        car_id: `landing-${CONFIG.titulo.toLowerCase().replace(/\s+/g, "-")}`,
+        car_id: resolvedCarId,
         car_name: CONFIG.titulo,
 
         seller_id: user.id,
@@ -465,6 +477,10 @@ export default function BlazerEVRSPage() {
           approved_by_email: userIsSupervisor ? loggedUserEmail : null,
           approved_by_name: userIsSupervisor ? loggedUserEmail : "Sistema",
           approved_by_id: userIsSupervisor ? loggedUserId : null,
+
+          landing_slug: "landing-blazer-ev-rs",
+          landing_page: CONFIG.titulo,
+          landing_mode: true,
         },
 
         approved_at: new Date().toISOString(),

@@ -24,14 +24,41 @@ import {
   Wallet,
   Banknote,
   CheckCircle2,
+  UserRound,
 } from "lucide-react";
 
 /**
- * SPIN 2026 — com FINALIZAÇÃO no final (igual Camaro)
- * ✅ Todos CTAs rolam pro final (não abre /vendedor/analise direto)
- * ✅ Se logado: preenche dados, salva em sales e abre /vendedor/analise com query preenchida
- * ✅ Se não logado: bloqueia e mostra botão login
+ * SPIN 2026 — com FINALIZAÇÃO no final
+ * ✅ Corrigido bigint do car_id
+ * ✅ Melhorado carregamento/preload de imagens
+ * ✅ Agora com vendedor digitado igual aos outros
+ * ✅ Continua enviando para /vendedor/analise após salvar
  */
+
+// =========================
+// PRELOAD HELPERS
+// =========================
+const preloadedImages = new Set<string>();
+
+function preloadImages(urls: string[]) {
+  if (typeof window === "undefined") return;
+
+  const uniqueUrls = Array.from(
+    new Set(
+      urls
+        .map((u) => String(u || "").trim())
+        .filter(Boolean)
+    )
+  );
+
+  uniqueUrls.forEach((url) => {
+    if (preloadedImages.has(url)) return;
+    const img = new window.Image();
+    img.decoding = "async";
+    img.src = url;
+    preloadedImages.add(url);
+  });
+}
 
 // =========================
 // CONFIG — SPIN 2026
@@ -115,14 +142,18 @@ const CONFIG = {
 };
 
 // =========================
-// helpers
+// HELPERS
 // =========================
 const formatBRL0 = (val: number) =>
-  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(val);
+  new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    maximumFractionDigits: 0,
+  }).format(val);
 
 type TabKey = "exterior" | "interior";
 
-// --- MÁSCARAS / HELPERS (OrderSummary) ---
+// --- MÁSCARAS / HELPERS ---
 const maskCPF = (value: string) =>
   value
     .replace(/\D/g, "")
@@ -133,48 +164,43 @@ const maskCPF = (value: string) =>
 
 const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-// --- TELEFONE (com DDD) ---
 const PHONE_PREFIX_DISPLAY = "+55 ";
 
-// máscara: (DD) 9XXXX-XXXX  (DDD + 9 dígitos = 11 após +55)
-const maskPhoneAfterPrefix = (value: string) => {
-  const digits = value.replace(/\D/g, "").slice(0, 11);
-
-  const ddd = digits.slice(0, 2);
-  const number = digits.slice(2); // até 9
-
-  if (!digits) return "";
-
-  // digitando DDD
-  if (digits.length <= 2) return `(${ddd}`;
-
-  // DDD fechado, começando número
-  if (number.length === 0) return `(${ddd}) `;
-
-  // número parcial
-  if (number.length <= 5) return `(${ddd}) ${number}`;
-
-  // número com hífen
-  return `(${ddd}) ${number.slice(0, 5)}-${number.slice(5)}`;
-};
-
-// pega só os dígitos após +55 => DDD(2) + número(9) = 11
 const getPhoneDigitsAfterPrefix = (fullValue: string) => {
   const digits = fullValue.replace(/\D/g, "");
   const after55 = digits.startsWith("55") ? digits.slice(2) : digits;
   return after55.slice(0, 11);
 };
 
-// monta E.164: +55DD9XXXXXXXX
 const buildPhoneE164 = (displayValue: string) => {
   const after = getPhoneDigitsAfterPrefix(displayValue);
   return `+55${after}`;
 };
 
+const cleanText = (value: any) => String(value || "").trim();
+const lowerText = (value: any) => cleanText(value).toLowerCase();
+
+const normalizeSellerName = (value: string) =>
+  String(value || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase();
+
+const SUPERVISOR_EMAILS = [
+  "glauco@wbcnac.com",
+  "rafael@wbcnac.com",
+  "alexandre@wbcnac.com",
+  "marcelo@wbcnac.com",
+  "felipe@wbcnac.com",
+  "marcos@wbcnac.com",
+].map((s) => s.toLowerCase().trim());
+
+const isSupervisorEmail = (email?: string | null) =>
+  !!email && SUPERVISOR_EMAILS.includes(lowerText(email));
+
 export default function SpinElectricStylePage() {
   const router = useRouter();
 
-  // ===== FINALIZAÇÃO NO FINAL =====
   const orderSectionId = "order-summary";
 
   const [authLoading, setAuthLoading] = useState(true);
@@ -184,6 +210,7 @@ export default function SpinElectricStylePage() {
   const [clientCpf, setClientCpf] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [clientPhone, setClientPhone] = useState(PHONE_PREFIX_DISPLAY);
+  const [sellerName, setSellerName] = useState("");
 
   const [loading, setLoading] = useState(false);
 
@@ -192,7 +219,10 @@ export default function SpinElectricStylePage() {
     clientCpf: "",
     clientEmail: "",
     clientPhone: "",
+    sellerName: "",
   });
+
+  const sellerNamePreview = useMemo(() => normalizeSellerName(sellerName), [sellerName]);
 
   const scrollToId = (id: string) => {
     const el = document.getElementById(id);
@@ -200,7 +230,6 @@ export default function SpinElectricStylePage() {
     el.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  // ✅ pega usuário logado
   useEffect(() => {
     let mounted = true;
 
@@ -227,123 +256,53 @@ export default function SpinElectricStylePage() {
     };
   }, []);
 
+  useEffect(() => {
+    preloadImages([
+      CONFIG.heroImage,
+      CONFIG.sectionImage,
+      CONFIG.gallery[0],
+      CONFIG.gallery[1],
+      CONFIG.exterior.colors[0]?.img || "",
+      CONFIG.exterior.colors[1]?.img || "",
+      CONFIG.interior.colors[0]?.images?.[0] || "",
+    ]);
+  }, []);
+
   const handleCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setClientCpf(maskCPF(e.target.value));
     if (errors.clientCpf) setErrors({ ...errors, clientCpf: "" });
   };
 
-  // ✅ TELEFONE com DDD (corrigido)
- const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  const typed = e.target.value || "";
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const typed = e.target.value || "";
 
-  // Se o usuário apagar tudo
-  if (typed.trim() === "" || typed === PHONE_PREFIX_DISPLAY) {
-    setClientPhone(PHONE_PREFIX_DISPLAY);
-    return;
-  }
-
-  let digits = typed.replace(/\D/g, "");
-
-  // Remove 55 se colarem junto
-  if (digits.startsWith("55")) digits = digits.slice(2);
-
-  digits = digits.slice(0, 11); // DDD + 9
-
-  const ddd = digits.slice(0, 2);
-  const num = digits.slice(2);
-
-  let formatted = "";
-
-  if (digits.length <= 2) formatted = `(${ddd}`;
-  else if (num.length <= 5) formatted = `(${ddd}) ${num}`;
-  else formatted = `(${ddd}) ${num.slice(0, 5)}-${num.slice(5)}`;
-
-  setClientPhone(PHONE_PREFIX_DISPLAY + formatted);
-};
-
-  // ✅ todos CTAs chamam isso (não navega mais pro analise direto)
-  const goPrimary = () => scrollToId(orderSectionId);
-
-  const handleFinishOrder = async () => {
-    let newErrors = { clientName: "", clientCpf: "", clientEmail: "", clientPhone: "" };
-    let hasError = false;
-
-    if (authLoading) return;
-
-    if (!user) {
-      scrollToId(orderSectionId);
+    if (typed.trim() === "" || typed === PHONE_PREFIX_DISPLAY) {
+      setClientPhone(PHONE_PREFIX_DISPLAY);
       return;
     }
 
-    if (clientName.trim().length < 3) {
-      newErrors.clientName = "Nome completo é obrigatório.";
-      hasError = true;
-    }
+    let digits = typed.replace(/\D/g, "");
 
-    if (clientCpf.length < 14) {
-      newErrors.clientCpf = "CPF inválido ou incompleto.";
-      hasError = true;
-    }
+    if (digits.startsWith("55")) digits = digits.slice(2);
 
-    if (!clientEmail || !validateEmail(clientEmail)) {
-      newErrors.clientEmail = "Insira um e-mail válido.";
-      hasError = true;
-    }
+    digits = digits.slice(0, 11);
 
-    const phoneDigits = getPhoneDigitsAfterPrefix(clientPhone); // DDD(2) + número(9) = 11
-    if (phoneDigits.length < 11) {
-      newErrors.clientPhone = "Telefone obrigatório (DDD + 9 dígitos). Ex: (91) 9XXXX-XXXX";
-      hasError = true;
-    }
+    const ddd = digits.slice(0, 2);
+    const num = digits.slice(2);
 
-    setErrors(newErrors);
-    if (hasError) return;
+    let formatted = "";
 
-    setLoading(true);
+    if (digits.length <= 2) formatted = `(${ddd}`;
+    else if (num.length <= 5) formatted = `(${ddd}) ${num}`;
+    else formatted = `(${ddd}) ${num.slice(0, 5)}-${num.slice(5)}`;
 
-    try {
-      const telefoneE164 = buildPhoneE164(clientPhone);
+    setClientPhone(PHONE_PREFIX_DISPLAY + formatted);
 
-      const saleData = {
-        car_id: `landing-${CONFIG.titulo.toLowerCase().replace(/\s+/g, "-")}`,
-        car_name: CONFIG.titulo,
-        seller_id: user.id,
-        client_name: clientName,
-        client_cpf: clientCpf,
-        client_email: clientEmail,
-        client_phone: telefoneE164,
-        total_price: CONFIG.priceStart || 0,
-        status: "Enviado para Análise",
-        interest_type: "Pendente (Aba Análise)",
-        details: {
-          exterior_color: CONFIG.exterior.colors[selectedExterior]?.name || "Padrão",
-          interior_color: CONFIG.interior.colors[selectedInterior]?.name || "Padrão",
-        },
-        created_at: new Date().toISOString(),
-      };
-
-      await supabase.from("sales").insert([saleData]);
-
-      const query = new URLSearchParams({
-        nome: clientName,
-        cpf: clientCpf,
-        telefone: telefoneE164,
-        modelo: CONFIG.titulo,
-        valor: String(CONFIG.priceStart || 0),
-        entrada: "0",
-        renda: "0",
-        imagem: CONFIG.heroImage,
-      }).toString();
-
-      router.push(`/vendedor/analise?${query}`);
-    } catch (error: any) {
-      console.error("Erro ao processar:", error);
-      alert("Erro ao processar pedido: " + (error?.message || "erro desconhecido"));
-      setLoading(false);
-    }
+    if (errors.clientPhone) setErrors({ ...errors, clientPhone: "" });
   };
 
-  // ===== PAGE STATE (original) =====
+  const goPrimary = () => scrollToId(orderSectionId);
+
   const [tab, setTab] = useState<TabKey>("exterior");
 
   const [selectedExterior, setSelectedExterior] = useState(0);
@@ -353,11 +312,15 @@ export default function SpinElectricStylePage() {
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
   const [isImgSwitching, setIsImgSwitching] = useState(false);
-  const [displayedSrc, setDisplayedSrc] = useState(CONFIG.exterior.colors[0]?.img?.trim() || CONFIG.heroImage);
+  const [displayedSrc, setDisplayedSrc] = useState(
+    CONFIG.exterior.colors[0]?.img?.trim() || CONFIG.heroImage
+  );
   const animTimer = useRef<number | null>(null);
 
   const mosaic = useMemo(() => {
-    const g = (CONFIG.gallery ?? []).map((x) => (typeof x === "string" ? x.trim() : x)).filter(Boolean);
+    const g = (CONFIG.gallery ?? [])
+      .map((x) => (typeof x === "string" ? x.trim() : x))
+      .filter(Boolean);
     while (g.length < 6) g.push((CONFIG.gallery?.[0] || CONFIG.heroImage).trim());
     return g.slice(0, 6);
   }, []);
@@ -367,6 +330,17 @@ export default function SpinElectricStylePage() {
   const interiorColor = CONFIG.interior.colors[selectedInterior];
   const interiorImages = (interiorColor?.images ?? []).map((x) => x.trim()).filter(Boolean);
   const interiorCurrent = interiorImages[interiorIndex] || interiorImages[0] || CONFIG.heroImage;
+
+  useEffect(() => {
+    preloadImages([
+      exteriorCurrent,
+      interiorCurrent,
+      CONFIG.exterior.colors[selectedExterior + 1]?.img || "",
+      CONFIG.exterior.colors[selectedExterior - 1]?.img || "",
+      interiorImages[interiorIndex + 1] || "",
+      interiorImages[interiorIndex - 1] || "",
+    ]);
+  }, [selectedExterior, selectedInterior, interiorIndex, exteriorCurrent, interiorCurrent, interiorImages]);
 
   const switchImageTo = (nextSrc: string) => {
     if (animTimer.current) window.clearTimeout(animTimer.current);
@@ -416,9 +390,145 @@ export default function SpinElectricStylePage() {
   const openLightbox = () => setLightboxOpen(true);
   const closeLightbox = () => setLightboxOpen(false);
 
+  const handleFinishOrder = async () => {
+    let newErrors = {
+      clientName: "",
+      clientCpf: "",
+      clientEmail: "",
+      clientPhone: "",
+      sellerName: "",
+    };
+    let hasError = false;
+
+    if (authLoading) return;
+
+    if (!user) {
+      scrollToId(orderSectionId);
+      return;
+    }
+
+    if (clientName.trim().length < 3) {
+      newErrors.clientName = "Nome completo é obrigatório.";
+      hasError = true;
+    }
+
+    if (clientCpf.length < 14) {
+      newErrors.clientCpf = "CPF inválido ou incompleto.";
+      hasError = true;
+    }
+
+    if (!clientEmail || !validateEmail(clientEmail)) {
+      newErrors.clientEmail = "Insira um e-mail válido.";
+      hasError = true;
+    }
+
+    if (normalizeSellerName(sellerName).length < 3) {
+      newErrors.sellerName = "Informe o nome do vendedor que atendeu o cliente.";
+      hasError = true;
+    }
+
+    const phoneDigits = getPhoneDigitsAfterPrefix(clientPhone);
+    if (phoneDigits.length < 11) {
+      newErrors.clientPhone = "Telefone obrigatório (DDD + 9 dígitos). Ex: (91) 9XXXX-XXXX";
+      hasError = true;
+    }
+
+    setErrors(newErrors);
+    if (hasError) return;
+
+    setLoading(true);
+
+    try {
+      const telefoneE164 = buildPhoneE164(clientPhone);
+      const normalizedSeller = normalizeSellerName(sellerName);
+
+      const loggedUserEmail = String(user?.email || "").trim().toLowerCase();
+      const loggedUserId = user?.id || null;
+      const userIsSupervisor = isSupervisorEmail(loggedUserEmail);
+
+      let resolvedCarId: number | null = null;
+
+      const { data: foundVehicle } = await supabase
+        .from("vehicles")
+        .select("id, model_name")
+        .eq("brand", "chevrolet")
+        .ilike("model_name", `%${CONFIG.titulo}%`)
+        .limit(1)
+        .maybeSingle();
+
+      if (foundVehicle?.id != null) {
+        resolvedCarId = Number(foundVehicle.id);
+      }
+
+      const saleData = {
+        car_id: resolvedCarId,
+        car_name: CONFIG.titulo,
+
+        seller_id: user.id,
+        seller_name: normalizedSeller,
+
+        client_name: clientName.trim(),
+        client_cpf: clientCpf,
+        client_email: clientEmail.trim().toLowerCase(),
+        client_phone: telefoneE164,
+
+        total_price: CONFIG.priceStart || 0,
+        status: "Aprovado",
+        interest_type: "Análise de Crédito",
+
+        details: {
+          exterior_color: CONFIG.exterior.colors[selectedExterior]?.name || "Padrão",
+          interior_color: CONFIG.interior.colors[selectedInterior]?.name || "Padrão",
+
+          vendedor_digitado: normalizedSeller,
+          vendedor_usuario_logado_id: loggedUserId,
+          vendedor_usuario_logado_email: loggedUserEmail || null,
+
+          approved_by_email: userIsSupervisor ? loggedUserEmail : null,
+          approved_by_name: userIsSupervisor ? loggedUserEmail : "Sistema",
+          approved_by_id: userIsSupervisor ? loggedUserId : null,
+
+          landing_slug: "landing-spin",
+          landing_page: CONFIG.titulo,
+          landing_mode: true,
+        },
+
+        approved_at: new Date().toISOString(),
+        approved_by_id: userIsSupervisor ? loggedUserId : null,
+        approved_by_name: userIsSupervisor ? loggedUserEmail : "Sistema",
+
+        created_at: new Date().toISOString(),
+      };
+
+      const { error } = await supabase.from("sales").insert([saleData]);
+      if (error) throw error;
+
+      const query = new URLSearchParams({
+        nome: clientName.trim(),
+        cpf: clientCpf,
+        email: clientEmail.trim().toLowerCase(),
+        telefone: telefoneE164,
+        vendedor: normalizedSeller,
+        vendedor_id: user?.id || "",
+        vendedor_email: loggedUserEmail || "",
+        supervisor_email: userIsSupervisor ? loggedUserEmail : "",
+        modelo: CONFIG.titulo,
+        valor: String(CONFIG.priceStart || 0),
+        entrada: "0",
+        renda: "0",
+        imagem: CONFIG.heroImage,
+      }).toString();
+
+      router.push(`/vendedor/analise?${query}`);
+    } catch (error: any) {
+      console.error("Erro ao processar:", error);
+      alert("Erro ao processar pedido: " + (error?.message || "erro desconhecido"));
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-white text-gray-900">
-      {/* TOP */}
       <header className="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-gray-200">
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 h-14 flex items-center justify-between">
           <Link
@@ -437,10 +547,16 @@ export default function SpinElectricStylePage() {
         </div>
       </header>
 
-      {/* HERO */}
       <section className="relative">
-        <div className="relative w-full h-[520px] md:h-[640px] overflow-hidden">
-          <img src={CONFIG.heroImage} alt={CONFIG.titulo} className="w-full h-full object-cover" />
+        <div className="relative w-full h-[520px] md:h-[640px] overflow-hidden bg-gray-100">
+          <img
+            src={CONFIG.heroImage}
+            alt={CONFIG.titulo}
+            loading="eager"
+            fetchPriority="high"
+            decoding="async"
+            className="w-full h-full object-cover"
+          />
           <div className="absolute inset-0 bg-gradient-to-r from-black/45 via-black/10 to-transparent" />
 
           <div className="absolute top-10 left-6 md:left-12 text-white">
@@ -468,7 +584,6 @@ export default function SpinElectricStylePage() {
           </div>
         </div>
 
-        {/* FAIXA PRETA */}
         <div className="bg-[#151515] text-white">
           <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-10">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-10">
@@ -495,12 +610,18 @@ export default function SpinElectricStylePage() {
         </div>
       </section>
 
-      {/* SEÇÃO IMAGEM + TEXTO */}
       <section className="bg-[#151515] text-white">
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-14">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
             <div className="rounded-none overflow-hidden bg-black/30">
-              <img src={CONFIG.sectionImage} alt="Detalhe" className="w-full h-[320px] md:h-[420px] object-cover" />
+              <img
+                src={CONFIG.sectionImage}
+                alt="Detalhe"
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
+                className="w-full h-[320px] md:h-[420px] object-cover"
+              />
             </div>
 
             <div className="max-w-xl">
@@ -511,7 +632,6 @@ export default function SpinElectricStylePage() {
         </div>
       </section>
 
-      {/* GALERIA MOSAICO */}
       <section className="bg-white">
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-14">
           <p className="text-sm text-gray-500">Galeria</p>
@@ -521,25 +641,32 @@ export default function SpinElectricStylePage() {
 
           <div className="mt-8 grid grid-cols-12 gap-3">
             <div className="col-span-12 lg:col-span-6 rounded-none overflow-hidden bg-gray-100">
-              <img src={mosaic[0]} alt="Galeria 1" className="w-full h-[340px] md:h-[460px] object-cover" />
+              <img
+                src={mosaic[0]}
+                alt="Galeria 1"
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
+                className="w-full h-[340px] md:h-[460px] object-cover"
+              />
             </div>
 
             <div className="col-span-12 lg:col-span-6 grid grid-cols-12 gap-3">
               <div className="col-span-12 md:col-span-6 rounded-none overflow-hidden bg-gray-100">
-                <img src={mosaic[1]} alt="Galeria 2" className="w-full h-[220px] object-cover" />
+                <img src={mosaic[1]} alt="Galeria 2" loading="lazy" decoding="async" className="w-full h-[220px] object-cover" />
               </div>
               <div className="col-span-12 md:col-span-6 rounded-none overflow-hidden bg-gray-100">
-                <img src={mosaic[2]} alt="Galeria 3" className="w-full h-[220px] object-cover" />
+                <img src={mosaic[2]} alt="Galeria 3" loading="lazy" decoding="async" className="w-full h-[220px] object-cover" />
               </div>
 
               <div className="col-span-12 md:col-span-4 rounded-none overflow-hidden bg-gray-100">
-                <img src={mosaic[3]} alt="Galeria 4" className="w-full h-[210px] object-cover" />
+                <img src={mosaic[3]} alt="Galeria 4" loading="lazy" decoding="async" className="w-full h-[210px] object-cover" />
               </div>
               <div className="col-span-12 md:col-span-4 rounded-none overflow-hidden bg-gray-100">
-                <img src={mosaic[4]} alt="Galeria 5" className="w-full h-[210px] object-cover" />
+                <img src={mosaic[4]} alt="Galeria 5" loading="lazy" decoding="async" className="w-full h-[210px] object-cover" />
               </div>
               <div className="col-span-12 md:col-span-4 rounded-none overflow-hidden bg-gray-100">
-                <img src={mosaic[5]} alt="Galeria 6" className="w-full h-[210px] object-cover" />
+                <img src={mosaic[5]} alt="Galeria 6" loading="lazy" decoding="async" className="w-full h-[210px] object-cover" />
               </div>
             </div>
           </div>
@@ -555,7 +682,6 @@ export default function SpinElectricStylePage() {
         </div>
       </section>
 
-      {/* CONFIGURADOR */}
       <section className="bg-white border-t border-gray-200">
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-16">
           <p className="text-center text-sm text-gray-500">{CONFIG.titulo}</p>
@@ -564,13 +690,15 @@ export default function SpinElectricStylePage() {
           </h3>
 
           <div className="mt-10 grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
-            {/* ESQUERDA */}
             <div className="flex justify-center">
               <div className="relative w-full max-w-[780px]">
                 <div className="relative rounded-2xl overflow-hidden bg-white border border-gray-200">
                   <img
                     src={displayedSrc}
                     alt={tab === "exterior" ? "Exterior" : "Interior"}
+                    loading="eager"
+                    fetchPriority="high"
+                    decoding="async"
                     className={[
                       "w-full transition-all duration-300 ease-out will-change-transform",
                       isImgSwitching ? "opacity-0 scale-[0.985]" : "opacity-100 scale-100",
@@ -611,7 +739,6 @@ export default function SpinElectricStylePage() {
               </div>
             </div>
 
-            {/* DIREITA */}
             <div className="max-w-md">
               <div className="flex items-center gap-5 border-b border-gray-200 pb-3">
                 <button
@@ -742,7 +869,6 @@ export default function SpinElectricStylePage() {
         </div>
       </section>
 
-      {/* ANTES DO FOOTER */}
       <section className="bg-white text-gray-900 border-t border-gray-200">
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-14">
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
@@ -780,7 +906,6 @@ export default function SpinElectricStylePage() {
         </div>
       </section>
 
-      {/* ================= FINALIZAÇÃO NO FINAL ================= */}
       <section id={orderSectionId} className="py-20 px-4 md:px-10 bg-white border-t border-gray-200">
         <div className="max-w-[1400px] mx-auto">
           <div className="mb-10">
@@ -810,7 +935,6 @@ export default function SpinElectricStylePage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* FORM */}
               <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-6">
                 <h4 className="text-lg font-semibold text-gray-900 mb-6 pb-3 border-b border-gray-200">
                   Informações do Cliente
@@ -827,9 +951,9 @@ export default function SpinElectricStylePage() {
                         setClientName(e.target.value);
                         if (errors.clientName) setErrors({ ...errors, clientName: "" });
                       }}
-                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
-                        ${errors.clientName ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
-                      `}
+                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400 ${
+                        errors.clientName ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"
+                      }`}
                       placeholder="Digite o nome completo"
                     />
                     {errors.clientName && (
@@ -847,9 +971,9 @@ export default function SpinElectricStylePage() {
                       value={clientCpf}
                       onChange={handleCpfChange}
                       maxLength={14}
-                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
-                        ${errors.clientCpf ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
-                      `}
+                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400 ${
+                        errors.clientCpf ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"
+                      }`}
                       placeholder="000.000.000-00"
                     />
                     {errors.clientCpf && (
@@ -869,9 +993,9 @@ export default function SpinElectricStylePage() {
                         setClientEmail(e.target.value);
                         if (errors.clientEmail) setErrors({ ...errors, clientEmail: "" });
                       }}
-                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
-                        ${errors.clientEmail ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
-                      `}
+                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400 ${
+                        errors.clientEmail ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"
+                      }`}
                       placeholder="exemplo@email.com"
                     />
                     {errors.clientEmail && (
@@ -888,11 +1012,10 @@ export default function SpinElectricStylePage() {
                     <input
                       value={clientPhone}
                       onChange={handlePhoneChange}
-                      // "+55 (99) 99999-9999" (com símbolos) cabe aqui
                       maxLength={PHONE_PREFIX_DISPLAY.length + 16}
-                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
-                        ${errors.clientPhone ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
-                      `}
+                      className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400 ${
+                        errors.clientPhone ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"
+                      }`}
                       placeholder="+55 (91) 9XXXX-XXXX"
                     />
                     {errors.clientPhone && (
@@ -900,6 +1023,42 @@ export default function SpinElectricStylePage() {
                         <AlertCircle size={10} /> {errors.clientPhone}
                       </p>
                     )}
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                      Vendedor <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <UserRound
+                        size={16}
+                        className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+                      />
+                      <input
+                        value={sellerName}
+                        onChange={(e) => {
+                          setSellerName(e.target.value);
+                          if (errors.sellerName) setErrors({ ...errors, sellerName: "" });
+                        }}
+                        className={`w-full h-12 pl-11 pr-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400 ${
+                          errors.sellerName ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"
+                        }`}
+                        placeholder="Ex: JOÃO SILVA"
+                      />
+                    </div>
+
+                    {errors.sellerName && (
+                      <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                        <AlertCircle size={10} /> {errors.sellerName}
+                      </p>
+                    )}
+
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+                      <span className="text-gray-400">Prévia salva:</span>
+                      <span className="px-2 py-1 rounded bg-gray-100 border border-gray-200 font-bold text-gray-700 uppercase">
+                        {sellerNamePreview || "—"}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -921,7 +1080,6 @@ export default function SpinElectricStylePage() {
                 </div>
               </div>
 
-              {/* INFO */}
               <div className="bg-gray-50 rounded-2xl p-6 border border-gray-200">
                 <h4 className="text-sm font-bold text-gray-700 uppercase mb-4 flex items-center gap-2">
                   <CheckCircle2 size={16} className="text-green-600" /> Próxima Etapa: Crédito
@@ -967,7 +1125,6 @@ export default function SpinElectricStylePage() {
         </div>
       </section>
 
-      {/* CTA FIXO */}
       <div className="fixed bottom-0 left-0 w-full z-50 bg-white border-t border-gray-200">
         <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-3 flex items-center justify-between gap-3">
           <div className="min-w-0">
@@ -986,7 +1143,6 @@ export default function SpinElectricStylePage() {
 
       <div className="h-16" />
 
-      {/* LIGHTBOX */}
       {lightboxOpen ? (
         <div
           className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-center justify-center p-6"
@@ -1009,6 +1165,8 @@ export default function SpinElectricStylePage() {
               <img
                 src={tab === "exterior" ? exteriorCurrent : interiorCurrent}
                 alt="Imagem ampliada"
+                loading="eager"
+                decoding="async"
                 className="w-full max-h-[75vh] object-contain"
               />
             </div>

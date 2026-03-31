@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type VersionItem = {
   id: string;
@@ -89,14 +89,51 @@ export default function HyundaiBuilder({
   const [openSpecId, setOpenSpecId] = useState<string | null>(null);
   const [imgKey, setImgKey] = useState(0);
 
+  const [displayedImageUrl, setDisplayedImageUrl] = useState<string | null>(null);
+  const [imageReady, setImageReady] = useState(false);
+
+  const loadedImagesRef = useRef<Set<string>>(new Set());
+  const loadingImagesRef = useRef<Map<string, Promise<void>>>(new Map());
+
+  const preloadImage = (url?: string | null) => {
+    if (!url) return Promise.resolve();
+
+    if (loadedImagesRef.current.has(url)) {
+      return Promise.resolve();
+    }
+
+    const existing = loadingImagesRef.current.get(url);
+    if (existing) return existing;
+
+    const promise = new Promise<void>((resolve) => {
+      const img = new window.Image();
+
+      img.onload = () => {
+        loadedImagesRef.current.add(url);
+        loadingImagesRef.current.delete(url);
+        resolve();
+      };
+
+      img.onerror = () => {
+        loadingImagesRef.current.delete(url);
+        resolve();
+      };
+
+      img.decoding = "async";
+      img.src = url;
+    });
+
+    loadingImagesRef.current.set(url, promise);
+    return promise;
+  };
+
   useEffect(() => {
     setStep(1);
     setSelectedVersionId(versions[0]?.id || "");
     setSelectedColorId(colors[0]?.id || "");
     setOpenSpecId(null);
     setImgKey((k) => k + 1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vehicle?.slug]);
+  }, [vehicle?.slug, versions, colors]);
 
   const selectedVersion = useMemo(
     () => versions.find((v) => v.id === selectedVersionId) || versions[0] || null,
@@ -107,10 +144,6 @@ export default function HyundaiBuilder({
     () => colors.find((c) => c.id === selectedColorId) || colors[0] || null,
     [colors, selectedColorId]
   );
-
-  useEffect(() => {
-    setImgKey((k) => k + 1);
-  }, [selectedColorId]);
 
   const currentImageUrl = useMemo(() => {
     return selectedColor?.image_url || vehicle?.image_url || null;
@@ -125,26 +158,103 @@ export default function HyundaiBuilder({
   const basePriceDisplay = selectedVersion?.price ?? vehicle.price_start ?? 0;
   const heroTint = selectedColor?.swatch || "#d8d8d8";
 
-  return (
-    <div className='min-h-screen bg-[#f5f2ef]'>
-      <style>{`
-        @keyframes hyVeh_fadeUp { from { opacity:0; transform: translateY(8px);} to { opacity:1; transform: translateY(0);} }
-        @keyframes hyVeh_imgPop { from { opacity:.25; transform: translateY(6px) scale(.995);} to { opacity:1; transform: translateY(0) scale(1);} }
-        .hyVeh_animFadeUp { animation: hyVeh_fadeUp 260ms ease-out both; }
-        .hyVeh_animImg    { animation: hyVeh_imgPop 260ms ease-out both; }
+  // Pré-carrega imagem principal e todas as imagens das cores do veículo
+  useEffect(() => {
+    const urls = new Set<string>();
 
-        .hyVeh_heroBg { position: relative; background: var(--tint); overflow:hidden; }
+    if (vehicle?.image_url) urls.add(vehicle.image_url);
+    colors.forEach((c) => {
+      if (c?.image_url) urls.add(c.image_url);
+    });
+
+    urls.forEach((url) => {
+      preloadImage(url);
+    });
+  }, [vehicle?.slug, vehicle?.image_url, colors]);
+
+  // Quando trocar a imagem atual, só troca visualmente depois que ela estiver pronta
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!currentImageUrl) {
+      setDisplayedImageUrl(null);
+      setImageReady(true);
+      return;
+    }
+
+    if (loadedImagesRef.current.has(currentImageUrl)) {
+      setDisplayedImageUrl(currentImageUrl);
+      setImageReady(true);
+      setImgKey((k) => k + 1);
+      return;
+    }
+
+    setImageReady(false);
+
+    preloadImage(currentImageUrl).then(() => {
+      if (cancelled) return;
+      setDisplayedImageUrl(currentImageUrl);
+      setImageReady(true);
+      setImgKey((k) => k + 1);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentImageUrl]);
+
+  return (
+    <div className="min-h-screen bg-[#f5f2ef]">
+      <style>{`
+        @keyframes hyVeh_fadeUp {
+          from { opacity:0; transform: translateY(8px); }
+          to   { opacity:1; transform: translateY(0); }
+        }
+
+        @keyframes hyVeh_imgPop {
+          from { opacity:.25; transform: translateY(6px) scale(.995); }
+          to   { opacity:1; transform: translateY(0) scale(1); }
+        }
+
+        @keyframes hyVeh_imgSoft {
+          from { opacity:.55; }
+          to   { opacity:1; }
+        }
+
+        .hyVeh_animFadeUp { animation: hyVeh_fadeUp 260ms ease-out both; }
+        .hyVeh_animImg    { animation: hyVeh_imgPop 240ms ease-out both, hyVeh_imgSoft 220ms ease-out both; }
+
+        .hyVeh_heroBg {
+          position: relative;
+          background: var(--tint);
+          overflow: hidden;
+          transition: background 220ms ease;
+        }
+
         .hyVeh_heroBg::before {
-          content:''; position:absolute; inset:0;
+          content:'';
+          position:absolute;
+          inset:0;
           background:
             radial-gradient(120% 90% at 15% 25%, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0.05) 55%, rgba(0,0,0,0.08) 100%),
             radial-gradient(90% 70% at 80% 35%, rgba(0,0,0,0.12) 0%, rgba(0,0,0,0.02) 55%, rgba(255,255,255,0.00) 100%);
           pointer-events:none;
         }
+
         .hyVeh_heroBg::after {
-          content:''; position:absolute; inset:0;
-          background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.08) 0px, rgba(255,255,255,0.08) 2px, rgba(255,255,255,0) 2px, rgba(255,255,255,0) 7px);
-          opacity:.35; mix-blend-mode: overlay; pointer-events:none;
+          content:'';
+          position:absolute;
+          inset:0;
+          background-image: repeating-linear-gradient(
+            45deg,
+            rgba(255,255,255,0.08) 0px,
+            rgba(255,255,255,0.08) 2px,
+            rgba(255,255,255,0) 2px,
+            rgba(255,255,255,0) 7px
+          );
+          opacity:.35;
+          mix-blend-mode: overlay;
+          pointer-events:none;
         }
       `}</style>
 
@@ -289,6 +399,8 @@ export default function HyundaiBuilder({
                         <button
                           key={c.id}
                           onClick={() => setSelectedColorId(c.id)}
+                          onMouseEnter={() => preloadImage(c.image_url)}
+                          onFocus={() => preloadImage(c.image_url)}
                           className={`text-left bg-white border transition-all duration-200 ${
                             active
                               ? "border-[#0F3C66] ring-2 ring-[#0F3C66]/10"
@@ -340,7 +452,10 @@ export default function HyundaiBuilder({
             </div>
 
             <div className="mt-3 bg-white border border-black/10 rounded-md overflow-hidden">
-              <div className="h-[280px] hyVeh_heroBg relative" style={{ ["--tint" as any]: heroTint }}>
+              <div
+                className="h-[280px] hyVeh_heroBg relative"
+                style={{ ["--tint" as any]: heroTint }}
+              >
                 <div className="absolute top-3 left-3 z-[2]">
                   <span className="inline-flex items-center px-2 py-1 text-[11px] font-semibold bg-white/85 border border-black/10 rounded">
                     {selectedVersion?.heroLabel || "Exterior"}
@@ -348,12 +463,14 @@ export default function HyundaiBuilder({
                 </div>
 
                 <div className="h-full flex items-center justify-center relative z-[2]">
-                  {currentImageUrl ? (
+                  {displayedImageUrl ? (
                     <img
                       key={imgKey}
-                      src={currentImageUrl}
+                      src={displayedImageUrl}
                       alt={vehicle.model_name}
-                      className="w-[86%] h-[86%] object-contain hyVeh_animImg"
+                      className={`w-[86%] h-[86%] object-contain ${
+                        imageReady ? "hyVeh_animImg opacity-100" : "opacity-0"
+                      }`}
                       draggable={false}
                     />
                   ) : (
@@ -396,7 +513,9 @@ export default function HyundaiBuilder({
                             onClick={() => setOpenSpecId((prev) => (prev === g.id ? null : g.id))}
                             className="w-full flex items-center justify-between px-4 py-3 hover:bg-black/[0.02] transition"
                           >
-                            <span className="text-[11px] font-semibold text-gray-800">{g.title}</span>
+                            <span className="text-[11px] font-semibold text-gray-800">
+                              {g.title}
+                            </span>
                             <span
                               className={`text-[16px] font-semibold text-gray-600 transition-transform duration-200 ${
                                 opened ? "rotate-45" : "rotate-0"
@@ -406,11 +525,17 @@ export default function HyundaiBuilder({
                             </span>
                           </button>
 
-                          <div className={`grid transition-all duration-300 ease-out ${opened ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
+                          <div
+                            className={`grid transition-all duration-300 ease-out ${
+                              opened ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+                            }`}
+                          >
                             <div className="overflow-hidden">
                               <div className="px-4 pb-4 text-[12px] text-gray-700">
                                 {g.description ? (
-                                  <div className="text-gray-600 mb-3 leading-relaxed">{g.description}</div>
+                                  <div className="text-gray-600 mb-3 leading-relaxed">
+                                    {g.description}
+                                  </div>
                                 ) : null}
 
                                 {items.length > 0 ? (

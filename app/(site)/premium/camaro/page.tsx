@@ -28,6 +28,31 @@ import {
   CheckCircle2,
 } from "lucide-react";
 
+// =========================
+// PRELOAD HELPERS
+// =========================
+const preloadedImages = new Set<string>();
+
+function preloadImages(urls: string[]) {
+  if (typeof window === "undefined") return;
+
+  const uniqueUrls = Array.from(
+    new Set(
+      urls
+        .map((u) => String(u || "").trim())
+        .filter(Boolean)
+    )
+  );
+
+  uniqueUrls.forEach((url) => {
+    if (preloadedImages.has(url)) return;
+    const img = new window.Image();
+    img.decoding = "async";
+    img.src = url;
+    preloadedImages.add(url);
+  });
+}
+
 // --- MÁSCARAS E HELPERS (do OrderSummary) ---
 const maskCPF = (value: string) => {
   return value
@@ -45,48 +70,20 @@ const validateEmail = (email: string) => {
 
 // --- TELEFONE FIXO +55 ---
 const PHONE_PREFIX_DISPLAY = "+55 ";
-const PHONE_PREFIX_E164 = "+55";
-
-// ✅ fallback padrão (pra não “sumir” o DDD quando o usuário digitar só o número)
-// Troque para "" se você quiser OBRIGAR digitar DDD
 const DEFAULT_DDD = "91";
 
-// ✅ máscara agora aceita DDD (2) + número (9) = 11 dígitos
-// Formato: "91 9XXXX-XXXX"
-const maskPhoneAfterPrefix = (value: string) => {
-  const digits = String(value || "").replace(/\D/g, "").slice(0, 11); // 2 DDD + 9 número
-  if (!digits) return "";
-
-  const ddd = digits.slice(0, 2);
-  const rest = digits.slice(2); // até 9
-
-  // só DDD
-  if (digits.length <= 2) return ddd;
-
-  // DDD + 1..5
-  if (rest.length <= 5) return `${ddd} ${rest}`;
-
-  // DDD + 9xxxx-xxxx
-  return `${ddd} ${rest.slice(0, 5)}-${rest.slice(5, 9)}`;
-};
-
-// ✅ pega SOMENTE dígitos do telefone e normaliza para E.164 com +55
-// - aceita input com +55, com/sem máscara
-// - se vier só número (8/9), aplica DEFAULT_DDD (se definido)
 const normalizePhoneToE164 = (fullValue: string) => {
   const digits = String(fullValue || "").replace(/\D/g, "");
   const noCountry = digits.startsWith("55") ? digits.slice(2) : digits;
 
-  // já veio com DDD + número (fixo 10 ou cel 11)
   if (noCountry.length === 10 || noCountry.length === 11) return `+55${noCountry}`;
 
-  // veio só número (8/9), aplica fallback
   if ((noCountry.length === 8 || noCountry.length === 9) && DEFAULT_DDD) {
     const ddd = String(DEFAULT_DDD).replace(/\D/g, "").slice(0, 2);
     if (ddd.length === 2) return `+55${ddd}${noCountry}`;
   }
 
-  return ""; // inválido
+  return "";
 };
 
 const moneyBRL = (value: number) =>
@@ -214,14 +211,11 @@ export default function CamaroPage() {
 
   const [rotationIndex, setRotationIndex] = useState(0);
 
-  // ✅ auth + user
   const [authLoading, setAuthLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
 
-  // ✅ scroll para o final (form)
   const orderSectionId = "order-summary";
 
-  // ✅ form (igual OrderSummary)
   const [clientName, setClientName] = useState("");
   const [clientCpf, setClientCpf] = useState("");
   const [clientEmail, setClientEmail] = useState("");
@@ -235,7 +229,6 @@ export default function CamaroPage() {
     clientPhone: "",
   });
 
-  // Section refs (scroll suave)
   const sectionRefs = useMemo(
     () => ({
       specs: "specs",
@@ -254,7 +247,6 @@ export default function CamaroPage() {
     el.scrollIntoView({ behavior: prefersReducedMotion ? "auto" : "smooth", block: "start" });
   };
 
-  // --- áudio ---
   const stopImmediatelyAndResetSoft = () => {
     const a = audioRef.current;
     if (!a) return;
@@ -321,7 +313,6 @@ export default function CamaroPage() {
     }
   };
 
-  // ✅ auth session
   useEffect(() => {
     let mounted = true;
 
@@ -348,7 +339,6 @@ export default function CamaroPage() {
     };
   }, []);
 
-  // Scroll effects
   useEffect(() => {
     const handleScroll = () => {
       const y = window.scrollY;
@@ -360,7 +350,6 @@ export default function CamaroPage() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Teclado para rotação 360
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "ArrowLeft") setRotationIndex((v) => clamp(v - 1, 0, ROTATION_IMAGES.length - 1));
@@ -370,7 +359,18 @@ export default function CamaroPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // Cleanup
+  useEffect(() => {
+    preloadImages([
+      CAMARO_DATA.imagem_hero,
+      CAMARO_DATA.imagem_interior_full,
+      CAMARO_DATA.imagem_bancos,
+      CAMARO_DATA.imagem_volante,
+      CAMARO_DATA.imagem_motor,
+      ROTATION_IMAGES[0],
+      ROTATION_IMAGES[1],
+    ]);
+  }, []);
+
   useEffect(() => {
     return () => {
       const a = audioRef.current;
@@ -384,46 +384,41 @@ export default function CamaroPage() {
     };
   }, []);
 
-  // ✅ "Garanta o seu": vai pro final da página (form)
   const handleFazerPedido = () => {
     scrollToId(sectionRefs.order);
   };
 
-  // --- Handlers do form (do OrderSummary) ---
   const handleCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setClientCpf(maskCPF(e.target.value));
     if (errors.clientCpf) setErrors({ ...errors, clientCpf: "" });
   };
 
-const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  const typed = e.target.value || "";
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const typed = e.target.value || "";
 
-  // Se o usuário apagar tudo
-  if (typed.trim() === "" || typed === PHONE_PREFIX_DISPLAY) {
-    setClientPhone(PHONE_PREFIX_DISPLAY);
-    return;
-  }
+    if (typed.trim() === "" || typed === PHONE_PREFIX_DISPLAY) {
+      setClientPhone(PHONE_PREFIX_DISPLAY);
+      return;
+    }
 
-  let digits = typed.replace(/\D/g, "");
+    let digits = typed.replace(/\D/g, "");
 
-  // Remove 55 se colarem junto
-  if (digits.startsWith("55")) digits = digits.slice(2);
+    if (digits.startsWith("55")) digits = digits.slice(2);
 
-  digits = digits.slice(0, 11); // DDD + 9
+    digits = digits.slice(0, 11);
 
-  const ddd = digits.slice(0, 2);
-  const num = digits.slice(2);
+    const ddd = digits.slice(0, 2);
+    const num = digits.slice(2);
 
-  let formatted = "";
+    let formatted = "";
 
-  if (digits.length <= 2) formatted = `(${ddd}`;
-  else if (num.length <= 5) formatted = `(${ddd}) ${num}`;
-  else formatted = `(${ddd}) ${num.slice(0, 5)}-${num.slice(5)}`;
+    if (digits.length <= 2) formatted = `(${ddd}`;
+    else if (num.length <= 5) formatted = `(${ddd}) ${num}`;
+    else formatted = `(${ddd}) ${num.slice(0, 5)}-${num.slice(5)}`;
 
-  setClientPhone(PHONE_PREFIX_DISPLAY + formatted);
-};
+    setClientPhone(PHONE_PREFIX_DISPLAY + formatted);
+  };
 
-  // ✅ finalizar: salva em sales e envia para /vendedor/analise com query preenchida
   const handleFinishOrder = async () => {
     let newErrors = { clientName: "", clientCpf: "", clientEmail: "", clientPhone: "" };
     let hasError = false;
@@ -450,7 +445,6 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       hasError = true;
     }
 
-    // ✅ agora valida DDD+telefone OU aplica fallback DEFAULT_DDD
     const telefoneE164 = normalizePhoneToE164(clientPhone);
     if (!telefoneE164) {
       newErrors.clientPhone = DEFAULT_DDD
@@ -465,14 +459,28 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setLoading(true);
 
     try {
+      let resolvedCarId: number | null = null;
+
+      const { data: foundVehicle } = await supabase
+        .from("vehicles")
+        .select("id, model_name")
+        .eq("brand", "chevrolet")
+        .or("model_name.ilike.%camaro%,slug.ilike.%camaro%")
+        .limit(1)
+        .maybeSingle();
+
+      if (foundVehicle?.id != null) {
+        resolvedCarId = Number(foundVehicle.id);
+      }
+
       const saleData = {
-        car_id: "camaro-ss-collection",
+        car_id: resolvedCarId,
         car_name: CAMARO_DATA.nome,
         seller_id: user.id,
-        client_name: clientName,
+        client_name: clientName.trim(),
         client_cpf: clientCpf,
-        client_email: clientEmail,
-        client_phone: telefoneE164, // ✅ E.164 correto
+        client_email: clientEmail.trim().toLowerCase(),
+        client_phone: telefoneE164,
         total_price: CAMARO_DATA.preco,
         status: "Enviado para Análise",
         interest_type: "Pendente (Aba Análise)",
@@ -481,16 +489,21 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
           wheels: "Padrão",
           seats: "Padrão",
           accessories: [],
+          landing_slug: "landing-camaro-ss-collection",
+          landing_page: CAMARO_DATA.nome,
+          landing_mode: true,
         },
         created_at: new Date().toISOString(),
       };
 
-      await supabase.from("sales").insert([saleData]);
+      const { error } = await supabase.from("sales").insert([saleData]);
+      if (error) throw error;
 
       const query = new URLSearchParams({
-        nome: clientName,
+        nome: clientName.trim(),
         cpf: clientCpf,
-        telefone: telefoneE164, // ✅ não some no contrato
+        email: clientEmail.trim().toLowerCase(),
+        telefone: telefoneE164,
         modelo: CAMARO_DATA.nome,
         valor: CAMARO_DATA.preco.toString(),
         entrada: "0",
@@ -532,7 +545,6 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(0,0,0,0)_0%,rgba(0,0,0,0.65)_70%)]" />
       </div>
 
-      {/* --- NAVBAR --- */}
       <header
         className={[
           "fixed top-0 w-full z-50 transition-all duration-500 border-b",
@@ -556,34 +568,19 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
               showStickyNav ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2 pointer-events-none",
             ].join(" ")}
           >
-            <button
-              onClick={() => scrollToId(sectionRefs.specs)}
-              className="text-white/55 hover:text-white transition-colors"
-            >
+            <button onClick={() => scrollToId(sectionRefs.specs)} className="text-white/55 hover:text-white transition-colors">
               Destaques
             </button>
-            <button
-              onClick={() => scrollToId(sectionRefs.rot)}
-              className="text-white/55 hover:text-white transition-colors"
-            >
+            <button onClick={() => scrollToId(sectionRefs.rot)} className="text-white/55 hover:text-white transition-colors">
               360º
             </button>
-            <button
-              onClick={() => scrollToId(sectionRefs.engine)}
-              className="text-white/55 hover:text-white transition-colors"
-            >
+            <button onClick={() => scrollToId(sectionRefs.engine)} className="text-white/55 hover:text-white transition-colors">
               Motor
             </button>
-            <button
-              onClick={() => scrollToId(sectionRefs.interior)}
-              className="text-white/55 hover:text-white transition-colors"
-            >
+            <button onClick={() => scrollToId(sectionRefs.interior)} className="text-white/55 hover:text-white transition-colors">
               Interior
             </button>
-            <button
-              onClick={() => scrollToId(sectionRefs.order)}
-              className="text-white/55 hover:text-white transition-colors"
-            >
+            <button onClick={() => scrollToId(sectionRefs.order)} className="text-white/55 hover:text-white transition-colors">
               Finalizar
             </button>
             <span className="mx-1 w-[1px] h-4 bg-white/10" />
@@ -618,7 +615,6 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         </div>
       </header>
 
-      {/* --- HERO --- */}
       <section className="relative min-h-[100svh] w-full flex items-center justify-center overflow-hidden z-10">
         <div className="absolute inset-0">
           <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/25 to-[#050505] z-10" />
@@ -626,6 +622,9 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
           <img
             src={CAMARO_DATA.imagem_hero}
             alt="Camaro Hero"
+            loading="eager"
+            fetchPriority="high"
+            decoding="async"
             className={[
               "w-full h-full object-cover object-center scale-105",
               prefersReducedMotion ? "" : "animate-in zoom-in duration-[3000ms]",
@@ -707,7 +706,6 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         </div>
       </section>
 
-      {/* --- SPECS GRID --- */}
       <section id={sectionRefs.specs} className="py-24 px-6 relative z-10 border-t border-white/5">
         <div className="max-w-7xl mx-auto">
           <SectionTitle
@@ -730,7 +728,6 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         </div>
       </section>
 
-      {/* --- ROTAÇÃO 360 --- */}
       <section
         id={sectionRefs.rot}
         className="py-24 px-6 bg-[#080808] relative z-10 border-t border-white/5 overflow-hidden"
@@ -754,6 +751,8 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                   key={idx}
                   src={img}
                   alt={`Camaro ângulo ${idx}`}
+                  loading={idx === 0 ? "eager" : "lazy"}
+                  decoding="async"
                   className={[
                     "absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ease-in-out",
                     rotationIndex === idx ? "opacity-100 z-10" : "opacity-0 z-0",
@@ -811,20 +810,27 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         </div>
       </section>
 
-      {/* --- ENGINE SECTION --- */}
       <section id={sectionRefs.engine} className="py-20 relative z-10 overflow-hidden border-t border-white/5">
         <div className="absolute inset-0">
           <img
             src={CAMARO_DATA.imagem_motor}
             className="w-full h-full object-cover opacity-10 blur-xl scale-125"
             alt="Background texture"
+            loading="lazy"
+            decoding="async"
           />
           <div className="absolute inset-0 bg-gradient-to-b from-[#050505] via-[#050505]/85 to-[#050505]" />
         </div>
 
         <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-14 items-center relative">
           <div className="relative rounded-3xl overflow-hidden border border-white/10 aspect-square lg:aspect-[4/3] bg-white/5">
-            <img src={CAMARO_DATA.imagem_motor} alt="Motor V8" className="w-full h-full object-cover" />
+            <img
+              src={CAMARO_DATA.imagem_motor}
+              alt="Motor V8"
+              loading="lazy"
+              decoding="async"
+              className="w-full h-full object-cover"
+            />
             <div className="absolute bottom-0 left-0 w-full p-6 bg-gradient-to-t from-black via-black/80 to-transparent">
               <p className="text-white font-black text-2xl uppercase">6.2L LT1 V8</p>
               <p className="text-white/55 text-xs">Small Block Chevy • Injeção Direta</p>
@@ -869,7 +875,6 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         </div>
       </section>
 
-      {/* --- INTERIOR --- */}
       <section id={sectionRefs.interior} className="py-24 px-6 bg-[#080808] relative z-10 border-t border-white/5">
         <div className="max-w-7xl mx-auto">
           <SectionTitle
@@ -888,6 +893,8 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
               <img
                 src={CAMARO_DATA.imagem_interior_full}
                 alt="Interior Camaro"
+                loading="lazy"
+                decoding="async"
                 className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
@@ -897,6 +904,8 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
               <img
                 src={CAMARO_DATA.imagem_bancos}
                 alt="Bancos Camaro"
+                loading="lazy"
+                decoding="async"
                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
               />
               <div className="absolute inset-0 bg-black/45 group-hover:bg-black/25 transition-all" />
@@ -906,6 +915,8 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
               <img
                 src={CAMARO_DATA.imagem_volante}
                 alt="Sistema de som e cockpit"
+                loading="lazy"
+                decoding="async"
                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
               />
               <div className="absolute inset-0 bg-black/45 group-hover:bg-black/25 transition-all" />
@@ -914,7 +925,6 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         </div>
       </section>
 
-      {/* --- FINALIZAÇÃO (FORM EM FUNDO BRANCO) --- */}
       <section id={orderSectionId} className="py-24 px-6 relative z-10 border-t border-white/5 bg-white">
         <div className="max-w-6xl mx-auto">
           <div className="mb-10">
@@ -944,7 +954,6 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* FORM */}
               <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-6">
                 <h4 className="text-lg font-semibold text-gray-900 mb-6 pb-3 border-b border-gray-200">
                   Informações do Cliente
@@ -1022,7 +1031,6 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                     <input
                       value={clientPhone}
                       onChange={handlePhoneChange}
-                      // ✅ +55 + " " + (2 DDD + espaço + 9xxxx-xxxx) ≈ 16 chars
                       maxLength={PHONE_PREFIX_DISPLAY.length + 14}
                       className={`w-full h-12 px-4 border rounded-lg focus:outline-none transition-all text-sm text-black placeholder-gray-400
                         ${errors.clientPhone ? "border-red-500 bg-red-50" : "border-gray-300 focus:border-black bg-white"}
@@ -1034,7 +1042,6 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                         <AlertCircle size={10} /> {errors.clientPhone}
                       </p>
                     )}
-                    {/* ✅ dica pro vendedor */}
                     <p className="text-[11px] text-gray-500 mt-2">
                       Digite <strong>DDD + número</strong> (ex: <strong>91 9XXXX-XXXX</strong>)
                       {DEFAULT_DDD ? (
@@ -1065,7 +1072,6 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                 </div>
               </div>
 
-              {/* INFO */}
               <div className="bg-gray-50 rounded-2xl p-6 border border-gray-200">
                 <h4 className="text-sm font-bold text-gray-700 uppercase mb-4 flex items-center gap-2">
                   <CheckCircle2 size={16} className="text-green-600" /> Próxima Etapa: Crédito
@@ -1103,7 +1109,6 @@ const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         </div>
       </section>
 
-      {/* --- MOBILE FLOAT CTA --- */}
       <div
         className={[
           "fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-md transition-all duration-500",
