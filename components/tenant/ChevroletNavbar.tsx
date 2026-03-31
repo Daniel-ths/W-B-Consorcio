@@ -397,7 +397,7 @@ export default function Navbar() {
                   </Link>
 
                   <Link
-                    href="supervisor/consultar-cliente"
+                    href="/supervisor/consultar-cliente"
                     onClick={() => setSidebarOpen(false)}
                     className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 transition-colors hover:border-black"
                   >

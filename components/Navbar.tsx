@@ -284,7 +284,7 @@ export default function Navbar() {
                   </Link>
 
                   <Link
-                    href= "supervisor/consultar-cliente"
+                    href= "/supervisor/consultar-cliente"
                     className="flex items-center gap-3 rounded-lg px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 hover:text-black"
                   >
                     <Search size={16} /> Consulta de Cliente
