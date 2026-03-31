@@ -774,10 +774,9 @@ export default function SupervisorDashboard() {
           <div className="lg:col-span-8">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
               <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                <p className="text-slate-500 text-xs font-bold uppercase">Total (recorte)</p>
+                <p className="text-slate-500 text-xs font-bold uppercase">Total</p>
                 <h3 className="text-2xl font-black text-slate-900">{deepStats.total}</h3>
                 <p className="text-[11px] text-slate-400 font-bold mt-1">
-                  Filtros aplicados impactam aqui
                 </p>
               </div>
 
@@ -787,9 +786,7 @@ export default function SupervisorDashboard() {
                 </p>
                 <h3 className="text-2xl font-black text-slate-900">{deepStats.pending}</h3>
                 <p className="text-[11px] font-bold mt-1 text-slate-500">
-                  +24h:{" "}
                   <span className={deepStats.pendingOver24 ? "text-yellow-700" : "text-slate-400"}>
-                    {deepStats.pendingOver24}
                   </span>
                 </p>
               </div>
@@ -802,7 +799,7 @@ export default function SupervisorDashboard() {
                   {deepStats.conversion.toFixed(0)}%
                 </h3>
                 <p className="text-[11px] text-slate-400 font-bold mt-1">
-                  Aprovadas / total no recorte
+
                 </p>
               </div>
 
@@ -814,9 +811,8 @@ export default function SupervisorDashboard() {
                   {formatCurrency(deepStats.avgTicket)}
                 </h3>
                 <p className="text-[11px] text-slate-400 font-bold mt-1">
-                  Decisão média:{" "}
                   <span className="text-slate-700">
-                    {deepStats.avgDecisionHours ? `${deepStats.avgDecisionHours.toFixed(1)}h` : "—"}
+                    {deepStats.avgDecisionHours ? `${deepStats.avgDecisionHours.toFixed(1)}h` : ""}
                   </span>
                 </p>
               </div>
@@ -853,9 +849,9 @@ export default function SupervisorDashboard() {
               <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-xs font-black uppercase text-slate-500 tracking-widest">
-                    Distribuição (recorte)
+                    Distribuição
                   </p>
-                  <span className="text-[10px] font-bold text-slate-400">Status</span>
+                  <span className="text-[10px] font-bold text-slate-400"></span>
                 </div>
 
                 <div className="h-44 flex items-center">
@@ -903,12 +899,12 @@ export default function SupervisorDashboard() {
                 <p className="text-xs font-black uppercase text-slate-500 tracking-widest flex items-center gap-2">
                   <Trophy size={14} /> Top Vendedores
                 </p>
-                <span className="text-[10px] font-bold text-slate-400">no recorte</span>
+                <span className="text-[10px] font-bold text-slate-400"></span>
               </div>
 
               <div className="mt-4 space-y-3">
                 {sellerRanking.length === 0 ? (
-                  <div className="text-sm text-slate-400 font-medium">Sem dados no recorte.</div>
+                  <div className="text-sm text-slate-400 font-medium"></div>
                 ) : (
                   sellerRanking.map((s, idx) => (
                     <div
@@ -941,7 +937,6 @@ export default function SupervisorDashboard() {
               </div>
 
               <div className="mt-4 text-[11px] text-slate-400 font-bold">
-                * Ranking é por aprovações no recorte atual.
               </div>
             </div>
           </div>
@@ -1277,7 +1272,6 @@ export default function SupervisorDashboard() {
 
         {/* Observação */}
         <div className="mt-4 text-[11px] text-slate-400 font-bold">
-          * O supervisor não pode excluir propostas nem acessar cadastros/relatórios do Admin.
         </div>
       </main>
     </div>

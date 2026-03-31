@@ -15,9 +15,10 @@ import {
   CarFront,
   ChevronDown,
   LogIn,
+  Search,
 } from "lucide-react";
 import VehiclesMenu from "./VehiclesMenu";
-import MobileCatalogModal from "./MobileCatalogModal"; // ✅ NOVO
+import MobileCatalogModal from "./MobileCatalogModal";
 
 // =====================================================================
 // 🔧 ÁREA DE CONFIGURAÇÃO DE IMAGENS
@@ -31,11 +32,8 @@ const LOGO_SIDEBAR =
 export default function Navbar() {
   const [menuAberto, setMenuAberto] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  // ✅ NOVO: modal catálogo mobile (full screen)
   const [catalogOpen, setCatalogOpen] = useState(false);
 
-  // Estados de Usuário
   const [user, setUser] = useState<any>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -45,17 +43,14 @@ export default function Navbar() {
   const router = useRouter();
   const pathname = usePathname();
 
-  // 👇 evita bug de closure (listener comparando com user antigo)
   const currentUserIdRef = useRef<string | null>(null);
 
-  // Fecha sidebar ao navegar
   useEffect(() => {
     setSidebarOpen(false);
     setMenuAberto(null);
-    setCatalogOpen(false); // ✅ fecha catálogo ao navegar
+    setCatalogOpen(false);
   }, [pathname]);
 
-  // ✅ trava scroll do body quando o catálogo full-screen estiver aberto
   useEffect(() => {
     if (!catalogOpen) return;
     const prev = document.body.style.overflow;
@@ -79,11 +74,10 @@ export default function Navbar() {
         setUserRole(profile.role || "vendedor");
       }
     } catch {
-      // ignora silencioso
+      // silencioso
     }
   };
 
-  // ✅ Auth: não bloqueia UI, não dá “travada” ao navegar
   useEffect(() => {
     let mounted = true;
 
@@ -99,8 +93,6 @@ export default function Navbar() {
 
         setUser(u);
         currentUserIdRef.current = u?.id ?? null;
-
-        // libera UI logo (não espera profile)
         setLoading(false);
 
         if (u?.id) {
@@ -110,7 +102,7 @@ export default function Navbar() {
           setAvatarUrl("");
           setUserRole(null);
         }
-      } catch (e) {
+      } catch {
         if (!mounted) return;
         setLoading(false);
       }
@@ -120,7 +112,7 @@ export default function Navbar() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!mounted) return;
 
       const u = session?.user ?? null;
@@ -171,11 +163,9 @@ export default function Navbar() {
 
   const toggleMenu = (menu: string) => setMenuAberto(menuAberto === menu ? null : menu);
 
-  // ✅ REGRAS DE ROLE
   const role = (userRole || "").toLowerCase();
   const email = (user?.email || "").toLowerCase();
 
-  // fallback por email (se quiser tirar depois, ok)
   const isAdmin = role === "admin" || email.includes("admin");
   const isSupervisor = role === "supervisor" || email.startsWith("s");
   const isVendedor = !isAdmin && !isSupervisor;
@@ -199,28 +189,27 @@ export default function Navbar() {
   );
 
   const displayName = fullName || user?.email?.split("@")[0];
+  const consultaClienteLink = "/vendedor/consulta-cliente";
 
   return (
     <>
-      {/* --- NAVBAR FIXA --- */}
-      <nav className="fixed w-full z-[1001] top-0 bg-white/95 backdrop-blur-md border-b border-gray-100 h-16 flex items-center justify-between px-4 lg:px-12 shadow-sm font-sans transition-all">
-        {/* ESQUERDA */}
+      <nav className="fixed top-0 z-[1001] flex h-16 w-full items-center justify-between border-b border-gray-100 bg-white/95 px-4 font-sans shadow-sm backdrop-blur-md transition-all lg:px-12">
         <div className="flex items-center gap-4">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="p-2 text-gray-700 hover:bg-gray-100 rounded-full transition-colors lg:hidden"
+            className="rounded-full p-2 text-gray-700 transition-colors hover:bg-gray-100 lg:hidden"
             aria-label="Abrir Menu"
           >
             <Menu size={24} />
           </button>
 
-          <div className="hidden lg:flex items-center">
+          <div className="hidden items-center lg:flex">
             <button
               onClick={() => toggleMenu("veiculos")}
-              className={`text-xs font-bold uppercase tracking-widest flex items-center gap-2 transition-all px-4 py-2 rounded-full ${
+              className={`flex items-center gap-2 rounded-full px-4 py-2 text-xs font-bold uppercase tracking-widest transition-all ${
                 menuAberto === "veiculos"
                   ? "bg-black text-white"
-                  : "text-gray-500 hover:text-black hover:bg-gray-100"
+                  : "text-gray-500 hover:bg-gray-100 hover:text-black"
               }`}
             >
               {menuAberto === "veiculos" ? <X size={14} /> : <Menu size={14} />} Veículos
@@ -228,7 +217,6 @@ export default function Navbar() {
           </div>
         </div>
 
-        {/* CENTRO */}
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
           <Link
             href="/"
@@ -241,65 +229,72 @@ export default function Navbar() {
             <img
               src={LOGO_NAVBAR}
               alt="Logo"
-              className="h-6 lg:h-8 w-auto object-contain hover:opacity-80 transition-opacity"
+              className="h-6 w-auto object-contain transition-opacity hover:opacity-80 lg:h-8"
             />
           </Link>
         </div>
 
-        {/* DIREITA */}
         <div className="flex items-center gap-4">
           <div className="hidden lg:block">
             {loading ? (
-              <div className="w-8 h-8 rounded-full bg-gray-200 animate-pulse" />
+              <div className="h-8 w-8 animate-pulse rounded-full bg-gray-200" />
             ) : user ? (
-              <div className="relative group">
-                <button className="flex items-center gap-3 pl-1 pr-3 py-1 rounded-full border border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all bg-white">
+              <div className="group relative">
+                <button className="flex items-center gap-3 rounded-full border border-gray-200 bg-white py-1 pl-1 pr-3 transition-all hover:border-gray-300 hover:shadow-sm">
                   <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm overflow-hidden ${
+                    className={`flex h-8 w-8 items-center justify-center overflow-hidden rounded-full text-sm font-bold ${
                       isAdmin ? "bg-black text-[#f2e14c]" : "bg-gray-100 text-gray-600"
                     }`}
                   >
                     {avatarUrl ? (
-                      <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                      <img src={avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
                     ) : (
                       <User size={16} />
                     )}
                   </div>
                   <div className="text-left">
-                    <p className="text-[10px] text-gray-400 font-bold uppercase leading-none mb-0.5">
+                    <p className="mb-0.5 text-[10px] font-bold uppercase leading-none text-gray-400">
                       Olá,
                     </p>
-                    <p className="text-xs font-bold text-gray-900 leading-none max-w-[80px] truncate">
+                    <p className="max-w-[80px] truncate text-xs font-bold leading-none text-gray-900">
                       {displayName}
                     </p>
                   </div>
                   <ChevronDown size={14} className="text-gray-400" />
                 </button>
 
-                <div className="absolute right-0 top-full mt-3 w-64 bg-white border border-gray-100 rounded-2xl shadow-xl p-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform translate-y-2 group-hover:translate-y-0">
-                  <div className="p-3 mb-2 bg-gray-50 rounded-xl">
-                    <p className="text-xs font-bold text-gray-900 truncate">{displayName}</p>
-                    <p className="text-[10px] text-gray-500 truncate">{user.email}</p>
+                <div className="invisible absolute right-0 top-full mt-3 w-64 translate-y-2 rounded-2xl border border-gray-100 bg-white p-2 opacity-0 shadow-xl transition-all duration-200 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
+                  <div className="mb-2 rounded-xl bg-gray-50 p-3">
+                    <p className="truncate text-xs font-bold text-gray-900">{displayName}</p>
+                    <p className="truncate text-[10px] text-gray-500">{user.email}</p>
                   </div>
 
-                  {/* ✅ UM ÚNICO BOTÃO (muda conforme role) */}
                   <Link
                     href={dashboardLink}
-                    className="flex items-center gap-3 px-4 py-2.5 text-xs font-bold text-gray-700 rounded-lg hover:bg-gray-50 hover:text-black"
+                    className="flex items-center gap-3 rounded-lg px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 hover:text-black"
                   >
                     {dashboardIcon} {dashboardLabel}
                   </Link>
 
                   <Link
                     href="/profile"
-                    className="flex items-center gap-3 px-4 py-2.5 text-xs font-bold text-gray-700 rounded-lg hover:bg-gray-50 hover:text-black"
+                    className="flex items-center gap-3 rounded-lg px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 hover:text-black"
                   >
                     <User size={16} /> Meus Dados
                   </Link>
-                  <div className="h-px bg-gray-100 my-1" />
+
+                  <Link
+                    href= "supervisor/consultar-cliente"
+                    className="flex items-center gap-3 rounded-lg px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 hover:text-black"
+                  >
+                    <Search size={16} /> Consulta de Cliente
+                  </Link>
+
+                  <div className="my-1 h-px bg-gray-100" />
+
                   <button
                     onClick={handleLogout}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-bold text-red-600 rounded-lg hover:bg-red-50"
+                    className="flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-xs font-bold text-red-600 hover:bg-red-50"
                   >
                     <LogOut size={16} /> Sair
                   </button>
@@ -308,7 +303,7 @@ export default function Navbar() {
             ) : (
               <Link
                 href="/login"
-                className="flex text-xs font-black uppercase tracking-wide text-black hover:bg-black hover:text-[#f2e14c] px-6 py-2.5 rounded-full border border-black transition-all"
+                className="flex rounded-full border border-black px-6 py-2.5 text-xs font-black uppercase tracking-wide text-black transition-all hover:bg-black hover:text-[#f2e14c]"
               >
                 Entrar
               </Link>
@@ -317,9 +312,8 @@ export default function Navbar() {
         </div>
       </nav>
 
-      {/* --- MEGA MENU (DESKTOP) --- */}
       <div
-        className={`fixed top-[0px] left-0 w-full bg-white shadow-2xl border-t border-gray-100 z-[1000] menu-dropdown ${
+        className={`menu-dropdown fixed left-0 top-[0px] z-[1000] w-full border-t border-gray-100 bg-white shadow-2xl ${
           menuAberto === "veiculos" ? "menu-dropdown-ativo" : ""
         }`}
       >
@@ -329,73 +323,89 @@ export default function Navbar() {
       {menuAberto && (
         <div
           onClick={() => setMenuAberto(null)}
-          className="fixed inset-0 top-16 bg-black/40 z-[999] backdrop-blur-[2px] transition-opacity duration-300"
+          className="fixed inset-0 top-16 z-[999] bg-black/40 backdrop-blur-[2px] transition-opacity duration-300"
         />
       )}
 
-      {/* --- SIDEBAR (MOBILE) --- */}
       <div
-        className={`fixed inset-0 bg-black/60 z-[2000] backdrop-blur-sm transition-opacity duration-500 ${
-          sidebarOpen ? "opacity-100 visible" : "opacity-0 invisible"
+        className={`fixed inset-0 z-[2000] bg-black/60 backdrop-blur-sm transition-opacity duration-500 ${
+          sidebarOpen ? "visible opacity-100" : "invisible opacity-0"
         }`}
         onClick={() => setSidebarOpen(false)}
       />
 
       <div
-        className={`fixed top-0 left-0 h-full w-[85%] max-w-[320px] bg-white z-[2001] shadow-2xl transform transition-transform duration-500 ease-out flex flex-col ${
+        className={`fixed left-0 top-0 z-[2001] flex h-full w-[85%] max-w-[320px] flex-col bg-white shadow-2xl transition-transform duration-500 ease-out ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="flex justify-between items-center p-6 border-b border-gray-100 h-20">
+        <div className="flex h-20 items-center justify-between border-b border-gray-100 p-6">
           <img src={LOGO_SIDEBAR} alt="Logo" className="h-12 w-auto object-contain" />
           <button
             onClick={() => setSidebarOpen(false)}
-            className="p-2 bg-gray-50 rounded-full hover:bg-gray-100 text-gray-500 hover:text-black transition-colors"
+            className="rounded-full bg-gray-50 p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-black"
           >
             <X size={20} />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto py-6 px-6 space-y-8">
-          <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
+        <div className="flex-1 space-y-8 overflow-y-auto px-6 py-6">
+          <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
             {user ? (
               <>
-                <div className="flex items-center gap-3 mb-4">
+                <div className="mb-4 flex items-center gap-3">
                   <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm overflow-hidden ${
+                    className={`flex h-10 w-10 items-center justify-center overflow-hidden rounded-full text-sm font-bold ${
                       isAdmin
                         ? "bg-black text-[#f2e14c]"
-                        : "bg-white border border-gray-200 text-gray-600"
+                        : "border border-gray-200 bg-white text-gray-600"
                     }`}
                   >
                     {avatarUrl ? (
-                      <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                      <img src={avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
                     ) : (
                       <User size={18} />
                     )}
                   </div>
                   <div>
-                    <p className="text-xs font-bold text-gray-900 truncate max-w-[150px]">
+                    <p className="max-w-[150px] truncate text-xs font-bold text-gray-900">
                       {displayName}
                     </p>
-                    <p className="text-[10px] text-gray-500 truncate max-w-[150px]">{user.email}</p>
+                    <p className="max-w-[150px] truncate text-[10px] text-gray-500">{user.email}</p>
                   </div>
                 </div>
 
                 <div className="space-y-1">
-                  {/* ✅ UM ÚNICO BOTÃO (muda conforme role) */}
                   <Link
                     href={dashboardLink}
                     onClick={() => setSidebarOpen(false)}
-                    className="flex items-center gap-3 px-3 py-2 text-xs font-bold text-gray-700 bg-white border border-gray-200 rounded-lg hover:border-black transition-colors"
+                    className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 transition-colors hover:border-black"
                   >
-                    {isAdmin ? <ShieldCheck size={14} /> : <LayoutDashboard size={14} />}{" "}
+                    {isAdmin ? <ShieldCheck size={14} /> : <LayoutDashboard size={14} />}
                     {dashboardLabel}
+                  </Link>
+
+                  <Link
+                    href="/profile"
+                    onClick={() => setSidebarOpen(false)}
+                    className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 transition-colors hover:border-black"
+                  >
+                    <User size={14} />
+                    Meus Dados
+                  </Link>
+
+                  <Link
+                    href={consultaClienteLink}
+                    onClick={() => setSidebarOpen(false)}
+                    className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 transition-colors hover:border-black"
+                  >
+                    <Search size={14} />
+                    Consulta de Cliente
                   </Link>
 
                   <button
                     onClick={handleLogout}
-                    className="w-full flex items-center gap-3 px-3 py-2 text-xs font-bold text-red-600 bg-white border border-red-100 rounded-lg hover:bg-red-50 transition-colors"
+                    className="flex w-full items-center gap-3 rounded-lg border border-red-100 bg-white px-3 py-2 text-xs font-bold text-red-600 transition-colors hover:bg-red-50"
                   >
                     <LogOut size={14} /> Sair da Conta
                   </button>
@@ -403,11 +413,13 @@ export default function Navbar() {
               </>
             ) : (
               <div className="text-center">
-                <p className="text-xs text-gray-500 mb-3">Acesse sua conta para gerenciar propostas.</p>
+                <p className="mb-3 text-xs text-gray-500">
+                  Acesse sua conta para gerenciar propostas.
+                </p>
                 <Link
                   href="/login"
                   onClick={() => setSidebarOpen(false)}
-                  className="flex items-center justify-center gap-2 w-full bg-black text-white text-xs font-bold uppercase py-3 rounded-lg hover:bg-gray-800 transition-colors"
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-black py-3 text-xs font-bold uppercase text-white transition-colors hover:bg-gray-800"
                 >
                   <LogIn size={16} /> Entrar / Cadastrar
                 </Link>
@@ -416,19 +428,18 @@ export default function Navbar() {
           </div>
 
           <div className="space-y-6">
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 pb-2">
+            <p className="border-b border-gray-100 pb-2 text-[10px] font-bold uppercase tracking-widest text-gray-400">
               Navegação
             </p>
 
-            {/* ✅ NOVO: CATÁLOGO (abre full screen) */}
             <button
               onClick={() => {
                 setSidebarOpen(false);
                 setCatalogOpen(true);
               }}
-              className="w-full flex items-center gap-4 text-gray-900 font-bold text-sm uppercase tracking-wide hover:text-[#f2e14c] group transition-colors"
+              className="group flex w-full items-center gap-4 text-sm font-bold uppercase tracking-wide text-gray-900 transition-colors hover:text-[#f2e14c]"
             >
-              <span className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center group-hover:bg-black group-hover:text-[#f2e14c] transition-colors text-gray-400">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-50 text-gray-400 transition-colors group-hover:bg-black group-hover:text-[#f2e14c]">
                 <CarFront size={18} />
               </span>
               Catálogo
@@ -437,9 +448,9 @@ export default function Navbar() {
             <Link
               href="/vendedor/seminovos"
               onClick={() => setSidebarOpen(false)}
-              className="flex items-center gap-4 text-gray-900 font-bold text-sm uppercase tracking-wide hover:text-[#f2e14c] group transition-colors"
+              className="group flex items-center gap-4 text-sm font-bold uppercase tracking-wide text-gray-900 transition-colors hover:text-[#f2e14c]"
             >
-              <span className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center group-hover:bg-black group-hover:text-[#f2e14c] transition-colors text-gray-400">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-50 text-gray-400 transition-colors group-hover:bg-black group-hover:text-[#f2e14c]">
                 <CarFront size={18} />
               </span>
               SemiNovos
@@ -447,9 +458,9 @@ export default function Navbar() {
 
             <Link
               href="#"
-              className="flex items-center gap-4 text-gray-900 font-bold text-sm uppercase tracking-wide hover:text-[#f2e14c] group transition-colors"
+              className="group flex items-center gap-4 text-sm font-bold uppercase tracking-wide text-gray-900 transition-colors hover:text-[#f2e14c]"
             >
-              <span className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center group-hover:bg-black group-hover:text-[#f2e14c] transition-colors text-gray-400">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-50 text-gray-400 transition-colors group-hover:bg-black group-hover:text-[#f2e14c]">
                 <Phone size={18} />
               </span>
               Fale Conosco
@@ -457,12 +468,11 @@ export default function Navbar() {
           </div>
         </div>
 
-        <div className="p-6 border-t border-gray-100 text-center">
-          <p className="text-[10px] text-gray-400 font-medium">© 2026 WBCNAC Digital</p>
+        <div className="border-t border-gray-100 p-6 text-center">
+          <p className="text-[10px] font-medium text-gray-400">© 2026 WBCNAC Digital</p>
         </div>
       </div>
 
-      {/* ✅ MODAL FULL SCREEN DO CATÁLOGO (MOBILE) */}
       <MobileCatalogModal open={catalogOpen} onClose={() => setCatalogOpen(false)} />
     </>
   );

@@ -28,15 +28,18 @@ import {
   CalendarRange,
   ArrowUpDown,
   BadgeCheck,
+  ChevronDown,
+  ChevronUp,
+  UserSearch,
+  Database,
 } from "lucide-react";
-
-import { ResponsiveContainer, Tooltip, PieChart, Pie, Cell } from "recharts";
 
 const onlyDigits = (v: any) => String(v || "").replace(/\D/g, "");
 const cleanText = (v: any) => String(v || "").trim();
 const lowerText = (v: any) => cleanText(v).toLowerCase();
 
-const isEmailLike = (value: any) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanText(value));
+const isEmailLike = (value: any) =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanText(value));
 
 const toWhatsDigits = (phoneLike: any) => {
   const d = onlyDigits(phoneLike);
@@ -49,16 +52,9 @@ const normalizeSellerDisplayName = (sale: any) => {
   const rootSeller = cleanText(sale?.seller_name);
 
   if (detailsSeller) return detailsSeller.toUpperCase();
-
   if (rootSeller && !isEmailLike(rootSeller)) return rootSeller.toUpperCase();
 
   return "—";
-};
-
-const getSellerRawValue = (sale: any) => {
-  const detailsSeller = cleanText(sale?.details?.vendedor_digitado);
-  const rootSeller = cleanText(sale?.seller_name);
-  return detailsSeller || rootSeller || "";
 };
 
 const buildSaleIdentityKey = (sale: any) => {
@@ -69,17 +65,14 @@ const buildSaleIdentityKey = (sale: any) => {
   const total = Number(sale?.total_price || 0).toFixed(2);
 
   const created = sale?.created_at ? new Date(sale.created_at) : null;
-  const minuteKey = created && !Number.isNaN(created.getTime())
-    ? created.toISOString().slice(0, 16)
-    : "";
+  const minuteKey =
+    created && !Number.isNaN(created.getTime())
+      ? created.toISOString().slice(0, 16)
+      : "";
 
-  return [
-    clientCpf || clientPhone || clientName,
-    clientName,
-    carName,
-    total,
-    minuteKey,
-  ].join("|");
+  return [clientCpf || clientPhone || clientName, clientName, carName, total, minuteKey].join(
+    "|"
+  );
 };
 
 const saleScore = (sale: any) => {
@@ -157,9 +150,10 @@ function ModalDetalhes({
   };
 
   const formatMoney = (val: number) =>
-    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
-      Number(val || 0)
-    );
+    new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    }).format(Number(val || 0));
 
   const statusColor =
     sale?.status === "Aprovado"
@@ -182,93 +176,32 @@ function ModalDetalhes({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 print:p-0">
-      <style jsx global>{`
-        @media print {
-          @page {
-            size: A4;
-            margin: 10mm;
-          }
-          body {
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-          }
-          .no-print {
-            display: none !important;
-          }
-          .print-only {
-            display: block !important;
-          }
-          .print-modal-root {
-            position: static !important;
-            inset: auto !important;
-            padding: 0 !important;
-          }
-          .print-modal-overlay {
-            display: none !important;
-          }
-          .print-modal-card {
-            box-shadow: none !important;
-            border-radius: 0 !important;
-            overflow: visible !important;
-            max-width: none !important;
-            width: 100% !important;
-            border: 1px solid #e2e8f0 !important;
-          }
-          .print-area {
-            padding: 10mm !important;
-          }
-          .print-area * {
-            line-height: 1.25 !important;
-          }
-          .print-h2 {
-            font-size: 14px !important;
-          }
-          .print-label {
-            font-size: 9px !important;
-          }
-          .print-value {
-            font-size: 11px !important;
-          }
-          .print-card {
-            border-radius: 10px !important;
-            padding: 10px !important;
-          }
-          .print-grid {
-            gap: 10px !important;
-          }
-          .print-badge {
-            font-size: 9px !important;
-            padding: 4px 8px !important;
-          }
-        }
-      `}</style>
-
       <div
-        className="absolute inset-0 bg-black/50 print-modal-overlay no-print"
+        className="absolute inset-0 bg-black/50"
         onClick={onClose}
         aria-hidden="true"
       />
 
-      <div className="relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden print-modal-card print-modal-root">
-        <div className="p-6 border-b border-slate-100 flex items-start justify-between gap-4 no-print">
+      <div className="relative w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-6">
           <div>
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
               Detalhes da Proposta
             </p>
-            <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
+            <h2 className="flex items-center gap-2 text-lg font-black text-slate-900">
               <CarFront size={18} />
               {sale.car_name || "—"}
             </h2>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <span
-                className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase border ${statusColor}`}
+                className={`inline-flex items-center rounded-full border px-3 py-1 text-[10px] font-black uppercase ${statusColor}`}
               >
                 {sale.status}
               </span>
-              <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase border border-slate-200 bg-slate-50 text-slate-700">
+              <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[10px] font-black uppercase text-slate-700">
                 Tipo: {sale.interest_type || "—"}
               </span>
-              <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase border border-slate-200 bg-white text-slate-700">
+              <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-[10px] font-black uppercase text-slate-700">
                 Total: {formatMoney(Number(sale.total_price) || 0)}
               </span>
             </div>
@@ -276,95 +209,55 @@ function ModalDetalhes({
 
           <button
             onClick={onClose}
-            className="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600"
+            className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 hover:bg-slate-50"
             title="Fechar"
           >
             <X size={18} />
           </button>
         </div>
 
-        <div className="hidden print-only border-b border-slate-200 p-3">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">
-                Proposta
-              </p>
-              <h2 className="print-h2 text-[14px] font-black text-slate-900 truncate">
-                {sale.car_name || "—"}
-              </h2>
-              <p className="text-[10px] font-bold text-slate-500">
-                {new Date(sale.created_at).toLocaleDateString("pt-BR")} •{" "}
-                {new Date(sale.created_at).toLocaleTimeString("pt-BR", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </p>
-            </div>
-            <div className="text-right">
-              <span
-                className={`print-badge inline-flex items-center rounded-full border ${statusColor}`}
-              >
-                {sale.status}
-              </span>
-              <div className="text-[10px] font-black text-slate-900 mt-1">
-                {formatMoney(Number(sale.total_price) || 0)}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="p-6 space-y-4 print-area print-grid" id="print-area">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 print-grid">
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 print-card">
-              <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 border-b border-slate-200 pb-2 flex items-center gap-2">
+        <div className="space-y-4 p-6">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+              <h3 className="mb-3 flex items-center gap-2 border-b border-slate-200 pb-2 text-xs font-black uppercase tracking-widest text-slate-400">
                 <Users size={14} /> Cliente
               </h3>
 
-              <div className="grid grid-cols-2 gap-3 print-grid">
+              <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2 min-w-0">
-                  <p className="print-label text-[10px] font-bold text-slate-400 uppercase">
-                    Nome
-                  </p>
-                  <p className="print-value text-sm font-bold text-slate-900 truncate">
+                  <p className="text-[10px] font-bold uppercase text-slate-400">Nome</p>
+                  <p className="truncate text-sm font-bold text-slate-900">
                     {sale.client_name || "—"}
                   </p>
                 </div>
 
                 <div className="min-w-0">
-                  <p className="print-label text-[10px] font-bold text-slate-400 uppercase">
-                    CPF
-                  </p>
-                  <p className="print-value text-sm font-mono text-slate-700 truncate">
+                  <p className="text-[10px] font-bold uppercase text-slate-400">CPF</p>
+                  <p className="truncate font-mono text-sm text-slate-700">
                     {sale.client_cpf || "—"}
                   </p>
                 </div>
 
                 <div className="min-w-0">
-                  <p className="print-label text-[10px] font-bold text-slate-400 uppercase">
-                    Telefone
+                  <p className="text-[10px] font-bold uppercase text-slate-400">Telefone</p>
+                  <p className="truncate font-mono text-sm text-slate-700">
+                    {sale.client_phone || "—"}
                   </p>
-                  <p className="print-value text-sm font-mono text-slate-700 truncate">
-                    {sale.client_phone || "--"}
-                  </p>
-                  <div className="no-print">
-                    {waDigits && (
-                      <a
-                        href={`https://wa.me/${waDigits}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1 mt-1 text-green-700 hover:text-green-900 bg-green-100 px-2 py-0.5 rounded text-[10px] font-bold uppercase"
-                      >
-                        <Phone size={10} /> WhatsApp
-                      </a>
-                    )}
-                  </div>
+                  {waDigits && (
+                    <a
+                      href={`https://wa.me/${waDigits}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-1 inline-flex items-center gap-1 rounded bg-green-100 px-2 py-0.5 text-[10px] font-bold uppercase text-green-700 hover:text-green-900"
+                    >
+                      <Phone size={10} /> WhatsApp
+                    </a>
+                  )}
                 </div>
 
                 <div className="col-span-2">
-                  <p className="print-label text-[10px] font-bold text-slate-400 uppercase">
-                    Criado em
-                  </p>
-                  <p className="print-value text-sm font-medium text-slate-700">
+                  <p className="text-[10px] font-bold uppercase text-slate-400">Criado em</p>
+                  <p className="text-sm font-medium text-slate-700">
                     {new Date(sale.created_at).toLocaleDateString("pt-BR")} às{" "}
                     {new Date(sale.created_at).toLocaleTimeString("pt-BR", {
                       hour: "2-digit",
@@ -375,82 +268,71 @@ function ModalDetalhes({
               </div>
             </div>
 
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 print-card">
-              <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 border-b border-slate-200 pb-2 flex items-center gap-2">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+              <h3 className="mb-3 flex items-center gap-2 border-b border-slate-200 pb-2 text-xs font-black uppercase tracking-widest text-slate-400">
                 <CarFront size={14} /> Proposta
               </h3>
 
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="print-label text-[10px] font-bold text-slate-400 uppercase">
-                    Veículo
-                  </p>
-                  <p className="print-value text-lg font-black text-slate-900 truncate">
-                    {sale.car_name || "—"}
-                  </p>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-[10px] font-bold uppercase text-slate-400">Veículo</p>
+                  <p className="text-lg font-black text-slate-900">{sale.car_name || "—"}</p>
                 </div>
 
-                <div className="text-right shrink-0">
-                  <p className="print-label text-[10px] font-bold text-slate-400 uppercase">
-                    Tipo
-                  </p>
-                  <span className="bg-black text-white text-[10px] font-bold px-2 py-1 rounded uppercase">
-                    {sale.interest_type || "—"}
-                  </span>
-                </div>
-              </div>
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase text-slate-400">Tipo</p>
+                    <span className="rounded bg-black px-2 py-1 text-[10px] font-bold uppercase text-white">
+                      {sale.interest_type || "—"}
+                    </span>
+                  </div>
 
-              <div className="mt-3 border-t border-slate-200 pt-3 space-y-2">
-                <div className="flex justify-between text-sm gap-3">
-                  <span className="text-slate-500 font-medium">Valor Total</span>
-                  <span className="font-black text-slate-900">
-                    {new Intl.NumberFormat("pt-BR", {
-                      style: "currency",
-                      currency: "BRL",
-                    }).format(Number(sale.total_price) || 0)}
-                  </span>
+                  <div className="text-right">
+                    <p className="text-[10px] font-bold uppercase text-slate-400">Valor</p>
+                    <p className="text-sm font-black text-slate-900">
+                      {formatMoney(Number(sale.total_price) || 0)}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 print-grid">
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 print-card">
-              <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 border-b border-slate-100 pb-2 flex items-center gap-2">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5">
+              <h3 className="mb-3 flex items-center gap-2 border-b border-slate-100 pb-2 text-xs font-black uppercase tracking-widest text-slate-400">
                 <CheckCircle2 size={14} /> Vendedor
               </h3>
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-slate-900 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-sm font-bold text-white">
                   {sellerDisplayName !== "—" ? sellerDisplayName.substring(0, 2) : "VD"}
                 </div>
-                <div className="leading-tight min-w-0">
-                  <p className="text-sm font-bold text-slate-900 truncate">{sellerDisplayName}</p>
-                  <p className="text-[10px] text-slate-500 font-mono truncate">
+                <div className="min-w-0 leading-tight">
+                  <p className="truncate text-sm font-bold text-slate-900">
+                    {sellerDisplayName}
+                  </p>
+                  <p className="truncate font-mono text-[10px] text-slate-500">
                     {sellerEmailLabel}
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 print-card">
-              <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 border-b border-slate-100 pb-2 flex items-center gap-2">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5">
+              <h3 className="mb-3 flex items-center gap-2 border-b border-slate-100 pb-2 text-xs font-black uppercase tracking-widest text-slate-400">
                 <BadgeCheck size={14} /> Processamento
               </h3>
 
-              <div className="grid grid-cols-2 gap-3 print-grid">
-                <div className="min-w-0">
-                  <p className="print-label text-[10px] font-bold text-slate-400 uppercase">
-                    Processado por
-                  </p>
-                  <p className="print-value text-sm font-bold text-slate-900 truncate">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-[10px] font-bold uppercase text-slate-400">Processado por</p>
+                  <p className="text-sm font-bold text-slate-900">
                     {sale.approved_by_name || "Sistema"}
                   </p>
                 </div>
-                <div className="min-w-0">
-                  <p className="print-label text-[10px] font-bold text-slate-400 uppercase">
-                    Data
-                  </p>
-                  <p className="print-value text-sm font-medium text-slate-700 truncate">
+                <div>
+                  <p className="text-[10px] font-bold uppercase text-slate-400">Data</p>
+                  <p className="text-sm font-medium text-slate-700">
                     {sale.approved_at
                       ? new Date(sale.approved_at).toLocaleString("pt-BR")
                       : "—"}
@@ -461,19 +343,15 @@ function ModalDetalhes({
           </div>
         </div>
 
-        <div className="bg-gray-50 p-6 border-t border-gray-100 flex flex-col md:flex-row md:items-center md:justify-between gap-3 sticky bottom-0 no-print">
+        <div className="sticky bottom-0 flex flex-col gap-3 border-t border-gray-100 bg-gray-50 p-6 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-2">
             {sale.status !== "Aprovado" && (
               <button
                 onClick={() => handleAction("Aprovado")}
                 disabled={isProcessing}
-                className="px-4 py-2.5 bg-green-600 text-white font-bold text-xs uppercase rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-60"
+                className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2.5 text-xs font-bold uppercase text-white transition-colors hover:bg-green-700 disabled:opacity-60"
               >
-                {isProcessing ? (
-                  <Loader2 size={14} className="animate-spin" />
-                ) : (
-                  <Check size={14} />
-                )}
+                {isProcessing ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
                 Aprovar
               </button>
             )}
@@ -482,7 +360,7 @@ function ModalDetalhes({
               <button
                 onClick={() => handleAction("Recusado")}
                 disabled={isProcessing}
-                className="px-4 py-2.5 bg-red-600 text-white font-bold text-xs uppercase rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 disabled:opacity-60"
+                className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-xs font-bold uppercase text-white transition-colors hover:bg-red-700 disabled:opacity-60"
               >
                 {isProcessing ? (
                   <Loader2 size={14} className="animate-spin" />
@@ -502,7 +380,7 @@ function ModalDetalhes({
                 onClose();
               }}
               disabled={isDeleting}
-              className="px-4 py-2.5 bg-white border border-red-200 text-red-600 font-bold text-xs uppercase rounded-lg hover:bg-red-50 transition-colors flex items-center gap-2 disabled:opacity-60"
+              className="flex items-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2.5 text-xs font-bold uppercase text-red-600 transition-colors hover:bg-red-50 disabled:opacity-60"
             >
               {isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
               Excluir
@@ -510,21 +388,49 @@ function ModalDetalhes({
 
             <button
               onClick={onClose}
-              className="px-4 py-2.5 bg-white border border-gray-200 text-slate-700 font-bold text-xs uppercase rounded-lg hover:bg-gray-100 transition-colors"
+              className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-xs font-bold uppercase text-slate-700 transition-colors hover:bg-gray-100"
             >
               Fechar
-            </button>
-
-            <button
-              onClick={() => window.print()}
-              className="px-4 py-2.5 bg-black text-white font-bold text-xs uppercase rounded-lg hover:bg-slate-800 transition-colors flex items-center gap-2"
-            >
-              <FileText size={14} /> Imprimir
             </button>
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+function ActionCard({
+  href,
+  icon,
+  title,
+  description,
+  tone = "slate",
+}: {
+  href: string;
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  tone?: "slate" | "blue" | "emerald" | "amber" | "indigo";
+}) {
+  const toneMap = {
+    slate: "border-slate-200 bg-white hover:bg-slate-50 text-slate-900",
+    blue: "border-blue-100 bg-blue-50 hover:bg-blue-100 text-blue-800",
+    emerald: "border-emerald-100 bg-emerald-50 hover:bg-emerald-100 text-emerald-800",
+    amber: "border-amber-100 bg-amber-50 hover:bg-amber-100 text-amber-800",
+    indigo: "border-indigo-100 bg-indigo-50 hover:bg-indigo-100 text-indigo-800",
+  };
+
+  return (
+    <Link
+      href={href}
+      className={`rounded-2xl border p-4 transition-all ${toneMap[tone]}`}
+    >
+      <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-white/70 shadow-sm">
+        {icon}
+      </div>
+      <h3 className="text-sm font-black uppercase">{title}</h3>
+      <p className="mt-1 text-xs font-medium opacity-80">{description}</p>
+    </Link>
   );
 }
 
@@ -534,14 +440,14 @@ export default function AdminDashboard() {
   const [sales, setSales] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [filterStatus, setFilterStatus] = useState("TODOS");
+const [transactionsExpanded, setTransactionsExpanded] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [dateFrom, setDateFrom] = useState<string>("");
   const [dateTo, setDateTo] = useState<string>("");
 
-  const [sortKey, setSortKey] = useState<"created_at" | "total_price" | "status" | "client_name">(
-    "created_at"
-  );
+  const [sortKey, setSortKey] = useState<
+    "created_at" | "total_price" | "status" | "client_name"
+  >("created_at");
   const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
   const [page, setPage] = useState(1);
   const pageSize = 12;
@@ -554,7 +460,10 @@ export default function AdminDashboard() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const formatCurrency = (val: number) =>
-    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(val || 0));
+    new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    }).format(Number(val || 0));
 
   const todayLabel = useMemo(() => new Date().toLocaleDateString("pt-BR"), []);
 
@@ -645,52 +554,50 @@ export default function AdminDashboard() {
 
     return (
       <span
-        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wide border ${styles}`}
+        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${styles}`}
       >
         {icon} {status}
       </span>
     );
   };
 
-  const filteredBase = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
+const filteredBase = useMemo(() => {
+  const term = searchTerm.trim().toLowerCase();
 
-    return sales
-      .filter((sale) => {
-        const matchesStatus = filterStatus === "TODOS" || sale.status === filterStatus;
-        const matchesDate = isWithinDateRange(sale.created_at);
+  return sales
+    .filter((sale) => {
+      const matchesDate = isWithinDateRange(sale.created_at);
+      const sellerDisplay = normalizeSellerDisplayName(sale).toLowerCase();
 
-        const sellerDisplay = normalizeSellerDisplayName(sale).toLowerCase();
+      const matchesSearch =
+        !term ||
+        sale.client_name?.toLowerCase().includes(term) ||
+        sale.car_name?.toLowerCase().includes(term) ||
+        sellerDisplay.includes(term) ||
+        sale.profiles?.email?.toLowerCase().includes(term) ||
+        sale.client_cpf?.toLowerCase().includes(term);
 
-        const matchesSearch =
-          !term ||
-          sale.client_name?.toLowerCase().includes(term) ||
-          sale.car_name?.toLowerCase().includes(term) ||
-          sellerDisplay.includes(term) ||
-          sale.profiles?.email?.toLowerCase().includes(term) ||
-          sale.client_cpf?.toLowerCase().includes(term);
+      return matchesDate && matchesSearch;
+    })
+    .sort((a, b) => {
+      const dir = sortDir === "asc" ? 1 : -1;
 
-        return matchesStatus && matchesDate && matchesSearch;
-      })
-      .sort((a, b) => {
-        const dir = sortDir === "asc" ? 1 : -1;
+      if (sortKey === "created_at") {
+        return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir;
+      }
+      if (sortKey === "total_price") {
+        return ((Number(a.total_price) || 0) - (Number(b.total_price) || 0)) * dir;
+      }
+      return String(a.client_name || "").localeCompare(
+        String(b.client_name || ""),
+        "pt-BR"
+      ) * dir;
+    });
+}, [sales, searchTerm, dateFrom, dateTo, sortKey, sortDir]);
 
-        if (sortKey === "created_at") {
-          return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir;
-        }
-        if (sortKey === "total_price") {
-          return ((Number(a.total_price) || 0) - (Number(b.total_price) || 0)) * dir;
-        }
-        if (sortKey === "status") {
-          return String(a.status || "").localeCompare(String(b.status || ""), "pt-BR") * dir;
-        }
-        return String(a.client_name || "").localeCompare(String(b.client_name || ""), "pt-BR") * dir;
-      });
-  }, [sales, filterStatus, searchTerm, dateFrom, dateTo, sortKey, sortDir]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [filterStatus, searchTerm, dateFrom, dateTo, sortKey, sortDir]);
+useEffect(() => {
+  setPage(1);
+}, [searchTerm, dateFrom, dateTo, sortKey, sortDir]);
 
   const totalPages = Math.max(1, Math.ceil(filteredBase.length / pageSize));
 
@@ -705,7 +612,6 @@ export default function AdminDashboard() {
     const total = rows.length;
     const approved = rows.filter((s) => s.status === "Aprovado");
     const refused = rows.filter((s) => s.status === "Recusado");
-
     const revenue = rows.reduce((acc, s) => acc + (Number(s.total_price) || 0), 0);
 
     const { startISO, endISO } = getTodayRangeISO();
@@ -714,10 +620,8 @@ export default function AdminDashboard() {
       return created >= startISO && created <= endISO;
     });
 
-    const todayValue = todaySales.reduce((acc, s) => acc + (Number(s.total_price) || 0), 0);
     const approvedToday = todaySales.filter((s) => s.status === "Aprovado").length;
     const refusedToday = todaySales.filter((s) => s.status === "Recusado").length;
-
     const conversion = total ? (approved.length / total) * 100 : 0;
 
     return {
@@ -726,7 +630,6 @@ export default function AdminDashboard() {
       refused: refused.length,
       revenue,
       conversion,
-      todayValue,
       approvedToday,
       refusedToday,
     };
@@ -743,22 +646,9 @@ export default function AdminDashboard() {
 
     const totalToday = todayAll.length;
     const approvedToday = todayAll.filter((s) => s.status === "Aprovado").length;
-    const refusedToday = todayAll.filter((s) => s.status === "Recusado").length;
 
-    const valueToday = todayAll.reduce((acc, s) => acc + (Number(s.total_price) || 0), 0);
-
-    return { list: todayAll, totalToday, approvedToday, refusedToday, valueToday };
+    return { list: todayAll, totalToday, approvedToday };
   }, [sales]);
-
-  const charts = useMemo(() => {
-    const pieData = [
-      { name: "Aprovadas", value: kpis.approved },
-      { name: "Recusadas", value: kpis.refused },
-    ];
-    return { pieData };
-  }, [kpis.approved, kpis.refused]);
-
-  const PIE_COLORS = ["#22c55e", "#ef4444"];
 
   const updateStatus = async (saleId: string, newStatus: string) => {
     try {
@@ -852,7 +742,7 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-20">
+    <div className="min-h-screen bg-slate-50 pb-20 font-sans text-slate-900">
       {selectedSale && (
         <ModalDetalhes
           sale={selectedSale}
@@ -863,16 +753,16 @@ export default function AdminDashboard() {
         />
       )}
 
-      <header className="bg-white border-b border-slate-200 px-6 py-4 sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
+      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white px-6 py-4">
+        <div className="mx-auto flex max-w-7xl items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="bg-black p-2 rounded-lg text-[#f2e14c]">
+            <div className="rounded-lg bg-black p-2 text-[#f2e14c]">
               <LayoutDashboard size={20} />
             </div>
             <div>
               <h1 className="text-lg font-black uppercase tracking-tight">Admin Dashboard</h1>
-              <p className="text-xs text-gray-400 font-bold">
-                WBCNAC • Torre de Controle • {todayLabel}
+              <p className="text-xs font-bold text-gray-400">
+                WBCNAC • {todayLabel}
               </p>
             </div>
           </div>
@@ -880,14 +770,14 @@ export default function AdminDashboard() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.push("/vendedor/dashboard")}
-              className="hidden md:flex text-xs font-medium text-slate-600 hover:text-black items-center gap-2 border border-slate-200 bg-slate-50 hover:bg-white px-3 py-2 rounded-md transition-all"
+              className="hidden items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600 transition-all hover:bg-white hover:text-black md:flex"
             >
               <ArrowRight size={14} /> Visão Vendedor
             </button>
-            <div className="h-6 w-px bg-slate-200 mx-1"></div>
+
             <button
               onClick={handleLogout}
-              className="text-red-600 hover:text-red-700 text-xs font-bold flex items-center gap-2 px-2"
+              className="flex items-center gap-2 px-2 text-xs font-bold text-red-600 hover:text-red-700"
             >
               <LogOut size={16} /> Sair
             </button>
@@ -895,16 +785,16 @@ export default function AdminDashboard() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-8">
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-6 mb-8">
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm md:col-span-1">
+      <main className="mx-auto max-w-7xl px-6 py-8">
+        <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">
-              <div className="p-2 bg-green-50 rounded-lg text-green-600">
+              <div className="rounded-lg bg-green-50 p-2 text-green-600">
                 <Wallet size={18} />
               </div>
               <span className="text-[10px] font-black uppercase text-slate-400">Receita</span>
             </div>
-            <p className="text-slate-500 text-xs font-bold uppercase mt-2">Total</p>
+            <p className="mt-2 text-xs font-bold uppercase text-slate-500">Total</p>
             <h3 className="text-xl font-black text-slate-900">
               {new Intl.NumberFormat("pt-BR", {
                 notation: "compact",
@@ -914,103 +804,76 @@ export default function AdminDashboard() {
             </h3>
           </div>
 
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm md:col-span-1">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">
-              <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
+              <div className="rounded-lg bg-blue-50 p-2 text-blue-600">
                 <Users size={18} />
               </div>
               <span className="text-[10px] font-black uppercase text-slate-400">Propostas</span>
             </div>
-            <p className="text-slate-500 text-xs font-bold uppercase mt-2">Total</p>
+            <p className="mt-2 text-xs font-bold uppercase text-slate-500">Total</p>
             <h3 className="text-2xl font-black text-slate-900">{kpis.total}</h3>
           </div>
 
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm md:col-span-1">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">
-              <div className="p-2 bg-purple-50 rounded-lg text-purple-600">
+              <div className="rounded-lg bg-purple-50 p-2 text-purple-600">
                 <TrendingUp size={18} />
               </div>
               <span className="text-[10px] font-black uppercase text-slate-400">Conversão</span>
             </div>
-            <p className="text-slate-500 text-xs font-bold uppercase mt-2">Aprovadas</p>
+            <p className="mt-2 text-xs font-bold uppercase text-slate-500">Aprovadas</p>
             <h3 className="text-2xl font-black text-slate-900">{kpis.conversion.toFixed(0)}%</h3>
           </div>
 
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm md:col-span-1">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">
-              <div className="p-2 bg-emerald-50 rounded-lg text-emerald-700">
+              <div className="rounded-lg bg-emerald-50 p-2 text-emerald-700">
                 <CheckCircle2 size={18} />
               </div>
               <span className="text-[10px] font-black uppercase text-slate-400">Aprovadas</span>
             </div>
-            <p className="text-slate-500 text-xs font-bold uppercase mt-2">Total</p>
+            <p className="mt-2 text-xs font-bold uppercase text-slate-500">Total</p>
             <h3 className="text-2xl font-black text-slate-900">{kpis.approved}</h3>
           </div>
 
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm md:col-span-1">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">
-              <div className="p-2 bg-red-50 rounded-lg text-red-700">
-                <XCircle size={18} />
+              <div className="rounded-lg bg-amber-50 p-2 text-amber-700">
+                <CalendarRange size={18} />
               </div>
               <span className="text-[10px] font-black uppercase text-slate-400">Hoje</span>
             </div>
-            <p className="text-slate-500 text-xs font-bold uppercase mt-2">Aprovadas</p>
-            <h3 className="text-2xl font-black text-slate-900">{kpis.approvedToday}</h3>
-            <p className="text-[11px] font-bold text-slate-500 mt-1">
-              Recusadas: <span className="text-slate-900">{kpis.refusedToday}</span>
+            <p className="mt-2 text-xs font-bold uppercase text-slate-500">Pedidos</p>
+            <h3 className="text-2xl font-black text-slate-900">{todaySection.totalToday}</h3>
+            <p className="mt-1 text-[11px] font-bold text-slate-500">
+              Aprovadas: <span className="text-slate-900">{todaySection.approvedToday}</span>
             </p>
-          </div>
-
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm md:col-span-1">
-            <p className="text-[10px] font-black uppercase text-slate-400">Distribuição</p>
-            <div className="h-[110px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Tooltip />
-                  <Pie
-                    data={charts.pieData}
-                    dataKey="value"
-                    nameKey="name"
-                    innerRadius={28}
-                    outerRadius={44}
-                    paddingAngle={2}
-                  >
-                    {charts.pieData.map((_, idx) => (
-                      <Cell key={`cell-${idx}`} fill={PIE_COLORS[idx % PIE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="mt-2 grid grid-cols-2 gap-2 text-[10px] font-bold text-slate-600">
-              <span>Aprov: {kpis.approved}</span>
-              <span>Rec: {kpis.refused}</span>
-            </div>
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden mb-8">
-          <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+        <div className="mb-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <h3 className="font-black text-slate-900 uppercase tracking-tight">Pedidos do Dia</h3>
-              <p className="text-xs text-slate-400 font-bold">
-                Exibindo somente um pedido por venda, priorizando o nome do vendedor digitado
+              <h2 className="text-sm font-black uppercase tracking-wide text-slate-900">
+                Ações rápidas
+              </h2>
+              <p className="text-xs font-medium text-slate-500">
+                Atalhos principais do painel administrativo
               </p>
             </div>
 
             <div className="flex items-center gap-2">
               <button
                 onClick={setFilterToToday}
-                className="text-xs bg-white text-slate-700 px-3 py-2 rounded-lg font-bold hover:bg-slate-50 flex items-center gap-2 border border-slate-200"
-                title="Aplicar filtro de hoje"
+                className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
               >
                 <CalendarRange size={14} /> Filtrar Hoje
               </button>
 
               <button
                 onClick={fetchSales}
-                className="text-xs bg-slate-50 text-slate-600 px-3 py-2 rounded-lg font-bold hover:bg-slate-100 flex items-center gap-2 border border-slate-200"
-                title="Atualizar"
+                className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100"
               >
                 <Loader2 size={14} className={loading ? "animate-spin" : ""} />
                 Atualizar
@@ -1018,280 +881,173 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          <div className="p-5">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                <p className="text-[10px] font-bold uppercase text-slate-500">Total Hoje</p>
-                <p className="text-2xl font-black text-slate-900">{todaySection.totalToday}</p>
-              </div>
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                <p className="text-[10px] font-bold uppercase text-slate-500">Aprovadas</p>
-                <p className="text-2xl font-black text-slate-900">{todaySection.approvedToday}</p>
-              </div>
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                <p className="text-[10px] font-bold uppercase text-slate-500">Recusadas</p>
-                <p className="text-2xl font-black text-slate-900">{todaySection.refusedToday}</p>
-              </div>
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                <p className="text-[10px] font-bold uppercase text-slate-500">Valor Hoje</p>
-                <p className="text-xl font-black text-slate-900">
-                  {new Intl.NumberFormat("pt-BR", {
-                    notation: "compact",
-                    style: "currency",
-                    currency: "BRL",
-                  }).format(todaySection.valueToday)}
-                </p>
-              </div>
-            </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-6">
 
-            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-              <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-                <div>
-                  <h4 className="text-sm font-black text-slate-800 uppercase tracking-wide">
-                    Últimos pedidos de hoje
-                  </h4>
-                </div>
-              </div>
+            <ActionCard
+              href="/vendedor/clientes-consultados"
+              icon={<Database size={18} />}
+              title="Clientes"
+              description="Ver clientes salvos após consulta de CPF"
+              tone="indigo"
+            />
 
-              {todaySection.list.length === 0 ? (
-                <div className="p-8 text-center text-slate-400 text-sm font-medium">
-                  Sem propostas por enquanto.
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left">
-                    <thead className="bg-slate-50 text-slate-500 font-semibold uppercase text-[10px] border-b border-slate-200">
-                      <tr>
-                        <th className="px-4 py-3 min-w-[180px]">Cliente</th>
-                        <th className="px-4 py-3 min-w-[220px]">Veículo</th>
-                        <th className="px-4 py-3 text-center">Status</th>
-                        <th className="px-4 py-3 text-right">Valor</th>
-                        <th className="px-4 py-3 text-right">Hora</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {todaySection.list.slice(0, 10).map((sale: any) => (
-                        <tr
-                          key={sale.id}
-                          onClick={() => openSale(sale)}
-                          className="hover:bg-slate-50 cursor-pointer"
-                        >
-                          <td className="px-4 py-3">
-                            <p className="text-xs font-bold text-slate-900 uppercase truncate max-w-[260px]">
-                              {sale.client_name}
-                            </p>
-                            <p className="text-[10px] text-slate-400 font-mono truncate max-w-[260px]">
-                              {sale.client_cpf}
-                            </p>
-                          </td>
-                          <td className="px-4 py-3">
-                            <p className="text-xs font-bold text-slate-800 truncate max-w-[320px]">
-                              {sale.car_name}
-                            </p>
-                            <p className="text-[10px] text-slate-400">
-                              Vendedor: {normalizeSellerDisplayName(sale)}
-                            </p>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <StatusBadge status={sale.status} />
-                          </td>
-                          <td className="px-4 py-3 text-right text-xs font-black text-slate-900">
-                            {formatCurrency(Number(sale.total_price) || 0)}
-                          </td>
-                          <td className="px-4 py-3 text-right text-xs font-bold text-slate-600">
-                            {new Date(sale.created_at).toLocaleTimeString("pt-BR", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+            <ActionCard
+              href="/admin/consulta-dias"
+              icon={<CalendarRange size={18} />}
+              title="Pedidos"
+              description="Filtrar desempenho por período"
+              tone="slate"
+            />
+
+            <ActionCard
+              href="/admin/alterarvalor"
+              icon={<Wallet size={18} />}
+              title="Valores"
+              description="Ajustar faixas e valores do sistema"
+              tone="amber"
+            />
+
+            <ActionCard
+              href="/admin/cars/choose-brand"
+              icon={<Plus size={18} />}
+              title="Veículo"
+              description="Adicionar ou editar veículos"
+              tone="blue"
+            />
+
+            <ActionCard
+              href="/admin/reports"
+              icon={<FileText size={18} />}
+              title="Relatórios"
+              description="Visualizar relatórios e análises"
+              tone="slate"
+            />
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6 space-y-4">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="relative w-full md:w-96">
-              <Search
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                size={18}
-              />
-              <input
-                type="text"
-                placeholder="Buscar por..."
-                className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:border-black transition-all"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
+        <div className="mb-6 space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+<div className="flex flex-col gap-3">
+  <div className="relative w-full">
+    <Search
+      className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+      size={18}
+    />
+    <input
+      type="text"
+      placeholder="Buscar cliente, veículo, vendedor ou CPF..."
+      className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-10 pr-4 text-sm font-medium transition-all focus:border-black focus:outline-none"
+      value={searchTerm}
+      onChange={(e) => setSearchTerm(e.target.value)}
+    />
+  </div>
 
-            <div className="flex gap-2 w-full md:w-auto overflow-x-auto">
-              {["TODOS", "Aprovado", "Recusado"].map((status) => (
-                <button
-                  key={status}
-                  onClick={() => setFilterStatus(status)}
-                  className={`px-4 py-2 rounded-lg text-xs font-bold uppercase whitespace-nowrap transition-all ${
-                    filterStatus === status
-                      ? "bg-black text-white"
-                      : "bg-slate-50 text-slate-500 hover:bg-slate-100"
-                  }`}
-                >
-                  {status}
-                </button>
-              ))}
-            </div>
-          </div>
+  <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+    <div className="flex w-full flex-col gap-2 md:flex-row md:flex-wrap md:items-center">
+      <div className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 md:w-auto">
+        <CalendarRange size={16} className="text-slate-400" />
+        <input
+          type="date"
+          value={dateFrom}
+          onChange={(e) => setDateFrom(e.target.value)}
+          className="bg-transparent text-xs font-bold text-slate-700 outline-none"
+          title="Data inicial"
+        />
+        <span className="text-slate-300">—</span>
+        <input
+          type="date"
+          value={dateTo}
+          onChange={(e) => setDateTo(e.target.value)}
+          className="bg-transparent text-xs font-bold text-slate-700 outline-none"
+          title="Data final"
+        />
+      </div>
 
-          <div className="flex flex-col lg:flex-row items-center justify-between gap-3">
-            <div className="flex flex-col md:flex-row items-center gap-2 w-full">
-              <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 w-full md:w-auto">
-                <CalendarRange size={16} className="text-slate-400" />
-                <input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  className="bg-transparent text-xs font-bold text-slate-700 outline-none"
-                  title="Data inicial"
-                />
-                <span className="text-slate-300">—</span>
-                <input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  className="bg-transparent text-xs font-bold text-slate-700 outline-none"
-                  title="Data final"
-                />
-              </div>
+      {(dateFrom || dateTo) && (
+        <button
+          onClick={() => {
+            setDateFrom("");
+            setDateTo("");
+          }}
+          className="text-xs font-bold text-slate-500 underline decoration-dotted underline-offset-4 hover:text-black"
+        >
+          Limpar datas
+        </button>
+      )}
 
-              {(dateFrom || dateTo) && (
-                <button
-                  onClick={() => {
-                    setDateFrom("");
-                    setDateTo("");
-                  }}
-                  className="text-xs font-bold text-slate-500 hover:text-black underline decoration-dotted underline-offset-4"
-                >
-                  Limpar datas
-                </button>
-              )}
+      <button
+        onClick={() => toggleSort("created_at")}
+        className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold uppercase ${
+          sortKey === "created_at"
+            ? "border-black bg-black text-white"
+            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+        }`}
+      >
+        <ArrowUpDown size={14} /> Data {sortKey === "created_at" ? `(${sortDir})` : ""}
+      </button>
 
-              <button
-                onClick={() => toggleSort("created_at")}
-                className={`px-3 py-2 rounded-lg text-xs font-bold uppercase border flex items-center gap-2 w-full md:w-auto justify-center ${
-                  sortKey === "created_at"
-                    ? "bg-black text-white border-black"
-                    : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-                }`}
-              >
-                <ArrowUpDown size={14} /> Data {sortKey === "created_at" ? `(${sortDir})` : ""}
-              </button>
+      <button
+        onClick={() => toggleSort("total_price")}
+        className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold uppercase ${
+          sortKey === "total_price"
+            ? "border-black bg-black text-white"
+            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+        }`}
+      >
+        <ArrowUpDown size={14} /> Valor {sortKey === "total_price" ? `(${sortDir})` : ""}
+      </button>
 
-              <button
-                onClick={() => toggleSort("total_price")}
-                className={`px-3 py-2 rounded-lg text-xs font-bold uppercase border flex items-center gap-2 w-full md:w-auto justify-center ${
-                  sortKey === "total_price"
-                    ? "bg-black text-white border-black"
-                    : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-                }`}
-              >
-                <ArrowUpDown size={14} /> Valor {sortKey === "total_price" ? `(${sortDir})` : ""}
-              </button>
-
-              <button
-                onClick={() => toggleSort("client_name")}
-                className={`px-3 py-2 rounded-lg text-xs font-bold uppercase border flex items-center gap-2 w-full md:w-auto justify-center ${
-                  sortKey === "client_name"
-                    ? "bg-black text-white border-black"
-                    : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-                }`}
-              >
-                <ArrowUpDown size={14} /> Cliente {sortKey === "client_name" ? `(${sortDir})` : ""}
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2 w-full lg:w-auto justify-end flex-wrap">
-              <button
-                onClick={fetchSales}
-                className="text-xs bg-slate-50 text-slate-600 px-3 py-2 rounded-lg font-bold hover:bg-slate-100 flex items-center gap-2 border border-slate-200 w-full lg:w-auto justify-center"
-                title="Atualizar"
-              >
-                <Loader2 size={14} className={loading ? "animate-spin" : ""} />
-                Atualizar
-              </button>
-
-              <Link
-                href="/admin/consulta-dias"
-                className="text-xs bg-indigo-50 text-indigo-700 px-3 py-2 rounded-lg font-bold hover:bg-indigo-100 flex items-center gap-2 border border-indigo-100 w-full lg:w-auto justify-center"
-              >
-                <CalendarRange size={14} /> Consulta Dias
-              </Link>
-
-              <Link
-                href="/admin/alterarvalor"
-                className="text-xs bg-amber-50 text-amber-700 px-3 py-2 rounded-lg font-bold hover:bg-amber-100 flex items-center gap-2 border border-amber-100 w-full lg:w-auto justify-center"
-              >
-                <Wallet size={14} /> Valores
-              </Link>
-
-              <Link
-                href="/admin/cars/choose-brand"
-                className="text-xs bg-blue-50 text-blue-600 px-3 py-2 rounded-lg font-bold hover:bg-blue-100 flex items-center gap-2 border border-blue-100 w-full lg:w-auto justify-center"
-              >
-                <Plus size={14} /> Veículo
-              </Link>
-
-              <Link
-                href="/admin/reports"
-                className="text-xs bg-white text-slate-700 px-3 py-2 rounded-lg font-bold hover:bg-slate-50 flex items-center gap-2 border border-slate-200 w-full lg:w-auto justify-center"
-              >
-                <FileText size={14} /> Relatórios
-              </Link>
-            </div>
-          </div>
+      <button
+        onClick={() => toggleSort("client_name")}
+        className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold uppercase ${
+          sortKey === "client_name"
+            ? "border-black bg-black text-white"
+            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+        }`}
+      >
+        <ArrowUpDown size={14} /> Cliente {sortKey === "client_name" ? `(${sortDir})` : ""}
+      </button>
+    </div>
+  </div>
+</div>
 
           {selectedIds.size > 0 && (
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col md:flex-row items-center justify-between gap-3">
+            <div className="flex flex-col items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 md:flex-row">
               <div className="text-xs font-black uppercase text-slate-600">
                 Selecionados: <span className="text-slate-900">{selectedIds.size}</span>
               </div>
 
-              <div className="flex flex-wrap gap-2 justify-end">
+              <div className="flex flex-wrap justify-end gap-2">
                 <button
                   onClick={selectAllOnPage}
-                  className="px-3 py-2 rounded-lg text-xs font-bold uppercase border border-slate-200 bg-white hover:bg-slate-50"
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold uppercase hover:bg-slate-50"
                 >
                   Selecionar página
                 </button>
 
                 <button
                   onClick={() => bulkUpdate("Aprovado")}
-                  className="px-3 py-2 rounded-lg text-xs font-bold uppercase bg-green-600 text-white hover:bg-green-700"
+                  className="rounded-lg bg-green-600 px-3 py-2 text-xs font-bold uppercase text-white hover:bg-green-700"
                 >
                   Aprovar lote
                 </button>
 
                 <button
                   onClick={() => bulkUpdate("Recusado")}
-                  className="px-3 py-2 rounded-lg text-xs font-bold uppercase bg-red-600 text-white hover:bg-red-700"
+                  className="rounded-lg bg-red-600 px-3 py-2 text-xs font-bold uppercase text-white hover:bg-red-700"
                 >
                   Recusar lote
                 </button>
 
                 <button
                   onClick={bulkDelete}
-                  className="px-3 py-2 rounded-lg text-xs font-bold uppercase bg-slate-900 text-white hover:bg-black"
+                  className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold uppercase text-white hover:bg-black"
                 >
                   Excluir lote
                 </button>
 
                 <button
                   onClick={clearSelection}
-                  className="px-3 py-2 rounded-lg text-xs font-bold uppercase text-slate-600 hover:text-black underline decoration-dotted underline-offset-4"
+                  className="text-xs font-bold uppercase text-slate-600 underline decoration-dotted underline-offset-4 hover:text-black"
                 >
                   Limpar seleção
                 </button>
@@ -1300,205 +1056,323 @@ export default function AdminDashboard() {
           )}
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-          <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <h3 className="font-bold text-slate-800">Transações</h3>
+        <div className="mb-8 rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-slate-100 p-4">
+            <div>
+              <h3 className="text-sm font-black uppercase tracking-wide text-slate-900">
+                Pedidos do Dia
+              </h3>
+              <p className="text-xs text-slate-500">
+                {todaySection.totalToday} pedidos hoje
+              </p>
             </div>
           </div>
 
-          {loading ? (
-            <div className="p-12 flex flex-col items-center justify-center text-slate-400">
-              <Loader2 className="animate-spin mb-2" size={32} />
-              <p className="text-xs font-bold uppercase">Carregando...</p>
-            </div>
-          ) : filteredBase.length === 0 ? (
-            <div className="p-12 text-center text-slate-400">
-              <p className="text-sm font-medium">Nenhuma proposta encontrada.</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className="bg-slate-50 text-slate-500 font-semibold uppercase text-xs border-b border-slate-200">
-                  <tr>
-                    <th className="px-6 py-4 w-[40px] text-center">Sel.</th>
-                    <th className="px-6 py-4 min-w-[200px]">Cliente</th>
-                    <th className="px-6 py-4 min-w-[220px]">Veículo</th>
-                    <th className="px-6 py-4 text-center">Status</th>
-                    <th className="px-6 py-4 text-right">Valor</th>
-                    <th className="px-6 py-4 text-right">Ações</th>
-                  </tr>
-                </thead>
+          <div className="p-4">
+            <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-[10px] font-bold uppercase text-slate-500">Total Hoje</p>
+                <p className="text-2xl font-black text-slate-900">{todaySection.totalToday}</p>
+              </div>
 
-                <tbody className="divide-y divide-slate-100">
-                  {filteredSales.map((sale) => {
-                    const checked = selectedIds.has(sale.id);
-                    const waDigits = toWhatsDigits(sale.client_phone);
-                    const sellerDisplayName = normalizeSellerDisplayName(sale);
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-[10px] font-bold uppercase text-slate-500">Aprovadas</p>
+                <p className="text-2xl font-black text-slate-900">{todaySection.approvedToday}</p>
+              </div>
 
-                    return (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-[10px] font-bold uppercase text-slate-500">Receita Filtrada</p>
+                <p className="text-xl font-black text-slate-900">
+                  {new Intl.NumberFormat("pt-BR", {
+                    notation: "compact",
+                    style: "currency",
+                    currency: "BRL",
+                  }).format(kpis.revenue)}
+                </p>
+              </div>
+            </div>
+
+            {todaySection.list.length === 0 ? (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-8 text-center text-sm font-medium text-slate-400">
+                Sem propostas por enquanto.
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-xl border border-slate-200">
+                <table className="w-full text-left">
+                  <thead className="border-b border-slate-200 bg-slate-50 text-[10px] font-semibold uppercase text-slate-500">
+                    <tr>
+                      <th className="min-w-[180px] px-4 py-3">Cliente</th>
+                      <th className="min-w-[220px] px-4 py-3">Veículo</th>
+                      <th className="px-4 py-3 text-center">Status</th>
+                      <th className="px-4 py-3 text-right">Valor</th>
+                      <th className="px-4 py-3 text-right">Hora</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {todaySection.list.slice(0, 10).map((sale: any) => (
                       <tr
                         key={sale.id}
                         onClick={() => openSale(sale)}
-                        className="hover:bg-slate-50 transition-colors group cursor-pointer"
+                        className="cursor-pointer hover:bg-slate-50"
                       >
-                        <td className="px-6 py-4 text-center" onClick={(e) => e.stopPropagation()}>
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => toggleSelect(sale.id)}
-                            className="w-4 h-4 accent-black"
-                          />
+                        <td className="px-4 py-3">
+                          <p className="max-w-[260px] truncate text-xs font-bold uppercase text-slate-900">
+                            {sale.client_name}
+                          </p>
+                          <p className="max-w-[260px] truncate font-mono text-[10px] text-slate-400">
+                            {sale.client_cpf}
+                          </p>
                         </td>
-
-                        <td className="px-6 py-4">
-                          <p className="text-sm font-bold text-slate-900 uppercase">{sale.client_name}</p>
-                          <div className="flex items-center gap-1 text-[10px] text-slate-400 mt-1">
-                            <span className="font-mono">{sale.client_cpf}</span>
-                            {waDigits && (
-                              <a
-                                href={`https://wa.me/${waDigits}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="text-green-600 hover:text-green-800 ml-2"
-                                title="WhatsApp"
-                              >
-                                <Phone size={12} />
-                              </a>
-                            )}
-                          </div>
+                        <td className="px-4 py-3">
+                          <p className="max-w-[320px] truncate text-xs font-bold text-slate-800">
+                            {sale.car_name}
+                          </p>
+                          <p className="text-[10px] text-slate-400">
+                            Vendedor: {normalizeSellerDisplayName(sale)}
+                          </p>
                         </td>
-
-                        <td className="px-6 py-4 text-slate-600 text-xs font-medium">
-                          <div className="flex flex-col">
-                            <span className="font-bold text-slate-800">{sale.car_name}</span>
-                            <span className="text-[9px] text-slate-400">
-                              Vendedor: {sellerDisplayName}
-                            </span>
-                            <span className="text-[9px] text-slate-400">
-                              Criado: {new Date(sale.created_at).toLocaleDateString("pt-BR")}{" "}
-                              {new Date(sale.created_at).toLocaleTimeString("pt-BR", {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                            </span>
-                          </div>
-                        </td>
-
-                        <td className="px-6 py-4 text-center">
+                        <td className="px-4 py-3 text-center">
                           <StatusBadge status={sale.status} />
                         </td>
-
-                        <td className="px-6 py-4 text-right font-bold text-slate-800 text-sm">
+                        <td className="px-4 py-3 text-right text-xs font-black text-slate-900">
                           {formatCurrency(Number(sale.total_price) || 0)}
                         </td>
-
-                        <td className="px-6 py-4 text-right">
-                          <div className="flex items-center justify-end gap-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openSale(sale);
-                              }}
-                              className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-all border border-blue-100"
-                              title="Ver Detalhes"
-                            >
-                              <Eye size={14} />
-                            </button>
-
-                            {sale.status !== "Aprovado" && (
-                              <button
-                                onClick={async (e) => {
-                                  e.stopPropagation();
-                                  if (!confirm("Aprovar esta proposta?")) return;
-                                  await updateStatus(sale.id, "Aprovado");
-                                }}
-                                disabled={isUpdating === sale.id}
-                                className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 hover:scale-110 transition-all border border-green-100"
-                                title="Aprovar"
-                              >
-                                {isUpdating === sale.id ? (
-                                  <Loader2 size={14} className="animate-spin" />
-                                ) : (
-                                  <Check size={14} />
-                                )}
-                              </button>
-                            )}
-
-                            {sale.status !== "Recusado" && (
-                              <button
-                                onClick={async (e) => {
-                                  e.stopPropagation();
-                                  if (!confirm("Recusar esta proposta?")) return;
-                                  await updateStatus(sale.id, "Recusado");
-                                }}
-                                disabled={isUpdating === sale.id}
-                                className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 hover:scale-110 transition-all border border-red-100"
-                                title="Recusar"
-                              >
-                                {isUpdating === sale.id ? (
-                                  <Loader2 size={14} className="animate-spin" />
-                                ) : (
-                                  <XCircle size={14} />
-                                )}
-                              </button>
-                            )}
-
-                            <button
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                if (!confirm("Excluir esta transação permanentemente?")) return;
-                                await deleteSale(sale.id);
-                              }}
-                              disabled={isDeleting === sale.id}
-                              className="p-2 bg-slate-100 text-slate-400 rounded-lg hover:bg-red-50 hover:text-red-500 transition-colors"
-                              title="Excluir"
-                            >
-                              {isDeleting === sale.id ? (
-                                <Loader2 size={14} className="animate-spin" />
-                              ) : (
-                                <Trash2 size={14} />
-                              )}
-                            </button>
-                          </div>
+                        <td className="px-4 py-3 text-right text-xs font-bold text-slate-600">
+                          {new Date(sale.created_at).toLocaleTimeString("pt-BR", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
                         </td>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {!loading && filteredBase.length > 0 && (
-            <div className="p-4 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between gap-3">
-              <div className="text-[11px] text-slate-400 font-bold">
-                Mostrando{" "}
-                <span className="text-slate-800">
-                  {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, filteredBase.length)}
-                </span>{" "}
-                de <span className="text-slate-800">{filteredBase.length}</span>
+                    ))}
+                  </tbody>
+                </table>
               </div>
+            )}
+          </div>
+        </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                  className="px-3 py-2 rounded-lg text-xs font-bold uppercase border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40"
-                >
-                  Anterior
-                </button>
-
-                <button
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
-                  className="px-3 py-2 rounded-lg text-xs font-bold uppercase border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40"
-                >
-                  Próxima
-                </button>
-              </div>
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <button
+            onClick={() => setTransactionsExpanded((v) => !v)}
+            className="flex w-full items-center justify-between border-b border-slate-100 p-4 text-left"
+          >
+            <div>
+              <h3 className="font-bold text-slate-800">Transações</h3>
+              <p className="text-xs text-slate-500">
+                {filteredBase.length} resultado(s)
+              </p>
             </div>
+
+            <div className="flex items-center gap-2 text-slate-500">
+              <span className="text-xs font-bold uppercase">
+                {transactionsExpanded ? "Recolher" : "Expandir"}
+              </span>
+              {transactionsExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+            </div>
+          </button>
+
+          {transactionsExpanded && (
+            <>
+              {loading ? (
+                <div className="flex flex-col items-center justify-center p-12 text-slate-400">
+                  <Loader2 className="mb-2 animate-spin" size={32} />
+                  <p className="text-xs font-bold uppercase">Carregando...</p>
+                </div>
+              ) : filteredBase.length === 0 ? (
+                <div className="p-12 text-center text-slate-400">
+                  <p className="text-sm font-medium">Nenhuma proposta encontrada.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase text-slate-500">
+                      <tr>
+                        <th className="w-[40px] px-6 py-4 text-center">Sel.</th>
+                        <th className="min-w-[200px] px-6 py-4">Cliente</th>
+                        <th className="min-w-[220px] px-6 py-4">Veículo</th>
+                        <th className="px-6 py-4 text-center">Status</th>
+                        <th className="px-6 py-4 text-right">Valor</th>
+                        <th className="px-6 py-4 text-right">Ações</th>
+                      </tr>
+                    </thead>
+
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredSales.map((sale) => {
+                        const checked = selectedIds.has(sale.id);
+                        const waDigits = toWhatsDigits(sale.client_phone);
+                        const sellerDisplayName = normalizeSellerDisplayName(sale);
+
+                        return (
+                          <tr
+                            key={sale.id}
+                            onClick={() => openSale(sale)}
+                            className="group cursor-pointer transition-colors hover:bg-slate-50"
+                          >
+                            <td
+                              className="px-6 py-4 text-center"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggleSelect(sale.id)}
+                                className="h-4 w-4 accent-black"
+                              />
+                            </td>
+
+                            <td className="px-6 py-4">
+                              <p className="text-sm font-bold uppercase text-slate-900">
+                                {sale.client_name}
+                              </p>
+                              <div className="mt-1 flex items-center gap-1 text-[10px] text-slate-400">
+                                <span className="font-mono">{sale.client_cpf}</span>
+                                {waDigits && (
+                                  <a
+                                    href={`https://wa.me/${waDigits}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="ml-2 text-green-600 hover:text-green-800"
+                                    title="WhatsApp"
+                                  >
+                                    <Phone size={12} />
+                                  </a>
+                                )}
+                              </div>
+                            </td>
+
+                            <td className="px-6 py-4 text-xs font-medium text-slate-600">
+                              <div className="flex flex-col">
+                                <span className="font-bold text-slate-800">{sale.car_name}</span>
+                                <span className="text-[9px] text-slate-400">
+                                  Vendedor: {sellerDisplayName}
+                                </span>
+                                <span className="text-[9px] text-slate-400">
+                                  {new Date(sale.created_at).toLocaleDateString("pt-BR")}{" "}
+                                  {new Date(sale.created_at).toLocaleTimeString("pt-BR", {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
+                                </span>
+                              </div>
+                            </td>
+
+                            <td className="px-6 py-4 text-center">
+                              <StatusBadge status={sale.status} />
+                            </td>
+
+                            <td className="px-6 py-4 text-right text-sm font-bold text-slate-800">
+                              {formatCurrency(Number(sale.total_price) || 0)}
+                            </td>
+
+                            <td className="px-6 py-4 text-right">
+                              <div className="flex items-center justify-end gap-2 opacity-100 transition-opacity md:opacity-0 group-hover:opacity-100">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openSale(sale);
+                                  }}
+                                  className="rounded-lg border border-blue-100 bg-blue-50 p-2 text-blue-600 transition-all hover:bg-blue-100"
+                                  title="Ver Detalhes"
+                                >
+                                  <Eye size={14} />
+                                </button>
+
+                                {sale.status !== "Aprovado" && (
+                                  <button
+                                    onClick={async (e) => {
+                                      e.stopPropagation();
+                                      if (!confirm("Aprovar esta proposta?")) return;
+                                      await updateStatus(sale.id, "Aprovado");
+                                    }}
+                                    disabled={isUpdating === sale.id}
+                                    className="rounded-lg border border-green-100 bg-green-50 p-2 text-green-600 transition-all hover:bg-green-100"
+                                    title="Aprovar"
+                                  >
+                                    {isUpdating === sale.id ? (
+                                      <Loader2 size={14} className="animate-spin" />
+                                    ) : (
+                                      <Check size={14} />
+                                    )}
+                                  </button>
+                                )}
+
+                                {sale.status !== "Recusado" && (
+                                  <button
+                                    onClick={async (e) => {
+                                      e.stopPropagation();
+                                      if (!confirm("Recusar esta proposta?")) return;
+                                      await updateStatus(sale.id, "Recusado");
+                                    }}
+                                    disabled={isUpdating === sale.id}
+                                    className="rounded-lg border border-red-100 bg-red-50 p-2 text-red-600 transition-all hover:bg-red-100"
+                                    title="Recusar"
+                                  >
+                                    {isUpdating === sale.id ? (
+                                      <Loader2 size={14} className="animate-spin" />
+                                    ) : (
+                                      <XCircle size={14} />
+                                    )}
+                                  </button>
+                                )}
+
+                                <button
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    if (!confirm("Excluir esta transação permanentemente?")) return;
+                                    await deleteSale(sale.id);
+                                  }}
+                                  disabled={isDeleting === sale.id}
+                                  className="rounded-lg bg-slate-100 p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500"
+                                  title="Excluir"
+                                >
+                                  {isDeleting === sale.id ? (
+                                    <Loader2 size={14} className="animate-spin" />
+                                  ) : (
+                                    <Trash2 size={14} />
+                                  )}
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {!loading && filteredBase.length > 0 && (
+                <div className="flex flex-col items-center justify-between gap-3 border-t border-slate-100 p-4 md:flex-row">
+                  <div className="text-[11px] font-bold text-slate-400">
+                    Mostrando{" "}
+                    <span className="text-slate-800">
+                      {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, filteredBase.length)}
+                    </span>{" "}
+                    de <span className="text-slate-800">{filteredBase.length}</span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page === 1}
+                      className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold uppercase text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+                    >
+                      Anterior
+                    </button>
+
+                    <button
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={page === totalPages}
+                      className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold uppercase text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+                    >
+                      Próxima
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </main>
