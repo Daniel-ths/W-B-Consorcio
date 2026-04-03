@@ -12,7 +12,6 @@ import {
   RefreshCw,
   QrCode,
   ShieldCheck,
-  MessageSquare,
   AlertTriangle,
 } from "lucide-react";
 
@@ -85,19 +84,6 @@ const safeNumber = (v: any) => {
 
 const BEST_BID_TEXT = "MELHOR MOMENTO PARA OFERTAR LANCE: ENTRE 7X E 8X PARCELA.";
 
-function makeSmsSafe(raw: string, maxLen = 150) {
-  const ascii = String(raw || "")
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, "");
-
-  const clean = ascii
-    .replace(/\r\n/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-
-  return clean.length > maxLen ? clean.slice(0, maxLen) : clean;
-}
 
 function PedidoContent() {
   const router = useRouter();
@@ -295,15 +281,13 @@ function PedidoContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const SMS_TESTE = (nome: string, protocolo: string, aprovador: string) => {
-    return `Parabéns, ${nome}!🎉 Seu CPF foi aprovado e você está mais perto de conquistar seu carro novo.
-Seja bem vindo!`;
-  };
 
-  const consultarCpf = async () => {
+  const consultarCpf = async (options?: { silent?: boolean }) => {
+    const silent = !!options?.silent;
+
     if (!dados.cpf) {
-      alert("Informe/Envie um CPF para consultar.");
-      return;
+      if (!silent) alert("Informe/Envie um CPF para consultar.");
+      return { ok: false as const, data: null };
     }
 
     setVerificando(true);
@@ -330,12 +314,17 @@ Seja bem vindo!`;
         if (nomeApi) setNomeManual(nomeApi);
         else if (!nomeManual && dados.nome) setNomeManual(dados.nome);
 
-        alert("✅ CPF consultado e dados preenchidos!");
-      } else {
+        if (!silent) alert("✅ CPF consultado e dados preenchidos!");
+        return { ok: true as const, data };
+      }
+
+      if (!silent) {
         alert(`❌ ${data?.error || data?.message || "Erro ao buscar dados"}`);
       }
+      return { ok: false as const, data: null };
     } catch (error) {
-      alert("Erro de conexão.");
+      if (!silent) alert("Erro de conexão.");
+      return { ok: false as const, data: null };
     } finally {
       setLoadingValidacao(false);
       setVerificando(false);
@@ -355,52 +344,6 @@ Seja bem vindo!`;
 
   const cpfIsRegular = String(situacaoReceita || "PENDENTE").toUpperCase() === "REGULAR";
 
-  async function enviarSms(nomeCliente: string) {
-    if (!telefoneDigits) {
-      alert(
-        "📵 Telefone inválido/ausente. Ele deve vir da página anterior como +55DDDNÚMERO (ex: +5591999999999)."
-      );
-      return false;
-    }
-
-    console.log("[sms] telefoneDigits:", telefoneDigits, "len:", telefoneDigits.length);
-
-    const protocolo = numeroPedido || "------";
-    const rawMessage = SMS_TESTE(nomeCliente || "cliente", protocolo, aprovadorNome || "");
-    const message = makeSmsSafe(rawMessage, 150);
-
-    try {
-      const resp = await fetch("/api/sms/enviar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          number: telefoneDigits,
-          message,
-          user_reply: true,
-        }),
-      });
-
-      const text = await resp.text();
-      let json: any = null;
-      try {
-        json = text ? JSON.parse(text) : null;
-      } catch {}
-
-      if (!resp.ok || json?.error) {
-        console.warn("[sms] HTTP:", resp.status);
-        console.warn("[sms] body:", json ?? text);
-        alert(`❌ SMS falhou (${resp.status}): ${json?.message || text || "sem resposta"}`);
-        return false;
-      }
-
-      console.log("[sms] ok:", json ?? text);
-      return true;
-    } catch (err) {
-      alert("❌ Erro de rede no envio do SMS");
-      console.warn("[sms] erro de rede:", err);
-      return false;
-    }
-  }
 
   const salvarNoBanco = async () => {
     if (!nomeManual) {
@@ -480,15 +423,20 @@ Seja bem vindo!`;
 
     setLoadingEnviar(true);
     try {
+      const cpfConsultado = await consultarCpf({ silent: true });
+
+      if (!cpfConsultado.ok && !nomeManual && !dados.nome) {
+        alert("Não foi possível consultar o CPF e também não há nome disponível para concluir a análise.");
+        return;
+      }
+
       const saved = await salvarNoBanco();
       if (!saved.ok) return;
 
-      const okSms = await enviarSms(nomeManual || dados.nome || "cliente");
-
-      if (okSms) {
-        alert(`✅ Pedido aprovado no painel + SMS enviado! (${saved.vendedor || "vendedor"})`);
+      if (!cpfConsultado.ok) {
+        alert(`✅ Análise concluída. Pedido aprovado no painel! Dados do CPF não puderam ser atualizados agora. (${saved.vendedor || "vendedor"})`);
       } else {
-        alert(`✅ Pedido aprovado no painel. (SMS falhou) (${saved.vendedor || "vendedor"})`);
+        alert(`✅ Análise concluída. CPF consultado, dados preenchidos e pedido aprovado no painel! (${saved.vendedor || "vendedor"})`);
       }
 
       setPedidoSalvo(true);
@@ -521,14 +469,14 @@ Seja bem vindo!`;
                 onClick={handleEnviarParaAnalise}
                 disabled={loadingEnviar}
                 className="bg-[#f2e14c] text-black px-4 py-2.5 rounded-lg text-xs font-black uppercase hover:bg-[#ffe600] flex items-center gap-2 shadow-lg shadow-yellow-400/20 transition-all hover:scale-105 active:scale-95"
-                title="Salva no painel como APROVADO. Envia SMS."
+                title="Salva no painel como APROVADO."
               >
                 {loadingEnviar ? <Loader2 className="animate-spin" size={16} /> : <Send size={16} />}
-                <span className="md:inline">{loadingEnviar ? "Enviando..." : "Enviar p/ análise"}</span>
+                <span className="md:inline">{loadingEnviar ? "Analisando..." : "Enviar p/ análise"}</span>
               </button>
             ) : (
               <div className="bg-green-500/10 text-green-500 px-4 py-2.5 rounded-lg text-xs font-black uppercase flex items-center gap-2 border border-green-500/20 animate-in fade-in zoom-in">
-                <CheckCircle2 size={16} /> Enviado
+                <CheckCircle2 size={16} /> Aprovado
               </div>
             )}
           </div>
@@ -621,6 +569,57 @@ Seja bem vindo!`;
           </div>
 
           <div className="p-6 md:p-10 space-y-8 flex-1 relative z-10">
+            {(loadingEnviar || pedidoSalvo) && (
+              <div
+                className={`print:hidden relative overflow-hidden rounded-3xl border-2 p-6 md:p-8 shadow-lg ${
+                  loadingEnviar
+                    ? "border-amber-300 bg-gradient-to-br from-amber-50 via-white to-yellow-100"
+                    : "border-green-300 bg-gradient-to-br from-green-50 via-white to-emerald-100"
+                }`}
+              >
+                <div className={`absolute -right-10 -top-10 rounded-full ${loadingEnviar ? "w-40 h-40 bg-amber-500/10" : "w-40 h-40 bg-green-500/10"}`} />
+                <div className={`absolute -left-10 -bottom-10 rounded-full ${loadingEnviar ? "w-32 h-32 bg-yellow-500/10" : "w-32 h-32 bg-emerald-500/10"}`} />
+
+                <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <div>
+                    <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white text-[11px] font-black uppercase shadow-sm ${loadingEnviar ? "border border-amber-200 text-amber-700" : "border border-green-200 text-green-700"}`}>
+                      {loadingEnviar ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                      {loadingEnviar ? "Análise em andamento" : "Resultado da análise"}
+                    </div>
+
+                    <h2 className={`mt-4 text-3xl md:text-5xl font-black uppercase tracking-tight leading-none ${loadingEnviar ? "text-amber-700" : "text-green-700"}`}>
+                      {loadingEnviar ? "Analisando..." : "Aprovado"}
+                    </h2>
+
+                    <p className="mt-3 text-sm md:text-base font-bold uppercase tracking-wide text-zinc-700">
+                      {loadingEnviar
+                        ? "Aguarde só um instante enquanto finalizamos a análise."
+                        : "Análise concluída com sucesso e proposta aprovada."}
+                    </p>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <span className={`text-[11px] font-black uppercase px-3 py-1.5 rounded-full ${loadingEnviar ? "bg-amber-600 text-white" : "bg-green-600 text-white"}`}>
+                        {loadingEnviar ? "Status: analisando" : "Status: aprovado"}
+                      </span>
+                      <span className="text-[11px] font-black uppercase px-3 py-1.5 rounded-full border border-zinc-200 bg-white text-zinc-700">
+                        Protocolo #{numeroPedido || "------"}
+                      </span>
+                      {!loadingEnviar ? (
+                        <span className="text-[11px] font-black uppercase px-3 py-1.5 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700">
+                          SMS desativado
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="md:text-right">
+                    <div className={`inline-flex items-center justify-center w-20 h-20 rounded-full text-white shadow-xl ${loadingEnviar ? "bg-amber-500" : "bg-green-600"}`}>
+                      {loadingEnviar ? <Loader2 className="animate-spin" size={36} /> : <CheckCircle2 size={40} />}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b border-black pb-2">
                 <h3 className="text-sm font-black uppercase flex items-center gap-2">
@@ -630,14 +629,6 @@ Seja bem vindo!`;
                   Identificação do Cliente
                 </h3>
 
-                <button
-                  onClick={consultarCpf}
-                  disabled={verificando}
-                  className="print:hidden text-[10px] font-bold text-zinc-800 hover:text-black flex items-center gap-1 uppercase bg-zinc-100 px-2 py-1 rounded-full border border-zinc-200"
-                >
-                  {verificando ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}
-                  {verificando ? "..." : "Consultar CPF"}
-                </button>
               </div>
 
               {!pedidoSalvo ? (
@@ -645,7 +636,7 @@ Seja bem vindo!`;
                   onClick={handleEnviarParaAnalise}
                   disabled={loadingEnviar}
                   className="print:hidden w-full group relative overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm hover:shadow-lg transition-all"
-                  title="Salva no painel como APROVADO. Envia SMS."
+                  title="Salva no painel como APROVADO."
                 >
                   <div className="absolute inset-0 bg-gradient-to-r from-[#f2e14c]/0 via-[#f2e14c]/25 to-[#f2e14c]/0 opacity-0 group-hover:opacity-100 transition-opacity" />
 
@@ -671,9 +662,6 @@ Seja bem vindo!`;
                             CPF: {String(situacaoReceita).toUpperCase()}
                           </span>
 
-                          <span className="text-[10px] font-black uppercase px-2 py-1 rounded-full border bg-zinc-50 text-zinc-700 border-zinc-200 flex items-center gap-1">
-                            <MessageSquare size={12} /> SMS
-                          </span>
                         </div>
 
                         <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -703,8 +691,22 @@ Seja bem vindo!`;
                   </div>
                 </button>
               ) : (
-                <div className="print:hidden w-full rounded-2xl p-4 border border-green-500/20 bg-green-500/10 text-green-600 flex items-center gap-2 font-black uppercase text-xs">
-                  <CheckCircle2 size={18} /> Enviado para análise
+                <div className="print:hidden w-full rounded-2xl border border-green-500/20 bg-green-500/10 p-4">
+                  <div className="flex items-center gap-2 font-black uppercase text-xs text-green-600">
+                    <CheckCircle2 size={18} /> Enviado para análise
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2">
+                    <div className="rounded-xl bg-white/80 border border-green-200 px-3 py-2 text-[11px] font-black uppercase text-green-700 text-center">
+                      APROVADO
+                    </div>
+                    <div className="rounded-xl bg-white/80 border border-zinc-200 px-3 py-2 text-[11px] font-black uppercase text-zinc-700 text-center">
+                      Protocolo #{numeroPedido || "------"}
+                    </div>
+                    <div className="rounded-xl px-3 py-2 text-[11px] font-black uppercase text-center border bg-zinc-50 text-zinc-700 border-zinc-200">
+                      SMS desativado
+                    </div>
+                  </div>
                 </div>
               )}
 
