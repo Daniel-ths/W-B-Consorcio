@@ -12,6 +12,7 @@ import {
   RefreshCw,
   QrCode,
   ShieldCheck,
+  MessageSquare,
   AlertTriangle,
 } from "lucide-react";
 
@@ -84,6 +85,27 @@ const safeNumber = (v: any) => {
 
 const BEST_BID_TEXT = "MELHOR MOMENTO PARA OFERTAR LANCE: ENTRE 7X E 8X PARCELA.";
 
+function makeSmsSafe(raw: string, maxLen = 150) {
+  const ascii = String(raw || "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, "");
+
+  const clean = ascii
+    .replace(/\r\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  return clean.length > maxLen ? clean.slice(0, maxLen) : clean;
+}
+
+function buildSmsMessage(nomeCliente: string, protocolo: string) {
+  return makeSmsSafe(
+    `Parabéns, ${nomeCliente}!🎉 Seu CPF foi aprovado e você está mais perto de conquistar seu carro novo.
+Seja bem vindo!`,
+    150
+  );
+}
 
 function PedidoContent() {
   const router = useRouter();
@@ -220,6 +242,7 @@ function PedidoContent() {
 
   const [loadingEnviar, setLoadingEnviar] = useState(false);
   const [pedidoSalvo, setPedidoSalvo] = useState(false);
+  const [smsStatus, setSmsStatus] = useState<"idle" | "success" | "failed">("idle");
 
   const [apiData, setApiData] = useState<any>(null);
   const [nomeManual, setNomeManual] = useState(dados.nome || "");
@@ -344,6 +367,41 @@ function PedidoContent() {
 
   const cpfIsRegular = String(situacaoReceita || "PENDENTE").toUpperCase() === "REGULAR";
 
+  async function enviarSms(nomeCliente: string) {
+    if (!telefoneDigits) return false;
+
+    const protocolo = numeroPedido || "------";
+    const message = buildSmsMessage(nomeCliente || "cliente", protocolo);
+
+    try {
+      const resp = await fetch("/api/sms/enviar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          number: telefoneDigits,
+          message,
+        }),
+      });
+
+      const text = await resp.text();
+      let json: any = null;
+      try {
+        json = text ? JSON.parse(text) : null;
+      } catch {}
+
+      if (!resp.ok || json?.error) {
+        console.warn("[sms] HTTP:", resp.status);
+        console.warn("[sms] body:", json ?? text);
+        return false;
+      }
+
+      console.log("[sms] ok:", json ?? text);
+      return true;
+    } catch (err) {
+      console.warn("[sms] erro de rede:", err);
+      return false;
+    }
+  }
 
   const salvarNoBanco = async () => {
     if (!nomeManual) {
@@ -422,6 +480,8 @@ function PedidoContent() {
     if (pedidoSalvo) return;
 
     setLoadingEnviar(true);
+    setSmsStatus("idle");
+
     try {
       const cpfConsultado = await consultarCpf({ silent: true });
 
@@ -433,13 +493,20 @@ function PedidoContent() {
       const saved = await salvarNoBanco();
       if (!saved.ok) return;
 
-      if (!cpfConsultado.ok) {
-        alert(`✅ Análise concluída. Pedido aprovado no painel! Dados do CPF não puderam ser atualizados agora. (${saved.vendedor || "vendedor"})`);
-      } else {
-        alert(`✅ Análise concluída. CPF consultado, dados preenchidos e pedido aprovado no painel! (${saved.vendedor || "vendedor"})`);
-      }
-
+      const nomeCliente = (nomeManual || dados.nome || "cliente").trim();
+      const okSms = await enviarSms(nomeCliente);
+      setSmsStatus(okSms ? "success" : "failed");
       setPedidoSalvo(true);
+
+      if (cpfConsultado.ok && okSms) {
+        alert(`✅ Análise concluída. CPF consultado, pedido aprovado e SMS enviado! (${saved.vendedor || "vendedor"})`);
+      } else if (cpfConsultado.ok && !okSms) {
+        alert(`✅ Análise concluída. CPF consultado e pedido aprovado no painel. SMS não foi enviado, mas a aprovação segue normalmente. (${saved.vendedor || "vendedor"})`);
+      } else if (!cpfConsultado.ok && okSms) {
+        alert(`✅ Análise concluída. Pedido aprovado no painel e SMS enviado! Dados do CPF não puderam ser atualizados agora. (${saved.vendedor || "vendedor"})`);
+      } else {
+        alert(`✅ Análise concluída. Pedido aprovado no painel. SMS não foi enviado e os dados do CPF não puderam ser atualizados agora. (${saved.vendedor || "vendedor"})`);
+      }
     } finally {
       setLoadingEnviar(false);
     }
@@ -469,14 +536,21 @@ function PedidoContent() {
                 onClick={handleEnviarParaAnalise}
                 disabled={loadingEnviar}
                 className="bg-[#f2e14c] text-black px-4 py-2.5 rounded-lg text-xs font-black uppercase hover:bg-[#ffe600] flex items-center gap-2 shadow-lg shadow-yellow-400/20 transition-all hover:scale-105 active:scale-95"
-                title="Salva no painel como APROVADO."
+                title="Salva no painel como APROVADO. Envia SMS."
               >
                 {loadingEnviar ? <Loader2 className="animate-spin" size={16} /> : <Send size={16} />}
                 <span className="md:inline">{loadingEnviar ? "Analisando..." : "Enviar p/ análise"}</span>
               </button>
             ) : (
-              <div className="bg-green-500/10 text-green-500 px-4 py-2.5 rounded-lg text-xs font-black uppercase flex items-center gap-2 border border-green-500/20 animate-in fade-in zoom-in">
-                <CheckCircle2 size={16} /> Aprovado
+              <div className="flex flex-col items-end gap-2 animate-in fade-in zoom-in">
+                <div className="bg-green-500/10 text-green-500 px-4 py-2.5 rounded-lg text-xs font-black uppercase flex items-center gap-2 border border-green-500/20">
+                  <CheckCircle2 size={16} /> Enviado
+                </div>
+                {smsStatus === "failed" ? (
+                  <div className="text-[10px] font-black uppercase px-3 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700">
+                    APROVADO MESMO SEM SMS
+                  </div>
+                ) : null}
               </div>
             )}
           </div>
@@ -605,8 +679,20 @@ function PedidoContent() {
                         Protocolo #{numeroPedido || "------"}
                       </span>
                       {!loadingEnviar ? (
-                        <span className="text-[11px] font-black uppercase px-3 py-1.5 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700">
-                          SMS desativado
+                        <span
+                          className={`text-[11px] font-black uppercase px-3 py-1.5 rounded-full border ${
+                            smsStatus === "failed"
+                              ? "border-amber-200 bg-amber-50 text-amber-700"
+                              : smsStatus === "success"
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                              : "border-zinc-200 bg-zinc-50 text-zinc-700"
+                          }`}
+                        >
+                          {smsStatus === "failed"
+                            ? "SMS indisponível"
+                            : smsStatus === "success"
+                            ? "SMS enviado"
+                            : "Processado"}
                         </span>
                       ) : null}
                     </div>
@@ -662,6 +748,9 @@ function PedidoContent() {
                             CPF: {String(situacaoReceita).toUpperCase()}
                           </span>
 
+                          <span className="text-[10px] font-black uppercase px-2 py-1 rounded-full border bg-zinc-50 text-zinc-700 border-zinc-200 flex items-center gap-1">
+                            <MessageSquare size={12} /> SMS
+                          </span>
                         </div>
 
                         <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -703,8 +792,20 @@ function PedidoContent() {
                     <div className="rounded-xl bg-white/80 border border-zinc-200 px-3 py-2 text-[11px] font-black uppercase text-zinc-700 text-center">
                       Protocolo #{numeroPedido || "------"}
                     </div>
-                    <div className="rounded-xl px-3 py-2 text-[11px] font-black uppercase text-center border bg-zinc-50 text-zinc-700 border-zinc-200">
-                      SMS desativado
+                    <div
+                      className={`rounded-xl px-3 py-2 text-[11px] font-black uppercase text-center border ${
+                        smsStatus === "failed"
+                          ? "bg-amber-50 text-amber-700 border-amber-200"
+                          : smsStatus === "success"
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          : "bg-zinc-50 text-zinc-700 border-zinc-200"
+                      }`}
+                    >
+                      {smsStatus === "failed"
+                        ? "SMS caiu, mas segue aprovado"
+                        : smsStatus === "success"
+                        ? "SMS enviado"
+                        : "Em processamento"}
                     </div>
                   </div>
                 </div>
