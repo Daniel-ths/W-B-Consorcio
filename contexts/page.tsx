@@ -15,12 +15,17 @@ import {
   AlertTriangle,
 } from "lucide-react";
 
+// --- TELEFONE FIXO +55 ---
 const PHONE_PREFIX_DISPLAY = "+55 ";
+
+// fallback caso algum fluxo ainda envie sem DDD (apenas 8/9 dígitos)
 const DEFAULT_DDD = "91";
 
-const TAXA_ADM_TOTAL_FALLBACK = 0.4346;
-const REDUZIDA_PERCENT_CATEGORIA = 0.7665;
+// regra do consórcio
+const TAXA_ADM_TOTAL_FALLBACK = 0.4346; // 43,46%
+const REDUZIDA_PERCENT_CATEGORIA = 0.7665; // 76,65%
 
+// Formata SOMENTE o número (8/9) para: 9XXXX-XXXX
 const maskPhoneBRNumber = (digitsOnly: string) => {
   const digits = String(digitsOnly || "").replace(/\D/g, "").slice(0, 9);
   if (!digits) return "";
@@ -28,6 +33,7 @@ const maskPhoneBRNumber = (digitsOnly: string) => {
   return `${digits.slice(0, 5)}-${digits.slice(5)}`;
 };
 
+// Formata para tela com DDD: "+55 DDD 9XXXX-XXXX"
 const formatPhoneForDisplay = (digitsE164: string) => {
   const digits = String(digitsE164 || "").replace(/\D/g, "");
 
@@ -42,6 +48,7 @@ const formatPhoneForDisplay = (digitsE164: string) => {
   return `${PHONE_PREFIX_DISPLAY}${ddd} ${maskPhoneBRNumber(number)}`;
 };
 
+// recebe telefone vindo como "+55..." / "55..." / "DDD+numero" / "numero" e normaliza para "55DDDNÚMERO"
 function sanitizePhoneFromOtherPage(input: string): string | null {
   if (!input) return null;
 
@@ -94,7 +101,7 @@ function makeSmsSafe(raw: string, maxLen = 150) {
 
 function buildSmsMessage(nomeCliente: string, protocolo: string) {
   return makeSmsSafe(
-    `Saudações ${nomeCliente}! Seu plano foi aceito e seu carro esta mais perto do que nunca! Agora e hora de avançar e garantir sua conquista.`,
+    `Parabéns! Seu plano foi aprovado e seu carro está mais perto do que nunca! 🚗🔥 Seja bem-vindo! Agora é hora de avançar e garantir sua conquista. Conte com a gente em cada etapa!`,
     150
   );
 }
@@ -103,6 +110,7 @@ function PedidoContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  // --- DADOS DO PEDIDO ---
   const dados = useMemo(
     () => ({
       tipo: searchParams.get("tipo") || "CONSORCIO",
@@ -124,6 +132,15 @@ function PedidoContent() {
     [searchParams.toString()]
   );
 
+  const smsOptIn = useMemo(
+    () => searchParams.get("sms_opt_in") === "1",
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [searchParams.toString()]
+  );
+
+  // =========================
+  // LANCE (vindo da página anterior)
+  // =========================
   const lanceInfo = useMemo(() => {
     const lanceValor = safeNumber(searchParams.get("lance_valor"));
     const prazoFinalStr = searchParams.get("prazo_final");
@@ -144,6 +161,9 @@ function PedidoContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams.toString()]);
 
+  // =========================
+  // PROMO DO VENDEDOR
+  // =========================
   const promo = useMemo(() => {
     const codigo = (searchParams.get("cupom_codigo") || "").trim();
     const label = (searchParams.get("cupom_label") || "").trim();
@@ -179,6 +199,9 @@ function PedidoContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams.toString()]);
 
+  // =========================
+  // RECALCULA INTEGRAL E REDUZIDA SEMPRE
+  // =========================
   const calculoConsorcio = useMemo(() => {
     const prazoBase = parseInt(dados.prazo || "0", 10) || 0;
     const prazoUsado =
@@ -204,11 +227,9 @@ function PedidoContent() {
     let desconto = 0;
     if (promo.hasPromo) {
       const base = dados.valor || 0;
-      if (promo.discountPercent > 0) {
+      if (promo.discountPercent > 0)
         desconto = (base * promo.discountPercent) / 100;
-      } else if (promo.discountValue > 0) {
-        desconto = promo.discountValue;
-      }
+      else if (promo.discountValue > 0) desconto = promo.discountValue;
       desconto = Math.max(0, Math.min(desconto, base));
     }
 
@@ -220,10 +241,12 @@ function PedidoContent() {
     };
   }, [dados, lanceInfo, promo]);
 
+  // ATO = integral
   const atoEntrada = useMemo(() => {
     return safeNumber(calculoConsorcio.parcelaIntegral);
   }, [calculoConsorcio.parcelaIntegral]);
 
+  // PARCELAMENTO = reduzida
   const parcelaReduzidaExibida = useMemo(() => {
     return safeNumber(calculoConsorcio.parcelaReduzida);
   }, [calculoConsorcio.parcelaReduzida]);
@@ -342,7 +365,7 @@ function PedidoContent() {
         alert(`❌ ${data?.error || data?.message || "Erro ao buscar dados"}`);
       }
       return { ok: false as const, data: null };
-    } catch {
+    } catch (error) {
       if (!silent) alert("Erro de conexão.");
       return { ok: false as const, data: null };
     } finally {
@@ -355,8 +378,7 @@ function PedidoContent() {
     apiData?.situacao ||
     apiData?.response?.content?.nome?.conteudo?.situacao_receita ||
     "PENDENTE";
-  const dataNascimento =
-    apiData?.nascimento || apiData?.data_nascimento || "---";
+  const dataNascimento = apiData?.nascimento || apiData?.data_nascimento || "---";
   const nomeMae = apiData?.mae || apiData?.nome_mae || "---";
 
   const enderecoComplexo =
@@ -367,43 +389,48 @@ function PedidoContent() {
   const cpfIsRegular =
     String(situacaoReceita || "PENDENTE").toUpperCase() === "REGULAR";
 
-async function enviarSms(nomeCliente: string) {
-  if (!telefoneDigits) return false;
+  async function enviarSms(nomeCliente: string) {
+    if (!telefoneDigits) return false;
 
-  const protocolo = numeroPedido || "------";
-  const message = buildSmsMessage(nomeCliente || "cliente", protocolo);
-
-  try {
-    const resp = await fetch("/api/sms/enviar", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        number: telefoneDigits,
-        message,
-        messageType: "transactional",
-        optIn: true,
-      }),
-    });
-
-    const text = await resp.text();
-    let json: any = null;
-    try {
-      json = text ? JSON.parse(text) : null;
-    } catch {}
-
-    if (!resp.ok || json?.error) {
-      console.warn("[sms] HTTP:", resp.status);
-      console.warn("[sms] body:", json ?? text);
+    if (!smsOptIn) {
+      console.warn("[sms] não enviado: cliente sem consentimento registrado");
       return false;
     }
 
-    console.log("[sms] ok:", json ?? text);
-    return true;
-  } catch (err) {
-    console.warn("[sms] erro de rede:", err);
-    return false;
+    const protocolo = numeroPedido || "------";
+    const message = buildSmsMessage(nomeCliente || "cliente", protocolo);
+
+    try {
+      const resp = await fetch("/api/sms/enviar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          number: telefoneDigits,
+          message,
+          messageType: "transactional",
+          optIn: smsOptIn,
+        }),
+      });
+
+      const text = await resp.text();
+      let json: any = null;
+      try {
+        json = text ? JSON.parse(text) : null;
+      } catch {}
+
+      if (!resp.ok || json?.error) {
+        console.warn("[sms] HTTP:", resp.status);
+        console.warn("[sms] body:", json ?? text);
+        return false;
+      }
+
+      console.log("[sms] ok:", json ?? text);
+      return true;
+    } catch (err) {
+      console.warn("[sms] erro de rede:", err);
+      return false;
+    }
   }
-}
 
   const salvarNoBanco = async () => {
     if (!nomeManual) {
@@ -479,51 +506,54 @@ async function enviarSms(nomeCliente: string) {
   };
 
   const handleEnviarParaAnalise = async () => {
-  if (pedidoSalvo) return;
+    if (pedidoSalvo) return;
 
-  setLoadingEnviar(true);
-  setSmsStatus("idle");
+    setLoadingEnviar(true);
+    setSmsStatus("idle");
 
-  try {
-    const cpfConsultado = await consultarCpf({ silent: true });
+    try {
+      const cpfConsultado = await consultarCpf({ silent: true });
 
-    if (!cpfConsultado.ok && !nomeManual && !dados.nome) {
-      alert(
-        "Não foi possível consultar o CPF e também não há nome disponível para concluir a análise."
-      );
-      return;
+      if (!cpfConsultado.ok && !nomeManual && !dados.nome) {
+        alert(
+          "Não foi possível consultar o CPF e também não há nome disponível para concluir a análise."
+        );
+        return;
+      }
+
+      const saved = await salvarNoBanco();
+      if (!saved.ok) return;
+
+      const nomeCliente = (nomeManual || dados.nome || "cliente").trim();
+      const okSms = await enviarSms(nomeCliente);
+      setSmsStatus(okSms ? "success" : "failed");
+      setPedidoSalvo(true);
+
+      const smsFalhaTexto = smsOptIn
+        ? "SMS não foi enviado, mas a aprovação segue normalmente."
+        : "SMS não foi enviado porque não há consentimento registrado, mas a aprovação segue normalmente.";
+
+      if (cpfConsultado.ok && okSms) {
+        alert(
+          `✅ Análise concluída. CPF consultado, pedido aprovado e SMS enviado! (${saved.vendedor || "vendedor"})`
+        );
+      } else if (cpfConsultado.ok && !okSms) {
+        alert(
+          `✅ Análise concluída. CPF consultado e pedido aprovado no painel. ${smsFalhaTexto} (${saved.vendedor || "vendedor"})`
+        );
+      } else if (!cpfConsultado.ok && okSms) {
+        alert(
+          `✅ Análise concluída. Pedido aprovado no painel e SMS enviado! Dados do CPF não puderam ser atualizados agora. (${saved.vendedor || "vendedor"})`
+        );
+      } else {
+        alert(
+          `✅ Análise concluída. Pedido aprovado no painel. ${smsFalhaTexto} Dados do CPF não puderam ser atualizados agora. (${saved.vendedor || "vendedor"})`
+        );
+      }
+    } finally {
+      setLoadingEnviar(false);
     }
-
-    const saved = await salvarNoBanco();
-    if (!saved.ok) return;
-
-    const nomeCliente = (nomeManual || dados.nome || "cliente").trim();
-    const okSms = await enviarSms(nomeCliente);
-
-    setSmsStatus(okSms ? "success" : "failed");
-    setPedidoSalvo(true);
-
-    if (cpfConsultado.ok && okSms) {
-      alert(
-        `✅ Análise concluída. CPF consultado, pedido aprovado e SMS enviado! (${saved.vendedor || "vendedor"})`
-      );
-    } else if (cpfConsultado.ok && !okSms) {
-      alert(
-        `✅ Análise concluída. CPF consultado e pedido aprovado no painel. SMS não foi enviado, mas a aprovação segue normalmente. (${saved.vendedor || "vendedor"})`
-      );
-    } else if (!cpfConsultado.ok && okSms) {
-      alert(
-        `✅ Análise concluída. Pedido aprovado no painel e SMS enviado! Dados do CPF não puderam ser atualizados agora. (${saved.vendedor || "vendedor"})`
-      );
-    } else {
-      alert(
-        `✅ Análise concluída. Pedido aprovado no painel. SMS não foi enviado e os dados do CPF não puderam ser atualizados agora. (${saved.vendedor || "vendedor"})`
-      );
-    }
-  } finally {
-    setLoadingEnviar(false);
-  }
-};
+  };
 
   return (
     <div className="min-h-screen bg-zinc-100 font-sans text-zinc-900 pb-32 md:pb-20 print:bg-white print:p-0">
@@ -551,7 +581,7 @@ async function enviarSms(nomeCliente: string) {
                 onClick={handleEnviarParaAnalise}
                 disabled={loadingEnviar}
                 className="bg-[#f2e14c] text-black px-4 py-2.5 rounded-lg text-xs font-black uppercase hover:bg-[#ffe600] flex items-center gap-2 shadow-lg shadow-yellow-400/20 transition-all hover:scale-105 active:scale-95"
-                title="Salva no painel como APROVADO e tenta enviar SMS."
+                title="Salva no painel como APROVADO. Envia SMS se houver consentimento."
               >
                 {loadingEnviar ? (
                   <Loader2 className="animate-spin" size={16} />
@@ -749,7 +779,9 @@ async function enviarSms(nomeCliente: string) {
                           }`}
                         >
                           {smsStatus === "failed"
-                            ? "SMS indisponível"
+                            ? smsOptIn
+                              ? "SMS indisponível"
+                              : "SMS não enviado"
                             : smsStatus === "success"
                             ? "SMS enviado"
                             : "Processado"}
@@ -774,7 +806,6 @@ async function enviarSms(nomeCliente: string) {
                 </div>
               </div>
             )}
-
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b border-black pb-2">
                 <h3 className="text-sm font-black uppercase flex items-center gap-2">
@@ -790,7 +821,7 @@ async function enviarSms(nomeCliente: string) {
                   onClick={handleEnviarParaAnalise}
                   disabled={loadingEnviar}
                   className="print:hidden w-full group relative overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm hover:shadow-lg transition-all"
-                  title="Salva no painel como APROVADO e tenta enviar SMS."
+                  title="Salva no painel como APROVADO. Envia SMS se houver consentimento."
                 >
                   <div className="absolute inset-0 bg-gradient-to-r from-[#f2e14c]/0 via-[#f2e14c]/25 to-[#f2e14c]/0 opacity-0 group-hover:opacity-100 transition-opacity" />
 
@@ -822,6 +853,18 @@ async function enviarSms(nomeCliente: string) {
 
                           <span className="text-[10px] font-black uppercase px-2 py-1 rounded-full border bg-zinc-50 text-zinc-700 border-zinc-200 flex items-center gap-1">
                             <MessageSquare size={12} /> SMS
+                          </span>
+
+                          <span
+                            className={`text-[10px] font-black uppercase px-2 py-1 rounded-full border ${
+                              smsOptIn
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                : "bg-amber-50 text-amber-700 border-amber-200"
+                            }`}
+                          >
+                            {smsOptIn
+                              ? "Consentimento SMS"
+                              : "Sem consentimento SMS"}
                           </span>
                         </div>
 
@@ -874,12 +917,23 @@ async function enviarSms(nomeCliente: string) {
                       }`}
                     >
                       {smsStatus === "failed"
-                        ? "SMS caiu, mas segue aprovado"
+                        ? smsOptIn
+                          ? "SMS caiu, mas segue aprovado"
+                          : "Sem consentimento para SMS"
                         : smsStatus === "success"
                         ? "SMS enviado"
                         : "Em processamento"}
                     </div>
                   </div>
+                </div>
+              )}
+
+              {!cpfIsRegular && (
+                <div className="print:hidden flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-100">
+                  <AlertTriangle size={16} className="text-amber-700 mt-0.5" />
+                  <p className="text-[11px] font-bold text-amber-800 uppercase leading-snug">
+                    CPF com pendência ou situação diferente de regular.
+                  </p>
                 </div>
               )}
 
@@ -983,8 +1037,8 @@ async function enviarSms(nomeCliente: string) {
                   <div className="w-full md:w-32 h-32 md:h-20 bg-white rounded-lg border border-zinc-200 flex items-center justify-center p-2 print:hidden overflow-hidden">
                     <img
                       src={dados.imagem}
-                      alt="Imagem do veículo"
                       className="w-full h-full object-contain mix-blend-multiply"
+                      alt="Veículo"
                     />
                   </div>
                 )}

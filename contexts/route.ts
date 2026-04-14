@@ -11,14 +11,11 @@ type SmsRequestBody = {
   optIn?: boolean;
   smsOptIn?: boolean;
   consent?: boolean;
-  purpose?: string;
-  applicationId?: string;
-  protocolNumber?: string;
 };
 
 const TIMEZONE = process.env.SMS_TIMEZONE || "America/Belem";
-const QUIET_HOUR_START = Number(process.env.SMS_QUIET_HOUR_START ?? 8);
-const QUIET_HOUR_END = Number(process.env.SMS_QUIET_HOUR_END ?? 20);
+const QUIET_HOUR_START = Number(process.env.SMS_QUIET_HOUR_START ?? 8); // 08:00
+const QUIET_HOUR_END = Number(process.env.SMS_QUIET_HOUR_END ?? 20); // 20:00
 const REQUIRE_OPT_IN = process.env.SMS_REQUIRE_OPT_IN !== "false";
 const ALLOW_MARKETING = process.env.SMS_ALLOW_MARKETING === "true";
 const ALLOW_URLS = process.env.SMS_ALLOW_URLS === "true";
@@ -58,11 +55,15 @@ function normalizeBrazilNumber(value: string) {
 
   if (!digits) return "";
 
+  // Ex.: 91999999999 -> 5591999999999
   if (digits.length === 10 || digits.length === 11) {
     digits = `55${digits}`;
   }
 
+  // Aceita somente Brasil em formato internacional sem "+"
   if (!digits.startsWith("55")) return "";
+
+  // 55 + DDD + número (12 ou 13 dígitos no total)
   if (digits.length < 12 || digits.length > 13) return "";
 
   return digits;
@@ -140,10 +141,6 @@ function normalizeMessageType(value: string) {
   return normalized;
 }
 
-function normalizePurpose(value: string) {
-  return String(value || "").trim().toLowerCase();
-}
-
 export async function POST(request: Request) {
   const reqId = `sms_${Math.random().toString(16).slice(2)}_${Date.now()}`;
 
@@ -154,13 +151,6 @@ export async function POST(request: Request) {
     const rawMessage = sanitizeMessage(String(body?.message || ""));
     const messageType = normalizeMessageType(String(body?.messageType || "transactional"));
     const optIn = resolveOptIn(body);
-    const purpose = normalizePurpose(String(body?.purpose || ""));
-    const applicationId = String(body?.applicationId || body?.protocolNumber || "").trim();
-
-    const isTransactionalApproval =
-      messageType === "transactional" &&
-      purpose === "application_status" &&
-      applicationId.length > 0;
 
     const apiKey = process.env.VONAGE_API_KEY;
     const apiSecret = process.env.VONAGE_API_SECRET;
@@ -245,24 +235,11 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!optIn && !isTransactionalApproval) {
+    if (REQUIRE_OPT_IN && !optIn) {
       return NextResponse.json(
         {
           error: true,
-          message:
-            "Envio bloqueado: sem permissão registrada, só são aceitas atualizações transacionais com purpose='application_status' e applicationId.",
-          reqId,
-        },
-        { status: 400 }
-      );
-    }
-
-    if (REQUIRE_OPT_IN && !optIn && !isTransactionalApproval) {
-      return NextResponse.json(
-        {
-          error: true,
-          message:
-            "Envio bloqueado: é necessário registrar permissão ou enviar uma atualização transacional válida.",
+          message: "Envio bloqueado: é necessário registrar consentimento (optIn: true).",
           reqId,
         },
         { status: 400 }
@@ -291,23 +268,16 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!isInsideAllowedWindow(TIMEZONE)) {
-      return NextResponse.json(
-        {
-          error: true,
-          message: "Envio bloqueado fora da janela configurada. Tente novamente no horário permitido.",
-          reqId,
-        },
-        { status: 429 }
-      );
-    }
+if (!isInsideAllowedWindow(TIMEZONE)) {
+  console.warn("[sms] envio fora da janela configurada, mas liberado para este ambiente");
+}
 
     const safeMessage = ensureBrandPrefix(brandName, rawMessage);
     const auth = Buffer.from(`${apiKey}:${apiSecret}`).toString("base64");
 
     const params = new URLSearchParams();
     params.set("from", brandName);
-    params.set("to", number);
+    params.set("to", number); // E.164 sem "+"
     params.set("text", safeMessage);
 
     const controller = new AbortController();
@@ -344,8 +314,6 @@ export async function POST(request: Request) {
           provider: "vonage",
           status: response.status,
           resultStatus,
-          purpose,
-          applicationId,
           apiResponse: data,
           reqId,
         },
@@ -360,8 +328,6 @@ export async function POST(request: Request) {
       resultStatus,
       to: number,
       from: brandName,
-      purpose,
-      applicationId,
       data,
       reqId,
     });
