@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 
-type BrandKey = "chevrolet" | "hyundai";
+type BrandKey = "chevrolet" | "hyundai" | "fiat" | "volkswagen";
 type Brand = { key: BrandKey; name: string; logo: string; disabled?: boolean };
 
 export default function ChooseBrandPage() {
@@ -26,6 +26,16 @@ export default function ChooseBrandPage() {
         key: "hyundai",
         name: "Hyundai",
         logo: "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/avatars/580b585b2edbce24c47b2c77.png",
+      },
+      {
+        key: "fiat",
+        name: "Fiat",
+        logo: "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/avatars/fiat_logo_icon_145827.png",
+      },
+      {
+        key: "volkswagen",
+        name: "Volkswagen",
+        logo: "https://upload.wikimedia.org/wikipedia/commons/6/6d/Volkswagen_logo_2019.svg",
       },
     ],
     []
@@ -64,9 +74,11 @@ export default function ChooseBrandPage() {
     const onKeyDown = (e: KeyboardEvent) => {
       if (entering) return;
 
-      if (e.key === "1") go(brands[0]);
-      if (e.key === "2") go(brands[1]);
-      if (e.key === "Enter") go(brands[0]);
+      if (e.key === "1" && brands[0]) go(brands[0]);
+      if (e.key === "2" && brands[1]) go(brands[1]);
+      if (e.key === "3" && brands[2]) go(brands[2]);
+      if (e.key === "4" && brands[3]) go(brands[3]);
+      if (e.key === "Enter" && brands[0]) go(brands[0]);
     };
 
     window.addEventListener("keydown", onKeyDown);
@@ -89,25 +101,25 @@ export default function ChooseBrandPage() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_35%,rgba(0,0,0,0.10)_100%)] dark:bg-[radial-gradient(circle_at_center,transparent_25%,rgba(0,0,0,0.55)_100%)]" />
       </div>
 
-<div className="fixed bottom-4 left-4 z-[60] sm:bottom-6 sm:left-6">
-  <button
-    type="button"
-    onClick={goToConsultaCpf}
-    aria-label="Abrir consulta de CPF"
-    className="group flex h-12 w-12 items-center overflow-hidden rounded-full border border-zinc-200/70 bg-white/90 text-zinc-900 shadow-lg backdrop-blur-md transition-all duration-300 hover:w-[220px] hover:border-zinc-300 dark:border-white/10 dark:bg-zinc-900/85 dark:text-white dark:hover:border-white/20"
-  >
-    <div className="flex h-12 w-12 min-w-12 items-center justify-center">
-      <Search className="h-5 w-5" />
-    </div>
+      <div className="fixed bottom-4 left-4 z-[60] sm:bottom-6 sm:left-6">
+        <button
+          type="button"
+          onClick={goToConsultaCpf}
+          aria-label="Abrir consulta de CPF"
+          className="group flex h-12 w-12 items-center overflow-hidden rounded-full border border-zinc-200/70 bg-white/90 text-zinc-900 shadow-lg backdrop-blur-md transition-all duration-300 hover:w-[220px] hover:border-zinc-300 dark:border-white/10 dark:bg-zinc-900/85 dark:text-white dark:hover:border-white/20"
+        >
+          <div className="flex h-12 w-12 min-w-12 items-center justify-center">
+            <Search className="h-5 w-5" />
+          </div>
 
-    <span className="pr-5 text-sm font-semibold whitespace-nowrap opacity-0 max-w-0 overflow-hidden transition-all duration-300 group-hover:opacity-100 group-hover:max-w-[160px]">
-      Consulta de CPF
-    </span>
-  </button>
-</div>
+          <span className="pr-5 text-sm font-semibold whitespace-nowrap opacity-0 max-w-0 overflow-hidden transition-all duration-300 group-hover:opacity-100 group-hover:max-w-[160px]">
+            Consulta de CPF
+          </span>
+        </button>
+      </div>
 
       <div className="relative z-10 flex h-full w-full items-center justify-center px-4 py-6 sm:px-6 sm:py-8">
-        <div className="w-full max-w-lg sm:max-w-xl md:max-w-4xl">
+        <div className="w-full max-w-lg sm:max-w-xl md:max-w-6xl">
           <div className="mb-8 text-center sm:mb-10">
             <div className="inline-flex items-center gap-2 rounded-full border border-zinc-200/70 bg-white/70 px-3 py-1 backdrop-blur dark:border-white/10 dark:bg-white/5">
               <span className="h-1.5 w-1.5 rounded-full bg-zinc-900/70 dark:bg-white/70" />
@@ -152,7 +164,13 @@ export default function ChooseBrandPage() {
                         src={b.logo}
                         alt={b.name}
                         className={`w-auto object-contain ${
-                          b.key === "hyundai" ? "h-8 sm:h-9" : "h-7 sm:h-8"
+                          b.key === "hyundai"
+                            ? "h-8 sm:h-9"
+                            : b.key === "volkswagen"
+                            ? "h-9 sm:h-10"
+                            : b.key === "fiat"
+                            ? "h-7 sm:h-8"
+                            : "h-7 sm:h-8"
                         }`}
                       />
                     </div>
@@ -192,7 +210,13 @@ export default function ChooseBrandPage() {
                 <img
                   src={entering.logo}
                   alt={entering.name}
-                  className="h-8 w-auto object-contain sm:h-10"
+                  className={`w-auto object-contain ${
+                    entering.key === "volkswagen"
+                      ? "h-10 sm:h-12"
+                      : entering.key === "hyundai"
+                      ? "h-8 sm:h-10"
+                      : "h-8 sm:h-10"
+                  }`}
                 />
               </div>
             )}

@@ -1,9 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Building2, CarFront, ChevronLeft } from "lucide-react";
+import {
+  ArrowRight,
+  Building2,
+  CarFront,
+  ChevronLeft,
+} from "lucide-react";
 
-type BrandKey = "chevrolet" | "hyundai";
+type BrandKey = "chevrolet" | "hyundai" | "fiat" | "volkswagen";
 
 const BRAND_UI: Record<
   BrandKey,
@@ -30,20 +35,35 @@ const BRAND_UI: Record<
     accent: "from-sky-500 to-cyan-500",
     icon: Building2,
     tag: "Site Hyundai",
-
-    // ✅ rota correta
     href: "/admin/cars/hyundai/new",
+  },
+  fiat: {
+    title: "Fiat",
+    subtitle: "Cadastrar veículos, versões, cores, kits e acessórios da Fiat",
+    accent: "from-red-500 to-rose-600",
+    icon: CarFront,
+    tag: "Site Fiat",
+    href: "/admin/cars/fiat/new",
+  },
+  volkswagen: {
+    title: "Volkswagen",
+    subtitle:
+      "Cadastrar veículos, versões, cores e configurações da Volkswagen",
+    accent: "from-blue-800 to-cyan-500",
+    icon: Building2,
+    tag: "Site Volkswagen",
+    href: "/admin/cars/volkswagen/new",
   },
 };
 
 export default function ChooseBrandToCreateCar() {
   return (
-    <div className="min-h-screen bg-slate-50 pt-24 pb-24 px-4">
-      <div className="max-w-4xl mx-auto">
-        <div className="flex items-center justify-between gap-3 mb-8">
+    <div className="min-h-screen bg-slate-50 px-4 pb-24 pt-24">
+      <div className="mx-auto max-w-5xl">
+        <div className="mb-8 flex items-center justify-between gap-3">
           <Link
             href="/admin"
-            className="inline-flex items-center gap-2 text-xs font-bold uppercase text-slate-600 hover:text-black"
+            className="inline-flex items-center gap-2 text-xs font-bold uppercase text-slate-600 transition hover:text-black"
           >
             <ChevronLeft size={16} />
             Voltar
@@ -59,8 +79,8 @@ export default function ChooseBrandToCreateCar() {
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {(Object.keys(BRAND_UI) as BrandKey[]).map((brand) => {
               const b = BRAND_UI[brand];
               const Icon = b.icon;
@@ -69,29 +89,29 @@ export default function ChooseBrandToCreateCar() {
                 <Link
                   key={brand}
                   href={b.href}
-                  className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 hover:shadow-md transition-all"
+                  className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 transition-all hover:-translate-y-0.5 hover:shadow-md"
                 >
                   <div
-                    className={`absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity bg-gradient-to-br ${b.accent}`}
+                    className={`absolute inset-0 bg-gradient-to-br opacity-0 transition-opacity group-hover:opacity-10 ${b.accent}`}
                   />
 
                   <div className="relative flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase border border-slate-200 bg-slate-50 text-slate-700">
+                      <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[10px] font-black uppercase text-slate-700">
                         {b.tag}
                       </span>
 
-                      <h2 className="mt-3 text-lg font-black text-slate-900 flex items-center gap-2">
+                      <h2 className="mt-3 flex items-center gap-2 text-lg font-black text-slate-900">
                         <Icon size={18} />
                         {b.title}
                       </h2>
 
-                      <p className="text-sm text-slate-500 mt-1">
+                      <p className="mt-1 text-sm text-slate-500">
                         {b.subtitle}
                       </p>
                     </div>
 
-                    <div className="shrink-0 w-10 h-10 rounded-xl border border-slate-200 bg-white flex items-center justify-center text-slate-700 group-hover:bg-black group-hover:text-white group-hover:border-black transition-all">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition-all group-hover:border-black group-hover:bg-black group-hover:text-white">
                       <ArrowRight size={18} />
                     </div>
                   </div>
@@ -105,7 +125,7 @@ export default function ChooseBrandToCreateCar() {
             })}
           </div>
 
-          <div className="mt-6 text-[12px] text-slate-500 font-medium">
+          <div className="mt-6 text-[12px] font-medium text-slate-500">
             Dica: se existir conteúdo antigo sem marca, ele é tratado como{" "}
             <span className="font-black text-slate-900">Chevrolet</span>.
           </div>
