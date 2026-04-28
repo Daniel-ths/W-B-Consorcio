@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
+import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import {
   Menu,
@@ -13,6 +15,14 @@ import {
   Facebook,
   Instagram,
   Youtube,
+  X,
+  Phone,
+  LayoutDashboard,
+  LogOut,
+  ShieldCheck,
+  CarFront,
+  LogIn,
+  Search,
 } from "lucide-react";
 
 type FiatCategory =
@@ -75,6 +85,12 @@ const FIAT_IMAGES = {
     "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/avatars/BANNERS%20FIAT/logo_footer_hub_fiat.svg",
 };
 
+
+const LOGO_SIDEBAR =
+  "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/parceirologo.png";
+
+const CONSULTA_CLIENTE_LINK = "/vendedor/consulta-cliente";
+
 const fiatCategories: FiatCategory[] = [
   "TODOS",
   "PASSEIO",
@@ -118,6 +134,110 @@ const fallbackVehicles: Vehicle[] = [
     categories: ["TODOS", "PICAPES", "UTILITÁRIOS"],
   },
 ];
+
+const fiatCategoryBySlug: Record<string, FiatCategory[]> = {
+  // PASSEIO
+  mobi: ["TODOS", "PASSEIO"],
+  argo: ["TODOS", "PASSEIO"],
+  cronos: ["TODOS", "PASSEIO"],
+  "e500": ["TODOS", "ELÉTRICOS"],
+
+  // SUV
+  pulse: ["TODOS", "SUV"],
+  "pulse-hybrid": ["TODOS", "SUV", "HÍBRIDOS"],
+  fastback: ["TODOS", "SUV"],
+  "fastback-hybrid": ["TODOS", "SUV", "HÍBRIDOS"],
+
+  // ESPORTIVOS
+  abarth: ["TODOS", "ESPORTIVOS"],
+  "pulse-abarth": ["TODOS", "SUV", "ESPORTIVOS"],
+  "fastback-abarth": ["TODOS", "SUV", "ESPORTIVOS"],
+
+  // PICAPES
+  strada: ["TODOS", "PICAPES", "UTILITÁRIOS"],
+  toro: ["TODOS", "PICAPES"],
+  titano: ["TODOS", "PICAPES", "UTILITÁRIOS"],
+
+  // UTILITÁRIOS
+  fiorino: ["TODOS", "UTILITÁRIOS"],
+  ducato: ["TODOS", "UTILITÁRIOS"],
+  scudo: ["TODOS", "UTILITÁRIOS"],
+  "e-scudo": ["TODOS", "UTILITÁRIOS", "ELÉTRICOS"],
+};
+
+function normalizeText(value: string) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function uniqueCategories(categories: FiatCategory[]) {
+  return Array.from(new Set(categories));
+}
+
+function getVehicleCategories(slug: string, name: string): FiatCategory[] {
+  const normalizedSlug = normalizeText(slug);
+  const normalizedName = normalizeText(name);
+  const search = `${normalizedSlug} ${normalizedName}`;
+
+  const exact = fiatCategoryBySlug[normalizedSlug];
+  if (exact?.length) return exact;
+
+  const partial = Object.entries(fiatCategoryBySlug).find(([key]) =>
+    search.includes(normalizeText(key))
+  );
+
+  if (partial?.[1]?.length) return partial[1];
+
+  const categories: FiatCategory[] = ["TODOS"];
+
+  if (search.includes("hybrid") || search.includes("hibrido")) {
+    categories.push("HÍBRIDOS");
+  }
+
+  if (search.includes("eletric") || search.includes("500e") || search.includes("e-scudo")) {
+    categories.push("ELÉTRICOS");
+  }
+
+  if (search.includes("abarth") || search.includes("sport")) {
+    categories.push("ESPORTIVOS");
+  }
+
+  if (
+    search.includes("pulse") ||
+    search.includes("fastback") ||
+    search.includes("suv")
+  ) {
+    categories.push("SUV");
+  }
+
+  if (
+    search.includes("strada") ||
+    search.includes("toro") ||
+    search.includes("titano") ||
+    search.includes("picape")
+  ) {
+    categories.push("PICAPES");
+  }
+
+  if (
+    search.includes("fiorino") ||
+    search.includes("ducato") ||
+    search.includes("scudo") ||
+    search.includes("utilitario") ||
+    search.includes("cargo")
+  ) {
+    categories.push("UTILITÁRIOS");
+  }
+
+  if (categories.length === 1) {
+    categories.push("PASSEIO");
+  }
+
+  return uniqueCategories(categories);
+}
 
 const opportunities = [
   {
@@ -200,8 +320,413 @@ function mapVehicleFromDb(row: VehicleRow): Vehicle {
     slug: row.slug,
     name: row.model_name,
     image: row.catalog_cover_url || row.image_url || "",
-    categories: ["TODOS"],
+    categories: getVehicleCategories(row.slug, row.model_name),
   };
+}
+
+
+function FiatNavbar() {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [fullName, setFullName] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState("");
+
+  const router = useRouter();
+  const pathname = usePathname();
+  const currentUserIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [pathname]);
+
+  const fetchProfile = async (userId: string) => {
+    try {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name, avatar_url, role")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (profile) {
+        setFullName(profile.full_name || "");
+        setAvatarUrl(profile.avatar_url || "");
+        setUserRole(profile.role || "vendedor");
+      }
+    } catch {
+      // mantém a navbar funcionando mesmo se o perfil não carregar
+    }
+  };
+
+  useEffect(() => {
+    let mounted = true;
+
+    const init = async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        const u = session?.user ?? null;
+        if (!mounted) return;
+
+        setUser(u);
+        currentUserIdRef.current = u?.id ?? null;
+        setLoading(false);
+
+        if (u?.id) {
+          void fetchProfile(u.id);
+        } else {
+          setFullName("");
+          setAvatarUrl("");
+          setUserRole(null);
+        }
+      } catch {
+        if (!mounted) return;
+        setLoading(false);
+      }
+    };
+
+    init();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(
+      (_event: AuthChangeEvent, session: Session | null) => {
+        if (!mounted) return;
+
+        const u = session?.user ?? null;
+        setUser(u);
+
+        const newId = u?.id ?? null;
+        const prevId = currentUserIdRef.current;
+
+        currentUserIdRef.current = newId;
+        setLoading(false);
+
+        if (!newId) {
+          setFullName("");
+          setAvatarUrl("");
+          setUserRole(null);
+          return;
+        }
+
+        if (newId !== prevId) {
+          void fetchProfile(newId);
+        }
+      }
+    );
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+    } finally {
+      setUser(null);
+      setFullName("");
+      setAvatarUrl("");
+      setUserRole(null);
+      currentUserIdRef.current = null;
+      setSidebarOpen(false);
+      router.push("/login");
+      router.refresh();
+    }
+  };
+
+  const role = (userRole || "").toLowerCase();
+  const email = (user?.email || "").toLowerCase();
+
+  const isAdmin = role === "admin" || email.includes("admin");
+  const isSupervisor = role === "supervisor" || email.startsWith("s");
+
+  const dashboardLink = isAdmin
+    ? "/admin"
+    : isSupervisor
+    ? "/supervisor/dashboard"
+    : "/vendedor/dashboard";
+
+  const dashboardLabel = isAdmin
+    ? "Painel Gerencial"
+    : isSupervisor
+    ? "Painel do Supervisor"
+    : "Painel do Vendedor";
+
+  const consultaClienteLink = isSupervisor
+    ? "/supervisor/consultar-cliente"
+    : CONSULTA_CLIENTE_LINK;
+
+  const dashboardIcon = isAdmin ? (
+    <ShieldCheck size={16} />
+  ) : (
+    <LayoutDashboard size={16} />
+  );
+
+  const displayName = fullName || user?.email?.split("@")[0];
+
+  return (
+    <>
+      <nav className="fixed top-0 z-[1001] flex h-16 w-full items-center justify-between border-b border-white/10 bg-black px-4 font-sans shadow-sm transition-all md:px-6">
+        <div className="flex h-full items-center">
+          <Link href="/fiat" className="flex h-full items-center">
+            <img
+              src={FIAT_IMAGES.logo}
+              alt="Fiat"
+              className="h-[28px] w-auto object-contain transition-opacity hover:opacity-80 md:h-[32px]"
+            />
+          </Link>
+        </div>
+
+        <div className="flex h-full items-center">
+          <div className="hidden h-full items-center lg:flex">
+            {loading ? (
+              <div className="mx-4 h-8 w-8 animate-pulse rounded-full bg-white/20" />
+            ) : user ? (
+              <div className="group relative flex h-full items-center border-l border-white/20 px-3">
+                <button
+                  className="flex h-full min-w-[96px] items-center justify-center gap-2 text-white"
+                  type="button"
+                >
+                  <div
+                    className={`flex h-8 w-8 items-center justify-center overflow-hidden rounded-full text-sm font-bold ${
+                      isAdmin ? "bg-white text-black" : "bg-white/10 text-white"
+                    }`}
+                  >
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
+                    ) : (
+                      <User size={16} />
+                    )}
+                  </div>
+
+                  <div className="text-left">
+                    <p className="mb-0.5 text-[9px] font-bold uppercase leading-none text-white/45">
+                      Fiat ID
+                    </p>
+                    <p className="max-w-[95px] truncate text-[11px] font-black uppercase leading-none text-white">
+                      {displayName}
+                    </p>
+                  </div>
+
+                  <ChevronDown size={14} className="text-white/45" />
+                </button>
+
+                <div className="invisible absolute right-0 top-full mt-3 w-64 translate-y-2 rounded-2xl border border-gray-100 bg-white p-2 opacity-0 shadow-xl transition-all duration-200 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
+                  <div className="mb-2 rounded-xl bg-gray-50 p-3">
+                    <p className="truncate text-xs font-bold text-gray-900">{displayName}</p>
+                    <p className="truncate text-[10px] text-gray-500">{user.email}</p>
+                  </div>
+
+                  <Link
+                    href={dashboardLink}
+                    className="flex items-center gap-3 rounded-lg px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 hover:text-black"
+                  >
+                    {dashboardIcon} {dashboardLabel}
+                  </Link>
+
+                  <Link
+                    href="/profile"
+                    className="flex items-center gap-3 rounded-lg px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 hover:text-black"
+                  >
+                    <User size={16} /> Meus Dados
+                  </Link>
+
+                  <Link
+                    href={consultaClienteLink}
+                    className="flex items-center gap-3 rounded-lg px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 hover:text-black"
+                  >
+                    <Search size={16} /> Consulta de Cliente
+                  </Link>
+
+                  <div className="my-1 h-px bg-gray-100" />
+
+                  <button
+                    onClick={handleLogout}
+                    className="flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-xs font-bold text-red-600 hover:bg-red-50"
+                    type="button"
+                  >
+                    <LogOut size={16} /> Sair
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <Link
+                href="/login"
+                className="flex h-full min-w-[84px] flex-col items-center justify-center border-l border-white/20 px-3 text-white transition hover:bg-white/10"
+              >
+                <User className="h-[15px] w-[15px]" />
+                <span className="mt-1 text-[9px] font-bold uppercase tracking-wide">
+                  Entrar
+                </span>
+              </Link>
+            )}
+          </div>
+
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="flex h-full min-w-[64px] flex-col items-center justify-center border-l border-white/20 px-3 text-white transition hover:bg-white/10"
+            aria-label="Abrir Menu"
+            type="button"
+          >
+            <Menu className="h-[16px] w-[16px]" />
+            <span className="mt-1 text-[9px] font-bold uppercase tracking-wide">
+              Menu
+            </span>
+          </button>
+        </div>
+      </nav>
+
+      <div
+        className={`fixed inset-0 z-[2000] bg-black/60 backdrop-blur-sm transition-opacity duration-500 ${
+          sidebarOpen ? "visible opacity-100" : "invisible opacity-0"
+        }`}
+        onClick={() => setSidebarOpen(false)}
+      />
+
+      <div
+        className={`fixed right-0 top-0 z-[2001] flex h-full w-[85%] max-w-[320px] flex-col bg-white shadow-2xl transition-transform duration-500 ease-out ${
+          sidebarOpen ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
+        <div className="flex h-20 items-center justify-between border-b border-gray-100 p-6">
+          <img src={FIAT_IMAGES.logo} alt="Fiat" className="h-8 w-auto object-contain" />
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="rounded-full bg-gray-50 p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-black"
+            type="button"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="flex-1 space-y-8 overflow-y-auto px-6 py-6">
+          <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
+            {loading ? (
+              <div className="h-20 animate-pulse rounded-xl bg-gray-200" />
+            ) : user ? (
+              <>
+                <div className="mb-4 flex items-center gap-3">
+                  <div
+                    className={`flex h-10 w-10 items-center justify-center overflow-hidden rounded-full text-sm font-bold ${
+                      isAdmin
+                        ? "bg-black text-[#f2e14c]"
+                        : "border border-gray-200 bg-white text-gray-600"
+                    }`}
+                  >
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
+                    ) : (
+                      <User size={18} />
+                    )}
+                  </div>
+                  <div>
+                    <p className="max-w-[150px] truncate text-xs font-bold text-gray-900">
+                      {displayName}
+                    </p>
+                    <p className="max-w-[150px] truncate text-[10px] text-gray-500">{user.email}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <Link
+                    href={dashboardLink}
+                    onClick={() => setSidebarOpen(false)}
+                    className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 transition-colors hover:border-black"
+                  >
+                    {isAdmin ? <ShieldCheck size={14} /> : <LayoutDashboard size={14} />}
+                    {dashboardLabel}
+                  </Link>
+
+                  <Link
+                    href="/profile"
+                    onClick={() => setSidebarOpen(false)}
+                    className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 transition-colors hover:border-black"
+                  >
+                    <User size={14} /> Meus Dados
+                  </Link>
+
+                  <Link
+                    href={consultaClienteLink}
+                    onClick={() => setSidebarOpen(false)}
+                    className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 transition-colors hover:border-black"
+                  >
+                    <Search size={14} /> Consulta de Cliente
+                  </Link>
+
+                  <button
+                    onClick={handleLogout}
+                    className="flex w-full items-center gap-3 rounded-lg border border-red-100 bg-white px-3 py-2 text-xs font-bold text-red-600 transition-colors hover:bg-red-50"
+                    type="button"
+                  >
+                    <LogOut size={14} /> Sair da Conta
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="text-center">
+                <p className="mb-3 text-xs text-gray-500">Acesse sua conta para gerenciar propostas.</p>
+                <Link
+                  href="/login"
+                  onClick={() => setSidebarOpen(false)}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-black py-3 text-xs font-bold uppercase text-white transition-colors hover:bg-gray-800"
+                >
+                  <LogIn size={16} /> Entrar / Cadastrar
+                </Link>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-6">
+            <p className="border-b border-gray-100 pb-2 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+              Navegação
+            </p>
+
+            <Link
+              href="/fiat"
+              onClick={() => setSidebarOpen(false)}
+              className="group flex items-center gap-4 text-sm font-bold uppercase tracking-wide text-gray-900 transition-colors hover:text-[#ff1435]"
+            >
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-50 text-gray-400 transition-colors group-hover:bg-black group-hover:text-white">
+                <ChevronRight size={18} />
+              </span>
+              Início Fiat
+            </Link>
+
+            <Link
+              href="#fiat-catalogo"
+              onClick={() => setSidebarOpen(false)}
+              className="group flex items-center gap-4 text-sm font-bold uppercase tracking-wide text-gray-900 transition-colors hover:text-[#ff1435]"
+            >
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-50 text-gray-400 transition-colors group-hover:bg-black group-hover:text-white">
+                <ChevronDown size={18} />
+              </span>
+              Catálogo Fiat
+            </Link>
+
+            <Link
+              href="/vendedor/seminovos"
+              onClick={() => setSidebarOpen(false)}
+              className="group flex items-center gap-4 text-sm font-bold uppercase tracking-wide text-gray-900 transition-colors hover:text-[#ff1435]"
+            >
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-50 text-gray-400 transition-colors group-hover:bg-black group-hover:text-white">
+                <ChevronRight size={18} />
+              </span>
+              SemiNovos
+            </Link>
+          </div>
+        </div>
+
+        <div className="border-t border-gray-100 p-6 text-center">
+          <p className="text-[10px] font-medium text-gray-400">© 2026 WBCNAC Digital</p>
+        </div>
+      </div>
+    </>
+  );
 }
 
 export default function FiatPage() {
@@ -297,40 +822,8 @@ export default function FiatPage() {
   };
 
   return (
-    <main id="top" className="min-h-screen bg-[#f1f0e8] text-black">
-      <header className="sticky top-0 z-50 h-[56px] border-b border-white/5 bg-black">
-        <div className="mx-auto flex h-full w-full items-center justify-between px-4 md:px-6">
-          <div className="flex items-center">
-            <img
-              src={FIAT_IMAGES.logo}
-              alt="Fiat"
-              className="h-[28px] w-auto object-contain md:h-[32px]"
-            />
-          </div>
-
-          <div className="flex h-full items-center">
-            <button
-              type="button"
-              className="flex h-full min-w-[64px] flex-col items-center justify-center border-l border-white/20 px-3 text-white"
-            >
-              <User className="h-[15px] w-[15px]" />
-              <span className="mt-1 text-[9px] font-bold uppercase tracking-wide">
-                Fiat ID
-              </span>
-            </button>
-
-            <button
-              type="button"
-              className="flex h-full min-w-[64px] flex-col items-center justify-center border-l border-white/20 px-3 text-white"
-            >
-              <Menu className="h-[16px] w-[16px]" />
-              <span className="mt-1 text-[9px] font-bold uppercase tracking-wide">
-                Menu
-              </span>
-            </button>
-          </div>
-        </div>
-      </header>
+    <main id="top" className="min-h-screen bg-[#f1f0e8] pt-16 text-black">
+      <FiatNavbar />
 
       <section className="relative min-h-[690px] w-full overflow-hidden bg-[#006b16] md:min-h-[760px]">
         <div className="absolute inset-0">
@@ -476,6 +969,19 @@ export default function FiatPage() {
                           <h3 className="text-[38px] font-black leading-none tracking-tight text-[#0a1230] md:text-[30px]">
                             {vehicle.name}
                           </h3>
+
+                          <div className="mt-3 flex flex-wrap justify-center gap-2 md:justify-start">
+                            {vehicle.categories
+                              .filter((category) => category !== "TODOS")
+                              .map((category) => (
+                                <span
+                                  key={`${vehicle.slug}-${category}`}
+                                  className="rounded-full bg-black/10 px-3 py-1 text-[10px] font-black uppercase text-[#0a1230]"
+                                >
+                                  {category}
+                                </span>
+                              ))}
+                          </div>
 
                           <div className="mt-5 flex items-center justify-center gap-8 md:justify-start">
                             <button

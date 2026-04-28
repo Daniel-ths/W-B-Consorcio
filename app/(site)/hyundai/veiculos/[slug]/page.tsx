@@ -5,7 +5,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
-import OrderSummary from "components/OrderSummary";
+import OrderSummary from "@/components/OrderSummary";
 
 import { Loader2 } from "lucide-react";
 

@@ -75,6 +75,74 @@ const safeNumber = (v: any) => {
   return Number.isFinite(n) ? n : 0;
 };
 
+type BuilderOrderPayload = {
+  source?: string;
+  status?: string;
+  brand?: string;
+  vehicle_slug?: string;
+  vehicle_name?: string;
+  vehicle_title?: string;
+  vehicle_description?: string;
+  vehicle_image?: string;
+  version?: {
+    id?: string;
+    name?: string;
+    description?: string;
+    price?: number;
+    image?: string;
+  };
+  color?: {
+    id?: string;
+    name?: string;
+    description?: string;
+    category?: string;
+    price?: number;
+    image?: string;
+    hex?: string;
+    versionId?: string;
+  } | null;
+  kits?: any[];
+  accessories?: any[];
+  totals?: {
+    vehicle?: number;
+    color?: number;
+    kits?: number;
+    accessories?: number;
+    total?: number;
+    monthly_108?: number;
+  };
+};
+
+function builderOrderToContractData(order: BuilderOrderPayload | null) {
+  if (!order) return null;
+
+  const modelo =
+    order.version?.name ||
+    [order.vehicle_name, order.color?.name].filter(Boolean).join(" - ") ||
+    "Veículo Selecionado";
+
+  const valor =
+    safeNumber(order.totals?.total) ||
+    safeNumber(order.version?.price) + safeNumber(order.color?.price) ||
+    0;
+
+  const imagem =
+    order.vehicle_image ||
+    order.color?.image ||
+    order.version?.image ||
+    "";
+
+  return {
+    modelo,
+    valor,
+    imagem,
+    vehicleSlug: order.vehicle_slug || "",
+    vehicleName: order.vehicle_name || "",
+    versionName: order.version?.name || "",
+    colorName: order.color?.name || "",
+  };
+}
+
 const BEST_BID_TEXT =
   "MELHOR MOMENTO PARA OFERTAR LANCE: ENTRE 7X E 8X PARCELA.";
 
@@ -103,25 +171,107 @@ function PedidoContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  const pedidoId = searchParams.get("pedido") || "";
+  const [builderOrder, setBuilderOrder] = useState<BuilderOrderPayload | null>(null);
+  const builderContractData = useMemo(
+    () => builderOrderToContractData(builderOrder),
+    [builderOrder]
+  );
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadBuilderOrder() {
+      try {
+        const cached =
+          localStorage.getItem("wb_contract_order") ||
+          localStorage.getItem("wb_analysis_order") ||
+          localStorage.getItem("wb_builder_order");
+
+        if (cached && active) {
+          setBuilderOrder(JSON.parse(cached));
+        }
+      } catch {}
+
+      if (!pedidoId) return;
+
+      try {
+        const { data, error } = await supabase
+          .from("contract_orders")
+          .select("payload, vehicle_name, version_name, color_name, vehicle_image, total_value")
+          .eq("id", pedidoId)
+          .maybeSingle();
+
+        if (!active) return;
+
+        if (!error && data) {
+          const payload = (data as any).payload || {
+            vehicle_name: (data as any).vehicle_name,
+            vehicle_image: (data as any).vehicle_image,
+            version: {
+              name: (data as any).version_name,
+              price: safeNumber((data as any).total_value),
+              image: (data as any).vehicle_image,
+            },
+            color: {
+              name: (data as any).color_name,
+              image: (data as any).vehicle_image,
+              price: 0,
+            },
+            totals: {
+              total: safeNumber((data as any).total_value),
+            },
+          };
+
+          setBuilderOrder(payload);
+          localStorage.setItem("wb_contract_order", JSON.stringify(payload));
+        }
+      } catch (e) {
+        console.warn("Não foi possível carregar pedido no contrato:", e);
+      }
+    }
+
+    loadBuilderOrder();
+
+    return () => {
+      active = false;
+    };
+  }, [pedidoId]);
+
   const dados = useMemo(
     () => ({
       tipo: searchParams.get("tipo") || "CONSORCIO",
       cpf: searchParams.get("cpf") || "",
-      modelo: searchParams.get("modelo") || "Veículo Selecionado",
-      valor: safeNumber(searchParams.get("valor")),
+      modelo:
+        searchParams.get("modelo") ||
+        builderContractData?.modelo ||
+        "Veículo Selecionado",
+      valor:
+        safeNumber(searchParams.get("valor")) ||
+        builderContractData?.valor ||
+        0,
       entrada: safeNumber(searchParams.get("entrada")),
       parcela: safeNumber(searchParams.get("parcela_escolhida")),
       prazo: searchParams.get("prazo_escolhido") || "0",
       total: safeNumber(searchParams.get("total_final")),
-      imagem: searchParams.get("imagem") || "",
+      imagem:
+        searchParams.get("imagem") ||
+        builderContractData?.imagem ||
+        "",
       nome: searchParams.get("nome") || "",
       telefone: searchParams.get("telefone") || "",
       taxaAdmTotal:
         safeNumber(searchParams.get("taxa_adm_total")) ||
         TAXA_ADM_TOTAL_FALLBACK,
+      pedidoId,
+      origem: searchParams.get("origem") || "",
+      vehicleSlug: searchParams.get("vehicle_slug") || builderContractData?.vehicleSlug || "",
+      vehicleName: searchParams.get("vehicle_name") || builderContractData?.vehicleName || "",
+      versionName: searchParams.get("versao") || builderContractData?.versionName || "",
+      colorName: searchParams.get("cor") || builderContractData?.colorName || "",
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [searchParams.toString()]
+    [searchParams.toString(), builderContractData, pedidoId]
   );
 
   const lanceInfo = useMemo(() => {

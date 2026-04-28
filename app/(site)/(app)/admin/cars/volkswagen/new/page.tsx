@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 
 type ViewKey = "front" | "side" | "rear" | "threeQuarter";
+type InteriorKind = "seat" | "steering" | "panel" | "general";
 
 type VwViewImages = {
   front: string;
@@ -41,10 +42,12 @@ type VwVersion = {
   transmission: string;
   image: string;
   description: string;
+  images: VwViewImages;
 };
 
 type VwMotor = {
   id: string;
+  versionId?: string;
   name: string;
   description: string;
   price: number;
@@ -60,6 +63,7 @@ type VwMotor = {
 
 type VwColor = {
   id: string;
+  versionId?: string;
   name: string;
   type: string;
   price: number;
@@ -69,6 +73,7 @@ type VwColor = {
 
 type VwInterior = {
   id: string;
+  kind?: InteriorKind;
   name: string;
   price: number;
   image: string;
@@ -104,7 +109,6 @@ type VwVehicleRow = {
 };
 
 const BUCKET_NAME = "cars";
-const VW_BLUE = "#001e50";
 
 const uid = (prefix: string) =>
   `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
@@ -170,12 +174,14 @@ function createDefaultVersion(): VwVersion {
     image: "",
     description:
       "Versão completa com visual esportivo, tecnologia avançada e pacote superior de conforto.",
+    images: emptyViewImages(),
   };
 }
 
-function createDefaultMotor(): VwMotor {
+function createDefaultMotor(versionId?: string): VwMotor {
   return {
     id: uid("motor"),
+    versionId,
     name: "250 TSI",
     description: "Motor turbo com câmbio automático",
     price: 179990,
@@ -190,9 +196,10 @@ function createDefaultMotor(): VwMotor {
   };
 }
 
-function createDefaultColor(): VwColor {
+function createDefaultColor(versionId?: string): VwColor {
   return {
     id: uid("color"),
+    versionId,
     name: "Preto Ninja",
     type: "Sólida",
     price: 0,
@@ -201,23 +208,59 @@ function createDefaultColor(): VwColor {
   };
 }
 
-function createDefaultInterior(): VwInterior {
+function createDefaultInterior(kind: InteriorKind = "seat"): VwInterior {
+  const presets: Record<InteriorKind, Pick<VwInterior, "name" | "description">> = {
+    seat: {
+      name: "Banco em couro sintético",
+      description: "Imagem dos bancos/acabamento dos assentos do veículo.",
+    },
+    steering: {
+      name: "Volante multifuncional",
+      description: "Imagem do volante, comandos e acabamento da direção.",
+    },
+    panel: {
+      name: "Painel digital",
+      description: "Imagem do painel, multimídia ou cockpit interno.",
+    },
+    general: {
+      name: "Interior geral",
+      description: "Imagem geral do interior do veículo.",
+    },
+  };
+
   return {
     id: uid("interior"),
-    name: "Revestimento em couro sintético",
+    kind,
+    name: presets[kind].name,
     price: 0,
     image: "",
-    description: "Acabamento interno com visual premium e conforto elevado.",
+    description: presets[kind].description,
   };
 }
 
-function createDefaultGalleryImage(): VwGalleryImage {
+function createDefaultGalleryImage(type: "exterior" | "interior" = "exterior"): VwGalleryImage {
   return {
     id: uid("gallery"),
-    title: "Imagem exterior",
+    title: type === "exterior" ? "Imagem exterior" : "Imagem interior",
     image: "",
-    type: "exterior",
+    type,
   };
+}
+
+function normalizeInteriorKind(item: Partial<VwInterior>): InteriorKind {
+  if (item.kind === "seat" || item.kind === "steering" || item.kind === "panel" || item.kind === "general") {
+    return item.kind;
+  }
+
+  const text = `${item.name || ""} ${item.description || ""}`
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+  if (text.includes("volante") || text.includes("direcao")) return "steering";
+  if (text.includes("banco") || text.includes("assento") || text.includes("couro")) return "seat";
+  if (text.includes("painel") || text.includes("multimidia") || text.includes("cockpit")) return "panel";
+  return "general";
 }
 
 function Label({ children }: { children: React.ReactNode }) {
@@ -312,6 +355,34 @@ function Card({
   );
 }
 
+function HelpBox({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-900">
+      {children}
+    </div>
+  );
+}
+
+function ImageUsageCard({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4 md:p-5">
+      <div className="mb-4 rounded-2xl bg-white p-4 shadow-sm">
+        <h3 className="text-sm font-black uppercase text-slate-950">{title}</h3>
+        <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
+      </div>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">{children}</div>
+    </div>
+  );
+}
+
 function UploadField({
   label,
   value,
@@ -319,6 +390,7 @@ function UploadField({
   onUpload,
   uploading,
   cover,
+  hint,
 }: {
   label: string;
   value: string;
@@ -326,10 +398,12 @@ function UploadField({
   onUpload: (file: File | null) => void;
   uploading: boolean;
   cover?: boolean;
+  hint?: string;
 }) {
   return (
     <div className="md:col-span-2">
       <Label>{label}</Label>
+      {hint ? <p className="mt-1 text-[11px] leading-5 text-slate-500">{hint}</p> : null}
 
       <div className="mt-1 grid grid-cols-1 gap-3 md:grid-cols-[1fr_160px]">
         <Input
@@ -395,16 +469,18 @@ export default function AdminVolkswagenVehicleCreatePage() {
   const [priceStart, setPriceStart] = useState(179990);
   const [isVisible, setIsVisible] = useState(true);
 
-  const [versions, setVersions] = useState<VwVersion[]>([
-    createDefaultVersion(),
-  ]);
-  const [motors, setMotors] = useState<VwMotor[]>([createDefaultMotor()]);
-  const [colors, setColors] = useState<VwColor[]>([createDefaultColor()]);
+  const [versions, setVersions] = useState<VwVersion[]>(() => {
+    const firstVersion = createDefaultVersion();
+    return [firstVersion];
+  });
+  const [motors, setMotors] = useState<VwMotor[]>([]);
+  const [colors, setColors] = useState<VwColor[]>([]);
   const [interiors, setInteriors] = useState<VwInterior[]>([
-    createDefaultInterior(),
+    createDefaultInterior("seat"),
+    createDefaultInterior("steering"),
   ]);
   const [gallery, setGallery] = useState<VwGalleryImage[]>([
-    createDefaultGalleryImage(),
+    createDefaultGalleryImage("exterior"),
   ]);
 
   const [existingVehicles, setExistingVehicles] = useState<VwVehicleRow[]>([]);
@@ -421,6 +497,22 @@ export default function AdminVolkswagenVehicleCreatePage() {
     [computedSlug]
   );
 
+  const firstVersionId = versions[0]?.id || "";
+
+  const motorsByVersion = useMemo(() => {
+    return versions.map((version) => ({
+      version,
+      motors: motors.filter((motor) => motor.versionId === version.id),
+    }));
+  }, [versions, motors]);
+
+  const colorsByVersion = useMemo(() => {
+    return versions.map((version) => ({
+      version,
+      colors: colors.filter((color) => color.versionId === version.id),
+    }));
+  }, [versions, colors]);
+
   const filteredExisting = useMemo(() => {
     const q = existingQuery.trim().toLowerCase();
 
@@ -434,13 +526,17 @@ export default function AdminVolkswagenVehicleCreatePage() {
   }, [existingVehicles, existingQuery]);
 
   const previewVersion = versions[0];
-  const previewMotor = motors[0];
-  const previewColor = colors[0];
-  const previewInterior = interiors[0];
+  const previewMotor = motors.find((motor) => motor.versionId === previewVersion?.id) || motors[0];
+  const previewColor = colors.find((color) => color.versionId === previewVersion?.id) || colors[0];
+  const seatInterior = interiors.find((item) => normalizeInteriorKind(item) === "seat");
+  const steeringInterior = interiors.find((item) => normalizeInteriorKind(item) === "steering");
+  const panelInterior = interiors.find((item) => normalizeInteriorKind(item) === "panel");
 
   const previewImage =
+    previewVersion?.images?.side ||
     previewColor?.images?.side ||
     sideImage ||
+    previewVersion?.images?.threeQuarter ||
     previewColor?.images?.threeQuarter ||
     previewVersion?.image ||
     exteriorImage ||
@@ -474,6 +570,33 @@ export default function AdminVolkswagenVehicleCreatePage() {
     fetchExisting();
   }, []);
 
+  useEffect(() => {
+    const defaultVersionId = versions[0]?.id;
+    if (!defaultVersionId) return;
+
+    setMotors((prev) => {
+      if (prev.length === 0) return [createDefaultMotor(defaultVersionId)];
+      let changed = false;
+      const next = prev.map((motor) => {
+        if (motor.versionId && versions.some((version) => version.id === motor.versionId)) return motor;
+        changed = true;
+        return { ...motor, versionId: defaultVersionId };
+      });
+      return changed ? next : prev;
+    });
+
+    setColors((prev) => {
+      if (prev.length === 0) return [createDefaultColor(defaultVersionId)];
+      let changed = false;
+      const next = prev.map((color) => {
+        if (color.versionId && versions.some((version) => version.id === color.versionId)) return color;
+        changed = true;
+        return { ...color, versionId: defaultVersionId };
+      });
+      return changed ? next : prev;
+    });
+  }, [versions]);
+
   function resetForm() {
     setEditingId(null);
     setCatalogHover("");
@@ -487,11 +610,12 @@ export default function AdminVolkswagenVehicleCreatePage() {
     setCatalogCover("");
     setPriceStart(179990);
     setIsVisible(true);
-    setVersions([createDefaultVersion()]);
-    setMotors([createDefaultMotor()]);
-    setColors([createDefaultColor()]);
-    setInteriors([createDefaultInterior()]);
-    setGallery([createDefaultGalleryImage()]);
+    const firstVersion = createDefaultVersion();
+    setVersions([firstVersion]);
+    setMotors([createDefaultMotor(firstVersion.id)]);
+    setColors([createDefaultColor(firstVersion.id)]);
+    setInteriors([createDefaultInterior("seat"), createDefaultInterior("steering")]);
+    setGallery([createDefaultGalleryImage("exterior")]);
     setActiveTab("basic");
     setErr(null);
   }
@@ -548,45 +672,56 @@ export default function AdminVolkswagenVehicleCreatePage() {
         Array.isArray(row.versions) && row.versions.length
           ? row.versions.map((v) => ({
               ...v,
+              price: Number(v.price || 0),
               description: v.description || "",
+              image: v.image || "",
+              images: v.images || emptyViewImages(),
             }))
           : [createDefaultVersion()]
       );
 
       setMotors(
         Array.isArray(row.motors) && row.motors.length
-          ? row.motors.map((m) => ({
+          ? row.motors.map((m, index) => ({
               ...m,
+              versionId: m.versionId || row.versions?.[index]?.id || row.versions?.[0]?.id || "",
+              price: Number(m.price || 0),
               torque: m.torque || "",
               acceleration: m.acceleration || "",
               maxSpeed: m.maxSpeed || "",
               consumption: m.consumption || "",
             }))
-          : [createDefaultMotor()]
+          : [createDefaultMotor(row.versions?.[0]?.id || "")]
       );
 
       setColors(
         Array.isArray(row.colors) && row.colors.length
-          ? row.colors.map((c) => ({
+          ? row.colors.map((c, index) => ({
               ...c,
+              versionId: c.versionId || row.versions?.[index]?.id || row.versions?.[0]?.id || "",
+              price: Number(c.price || 0),
               images: c.images || emptyViewImages(),
             }))
-          : [createDefaultColor()]
+          : [createDefaultColor(row.versions?.[0]?.id || "")]
       );
 
-      setInteriors(
+      const loadedInteriors =
         Array.isArray(row.interiors) && row.interiors.length
           ? row.interiors.map((i) => ({
               ...i,
+              kind: normalizeInteriorKind(i),
+              price: Number(i.price || 0),
               description: i.description || "",
+              image: i.image || "",
             }))
-          : [createDefaultInterior()]
-      );
+          : [createDefaultInterior("seat"), createDefaultInterior("steering")];
+
+      setInteriors(loadedInteriors);
 
       setGallery(
         Array.isArray(row.gallery) && row.gallery.length
           ? row.gallery
-          : [createDefaultGalleryImage()]
+          : [createDefaultGalleryImage("exterior")]
       );
 
       setActiveTab("basic");
@@ -615,7 +750,9 @@ export default function AdminVolkswagenVehicleCreatePage() {
     } finally {
       setExistingLoading(false);
     }
-  }  async function handleSave() {
+  }
+
+  async function handleSave() {
     setErr(null);
 
     const finalSlug = computedSlug;
@@ -623,12 +760,56 @@ export default function AdminVolkswagenVehicleCreatePage() {
     if (!modelName.trim()) return setErr("Informe o nome do modelo.");
     if (!finalSlug) return setErr("Slug inválido.");
     if (!fullName.trim()) return setErr("Informe o nome completo do veículo.");
-    if (!mainImage.trim()) return setErr("Informe ou envie a imagem principal.");
+    if (!catalogCover.trim()) return setErr("Informe a capa do catálogo.");
+    if (!catalogHover.trim()) return setErr("Informe a imagem hover do catálogo.");
+    if (!mainImage.trim()) return setErr("Informe ou envie a imagem principal do builder.");
     if (!sideImage.trim()) return setErr("Informe ou envie a imagem lateral padrão.");
     if (versions.length === 0) return setErr("Cadastre ao menos uma versão.");
     if (motors.length === 0) return setErr("Cadastre ao menos um motor.");
     if (colors.length === 0) return setErr("Cadastre ao menos uma cor.");
+
+    for (const version of versions) {
+      if (!motors.some((motor) => motor.versionId === version.id)) {
+        return setErr(`A versão ${version.name} precisa ter pelo menos um motor ligado a ela.`);
+      }
+      if (!colors.some((color) => color.versionId === version.id)) {
+        return setErr(`A versão ${version.name} precisa ter pelo menos uma cor ligada a ela.`);
+      }
+    }
     if (interiors.length === 0) return setErr("Cadastre ao menos um interior.");
+
+    for (const version of versions) {
+      if (!version.name.trim()) return setErr("Existe uma versão sem nome.");
+      if (!version.description.trim()) return setErr(`A versão ${version.name} está sem descrição.`);
+      if (!version.images?.front?.trim()) return setErr(`A versão ${version.name} está sem imagem de frente.`);
+      if (!version.images?.side?.trim()) return setErr(`A versão ${version.name} está sem imagem lateral.`);
+      if (!version.images?.rear?.trim()) return setErr(`A versão ${version.name} está sem imagem traseira.`);
+    }
+
+    for (const motor of motors) {
+      if (!motor.versionId || !versions.some((version) => version.id === motor.versionId)) {
+        return setErr(`O motor ${motor.name || "sem nome"} precisa estar ligado a uma versão/modelo válido.`);
+      }
+      if (!motor.name.trim()) return setErr("Existe um motor sem nome.");
+    }
+
+    for (const color of colors) {
+      if (!color.versionId || !versions.some((version) => version.id === color.versionId)) {
+        return setErr(`A cor ${color.name || "sem nome"} precisa estar ligada a uma versão/modelo válido.`);
+      }
+      if (!color.name.trim()) return setErr("Existe uma cor sem nome.");
+      if (!color.images?.front?.trim()) return setErr(`A cor ${color.name} está sem imagem de frente.`);
+      if (!color.images?.side?.trim()) return setErr(`A cor ${color.name} está sem imagem lateral.`);
+      if (!color.images?.rear?.trim()) return setErr(`A cor ${color.name} está sem imagem traseira.`);
+    }
+
+    if (!interiors.some((item) => normalizeInteriorKind(item) === "seat" && item.image.trim())) {
+      return setErr("Cadastre uma imagem de banco na aba Volante e banco.");
+    }
+
+    if (!interiors.some((item) => normalizeInteriorKind(item) === "steering" && item.image.trim())) {
+      return setErr("Cadastre uma imagem de volante na aba Volante e banco.");
+    }
 
     setSaving(true);
 
@@ -648,23 +829,38 @@ export default function AdminVolkswagenVehicleCreatePage() {
         throw new Error("Já existe um veículo Volkswagen com esse slug.");
       }
 
+      const normalizedMotors = motors.map((item) => ({
+        ...item,
+        versionId: item.versionId || firstVersionId,
+      }));
+
+      const normalizedColors = colors.map((item) => ({
+        ...item,
+        versionId: item.versionId || firstVersionId,
+      }));
+
+      const normalizedInteriors = interiors.map((item) => ({
+        ...item,
+        kind: normalizeInteriorKind(item),
+      }));
+
       const payload: any = {
-        catalog_hover_url: catalogHover.trim() || null,
         brand: "volkswagen",
         model_name: modelName.trim(),
         slug: finalSlug,
         full_name: fullName.trim(),
         image_url: mainImage.trim(),
         exterior_image_url: exteriorImage.trim() || null,
-        interior_image_url: interiorImage.trim() || null,
+        interior_image_url: interiorImage.trim() || normalizedInteriors[0]?.image || null,
         side_image_url: sideImage.trim(),
-        catalog_cover_url: catalogCover.trim() || sideImage.trim(),
+        catalog_cover_url: catalogCover.trim(),
+        catalog_hover_url: catalogHover.trim(),
         is_visible: isVisible,
         price_start: Number(priceStart || 0),
         versions,
-        motors,
-        colors,
-        interiors,
+        motors: normalizedMotors,
+        colors: normalizedColors,
+        interiors: normalizedInteriors,
         gallery,
         spec_groups: [],
       };
@@ -693,6 +889,23 @@ export default function AdminVolkswagenVehicleCreatePage() {
   function updateVersion(id: string, patch: Partial<VwVersion>) {
     setVersions((prev) =>
       prev.map((item) => (item.id === id ? { ...item, ...patch } : item))
+    );
+  }
+
+  function updateVersionImage(id: string, view: ViewKey, value: string) {
+    setVersions((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              image: view === "side" ? value : item.image,
+              images: {
+                ...(item.images || emptyViewImages()),
+                [view]: value,
+              },
+            }
+          : item
+      )
     );
   }
 
@@ -736,6 +949,36 @@ export default function AdminVolkswagenVehicleCreatePage() {
     );
   }
 
+  function addVersion() {
+    const version = createDefaultVersion();
+    setVersions((prev) => [...prev, version]);
+    setMotors((prev) => [...prev, createDefaultMotor(version.id)]);
+    setColors((prev) => [...prev, createDefaultColor(version.id)]);
+  }
+
+  function removeVersion(versionId: string) {
+    if (versions.length <= 1) {
+      setErr("Mantenha pelo menos uma versão cadastrada.");
+      return;
+    }
+
+    setVersions((prev) => prev.filter((item) => item.id !== versionId));
+    setMotors((prev) => prev.filter((item) => item.versionId !== versionId));
+    setColors((prev) => prev.filter((item) => item.versionId !== versionId));
+  }
+
+  function addMotor(versionId?: string) {
+    setMotors((prev) => [...prev, createDefaultMotor(versionId || firstVersionId)]);
+  }
+
+  function addColor(versionId?: string) {
+    setColors((prev) => [...prev, createDefaultColor(versionId || firstVersionId)]);
+  }
+
+  function addInterior(kind: InteriorKind) {
+    setInteriors((prev) => [...prev, createDefaultInterior(kind)]);
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 px-4 pb-28 pt-24">
       <div className="mx-auto max-w-7xl">
@@ -756,9 +999,7 @@ export default function AdminVolkswagenVehicleCreatePage() {
             </h1>
 
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
-              Cadastro completo no padrão do configurador Volkswagen: imagem lateral,
-              imagens por cor em vários ângulos, versão, motor, interior, galeria e
-              valores formatados.
+              Cadastre o Volkswagen com imagens por versão e por cor: cada versão/modelo pode ter frente, lateral e traseira próprias, além das cores, catálogo, volante e banco.
             </p>
 
             {err ? (
@@ -900,11 +1141,11 @@ export default function AdminVolkswagenVehicleCreatePage() {
 
         <div className="my-8 flex flex-wrap gap-2 rounded-full border border-slate-200 bg-white p-1 shadow-sm">
           {[
-            ["basic", "Básico"],
-            ["versions", "Versões"],
+            ["basic", "Básico + catálogo"],
+            ["versions", "Versões + fotos"],
             ["motors", "Motor"],
-            ["colors", "Cores + ângulos"],
-            ["interiors", "Interior"],
+            ["colors", "Frente / Lateral / Traseira"],
+            ["interiors", "Volante e banco"],
             ["gallery", "Galeria"],
           ].map(([key, label]) => (
             <button
@@ -926,7 +1167,7 @@ export default function AdminVolkswagenVehicleCreatePage() {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
           <div className="space-y-6 lg:col-span-7">
             {activeTab === "basic" && (
-              <Card title="Dados principais do veículo" icon={<CarFront size={16} />}>
+              <Card title="Dados principais e imagens base" icon={<CarFront size={16} />}>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div>
                     <Label>Nome do modelo</Label>
@@ -995,85 +1236,111 @@ export default function AdminVolkswagenVehicleCreatePage() {
                     />
                   </div>
 
-                  <UploadField
-                    label="Imagem principal / hero do builder"
-                    value={mainImage}
-                    onChange={setMainImage}
-                    onUpload={(file) => handleUpload(file, "vehicle/main", setMainImage)}
-                    uploading={uploading}
-                  />
+                  <div className="md:col-span-2">
+                    <HelpBox>
+                      <strong>Como preencher:</strong> use a capa e hover para o catálogo. No builder, a lateral padrão é fallback. As imagens principais por versão ficam em <strong>Versões + fotos</strong>, os motores ficam em <strong>Motor</strong> ligados à versão, e as cores ficam em <strong>Frente / Lateral / Traseira</strong> ligadas à versão. Volante e banco ficam na aba <strong>Volante e banco</strong>.
+                    </HelpBox>
+                  </div>
 
-                  <UploadField
-                    label="Imagem lateral padrão do veículo"
-                    value={sideImage}
-                    onChange={setSideImage}
-                    onUpload={(file) =>
-                      handleUpload(file, "vehicle/side", setSideImage)
-                    }
-                    uploading={uploading}
-                  />
+                  <div className="md:col-span-2">
+                    <ImageUsageCard
+                      title="1. Catálogo Volkswagen"
+                      description="Essas duas imagens aparecem na página de catálogo. A capa aparece normalmente; a imagem hover troca quando o mouse passa em cima do card."
+                    >
+                      <UploadField
+                        label="Capa do catálogo"
+                        hint="Imagem principal do card do veículo na listagem."
+                        value={catalogCover}
+                        onChange={setCatalogCover}
+                        onUpload={(file) =>
+                          handleUpload(file, "vehicle/catalog-cover", setCatalogCover)
+                        }
+                        uploading={uploading}
+                      />
 
-                  <UploadField
-                    label="Imagem exterior padrão"
-                    value={exteriorImage}
-                    onChange={setExteriorImage}
-                    onUpload={(file) =>
-                      handleUpload(file, "vehicle/exterior", setExteriorImage)
-                    }
-                    uploading={uploading}
-                  />
+                      <UploadField
+                        label="Hover do catálogo"
+                        hint="Imagem alternativa do card ao passar o mouse."
+                        value={catalogHover}
+                        onChange={setCatalogHover}
+                        onUpload={(file) =>
+                          handleUpload(file, "vehicle/catalog-hover", setCatalogHover)
+                        }
+                        uploading={uploading}
+                      />
+                    </ImageUsageCard>
+                  </div>
 
-                  <UploadField
-                    label="Imagem interior padrão"
-                    value={interiorImage}
-                    onChange={setInteriorImage}
-                    onUpload={(file) =>
-                      handleUpload(file, "vehicle/interior", setInteriorImage)
-                    }
-                    uploading={uploading}
-                    cover
-                  />
+                  <div className="md:col-span-2">
+                    <ImageUsageCard
+                      title="2. Imagens base do builder"
+                      description="São usadas como reserva quando ainda não houver imagens por cor. A lateral padrão é a imagem mais importante como fallback do configurador."
+                    >
+                      <UploadField
+                        label="Hero / imagem principal do builder"
+                        value={mainImage}
+                        onChange={setMainImage}
+                        onUpload={(file) => handleUpload(file, "vehicle/main", setMainImage)}
+                        uploading={uploading}
+                      />
 
-<UploadField
-  label="Imagem/capa do catálogo"
-  value={catalogCover}
-  onChange={setCatalogCover}
-  onUpload={(file) =>
-    handleUpload(file, "vehicle/catalog-cover", setCatalogCover)
-  }
-  uploading={uploading}
-/>
+                      <UploadField
+                        label="Lateral padrão do veículo"
+                        value={sideImage}
+                        onChange={setSideImage}
+                        onUpload={(file) =>
+                          handleUpload(file, "vehicle/side", setSideImage)
+                        }
+                        uploading={uploading}
+                      />
 
-<UploadField
-  label="Imagem do catálogo ao passar o mouse"
-  value={catalogHover}
-  onChange={setCatalogHover}
-  onUpload={(file) =>
-    handleUpload(file, "vehicle/catalog-hover", setCatalogHover)
-  }
-  uploading={uploading}
-/>
+                      <UploadField
+                        label="Exterior padrão / banner"
+                        value={exteriorImage}
+                        onChange={setExteriorImage}
+                        onUpload={(file) =>
+                          handleUpload(file, "vehicle/exterior", setExteriorImage)
+                        }
+                        uploading={uploading}
+                      />
+
+                      <UploadField
+                        label="Interior padrão / visão interna"
+                        value={interiorImage}
+                        onChange={setInteriorImage}
+                        onUpload={(file) =>
+                          handleUpload(file, "vehicle/interior", setInteriorImage)
+                        }
+                        uploading={uploading}
+                        cover
+                      />
+                    </ImageUsageCard>
+                  </div>
                 </div>
               </Card>
             )}
 
             {activeTab === "versions" && (
               <Card
-                title="Versões do Volkswagen"
+                title="Versões do Volkswagen + fotos próprias"
                 icon={<Settings size={16} />}
                 right={
                   <Button
                     type="button"
                     variant="vw"
                     icon={<Plus size={14} />}
-                    onClick={() =>
-                      setVersions((prev) => [...prev, createDefaultVersion()])
-                    }
+                    onClick={addVersion}
                   >
                     Adicionar versão
                   </Button>
                 }
               >
+                <div className="mb-5">
+                  <HelpBox>
+                    Aqui cada versão/modelo do veículo recebe suas fotos próprias de frente, lateral e traseira. Exemplo: T-Cross Sense, Comfortline, Highline e Extreme podem ter rodas e detalhes diferentes, então cada uma precisa do seu conjunto de imagens.
+                  </HelpBox>
+                </div>
+
                 <div className="space-y-4">
                   {versions.map((version, index) => (
                     <div
@@ -1096,11 +1363,7 @@ export default function AdminVolkswagenVehicleCreatePage() {
 
                         <button
                           type="button"
-                          onClick={() =>
-                            setVersions((prev) =>
-                              prev.filter((item) => item.id !== version.id)
-                            )
-                          }
+                          onClick={() => removeVersion(version.id)}
                           className="rounded-xl p-2 text-red-600 hover:bg-red-50"
                         >
                           <Trash2 size={16} />
@@ -1176,15 +1439,59 @@ export default function AdminVolkswagenVehicleCreatePage() {
                           />
                         </div>
 
+                        <div className="md:col-span-2">
+                          <HelpBox>
+                            Cada versão precisa ter imagens próprias. Use aqui quando a versão muda roda, para-choque, acabamento ou visual. Depois, as cores também podem ter suas imagens específicas na aba <strong>Frente / Lateral / Traseira</strong>.
+                          </HelpBox>
+                        </div>
+
                         <UploadField
-                          label="Imagem/thumb da versão"
-                          value={version.image}
-                          onChange={(value) =>
-                            updateVersion(version.id, { image: value })
-                          }
+                          label="Frente desta versão"
+                          hint="Imagem frontal específica desta versão/modelo."
+                          value={version.images?.front || ""}
+                          onChange={(value) => updateVersionImage(version.id, "front", value)}
                           onUpload={(file) =>
-                            handleUpload(file, `versions/${version.id}`, (url) =>
-                              updateVersion(version.id, { image: url })
+                            handleUpload(file, `versions/${version.id}/front`, (url) =>
+                              updateVersionImage(version.id, "front", url)
+                            )
+                          }
+                          uploading={uploading}
+                        />
+
+                        <UploadField
+                          label="Lateral desta versão"
+                          hint="Imagem lateral principal desta versão. Também vira thumb/fallback da versão."
+                          value={version.images?.side || version.image || ""}
+                          onChange={(value) => updateVersionImage(version.id, "side", value)}
+                          onUpload={(file) =>
+                            handleUpload(file, `versions/${version.id}/side`, (url) =>
+                              updateVersionImage(version.id, "side", url)
+                            )
+                          }
+                          uploading={uploading}
+                        />
+
+                        <UploadField
+                          label="Traseira / costa desta versão"
+                          hint="Imagem traseira específica desta versão/modelo."
+                          value={version.images?.rear || ""}
+                          onChange={(value) => updateVersionImage(version.id, "rear", value)}
+                          onUpload={(file) =>
+                            handleUpload(file, `versions/${version.id}/rear`, (url) =>
+                              updateVersionImage(version.id, "rear", url)
+                            )
+                          }
+                          uploading={uploading}
+                        />
+
+                        <UploadField
+                          label="Imagem 3/4 opcional desta versão"
+                          hint="Opcional. Boa para visual comercial da versão."
+                          value={version.images?.threeQuarter || ""}
+                          onChange={(value) => updateVersionImage(version.id, "threeQuarter", value)}
+                          onUpload={(file) =>
+                            handleUpload(file, `versions/${version.id}/three-quarter`, (url) =>
+                              updateVersionImage(version.id, "threeQuarter", url)
                             )
                           }
                           uploading={uploading}
@@ -1198,386 +1505,487 @@ export default function AdminVolkswagenVehicleCreatePage() {
 
             {activeTab === "motors" && (
               <Card
-                title="Motor, transmissão e dados técnicos"
+                title="Motores por versão/modelo"
                 icon={<Gauge size={16} />}
                 right={
                   <Button
                     type="button"
                     variant="vw"
                     icon={<Plus size={14} />}
-                    onClick={() => setMotors((prev) => [...prev, createDefaultMotor()])}
+                    onClick={() => addMotor()}
                   >
                     Adicionar motor
                   </Button>
                 }
               >
-                <div className="space-y-4">
-                  {motors.map((motor, index) => (
-                    <div
-                      key={motor.id}
-                      className="rounded-[22px] border border-slate-200 bg-slate-50 p-4"
-                    >
-                      <div className="mb-4 flex items-start justify-between gap-3">
-                        <div>
-                          <div className="text-[10px] font-black uppercase text-slate-400">
-                            Motor {index + 1}
+                <div className="mb-5">
+                  <HelpBox>
+                    Cada motor pertence a uma versão/modelo específico. Exemplo: T-Cross Sense pode ter um conjunto mecânico, enquanto Highline ou Extreme podem ter outro. No builder, ao escolher uma versão, aparecem somente os motores ligados a ela.
+                  </HelpBox>
+                </div>
+
+                <div className="space-y-5">
+                  {versions.map((version) => {
+                    const versionMotors = motors.filter((motor) => motor.versionId === version.id);
+
+                    return (
+                      <div key={version.id} className="rounded-[24px] border border-blue-100 bg-blue-50/40 p-4">
+                        <div className="mb-4 flex flex-col justify-between gap-3 md:flex-row md:items-center">
+                          <div>
+                            <div className="text-[10px] font-black uppercase tracking-[0.14em] text-blue-700/70">Versão/modelo</div>
+                            <h3 className="text-lg font-black text-slate-950">{version.name}</h3>
+                            <p className="text-xs text-slate-500">Motores cadastrados somente para esta versão.</p>
                           </div>
-                          <div className="font-black text-slate-900">
-                            {motor.name || "Sem nome"}
-                          </div>
-                          <div className="text-xs text-slate-500">
-                            {motor.description} • {motor.power} • {motor.torque}
-                          </div>
+                          <Button type="button" variant="vw" icon={<Plus size={14} />} onClick={() => addMotor(version.id)}>
+                            Motor desta versão
+                          </Button>
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setMotors((prev) =>
-                              prev.filter((item) => item.id !== motor.id)
-                            )
-                          }
-                          className="rounded-xl p-2 text-red-600 hover:bg-red-50"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        <div className="space-y-4">
+                          {versionMotors.length === 0 ? (
+                            <div className="rounded-2xl border border-dashed border-blue-200 bg-white p-4 text-sm text-slate-500">
+                              Nenhum motor ligado a esta versão ainda. Clique em <strong>Motor desta versão</strong>.
+                            </div>
+                          ) : null}
+
+                          {versionMotors.map((motor, index) => (
+                            <div
+                              key={motor.id}
+                              className="rounded-[22px] border border-slate-200 bg-white p-4"
+                            >
+                              <div className="mb-4 flex items-start justify-between gap-3">
+                                <div>
+                                  <div className="text-[10px] font-black uppercase text-slate-400">
+                                    Motor {index + 1}
+                                  </div>
+                                  <div className="font-black text-slate-900">
+                                    {motor.name || "Sem nome"}
+                                  </div>
+                                  <div className="text-xs text-slate-500">
+                                    {motor.description} • {motor.power} • {motor.torque}
+                                  </div>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setMotors((prev) =>
+                                      prev.filter((item) => item.id !== motor.id)
+                                    )
+                                  }
+                                  className="rounded-xl p-2 text-red-600 hover:bg-red-50"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
+
+                              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                <div className="md:col-span-2">
+                                  <Label>Versão/modelo deste motor</Label>
+                                  <select
+                                    value={motor.versionId || version.id}
+                                    onChange={(e) => updateMotor(motor.id, { versionId: e.target.value })}
+                                    className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-black/5"
+                                  >
+                                    {versions.map((option) => (
+                                      <option key={option.id} value={option.id}>
+                                        {option.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                <div>
+                                  <Label>Nome do motor</Label>
+                                  <Input
+                                    value={motor.name}
+                                    onChange={(e) =>
+                                      updateMotor(motor.id, { name: e.target.value })
+                                    }
+                                    placeholder="250 TSI"
+                                  />
+                                </div>
+
+                                <div>
+                                  <Label>Preço base desse motor</Label>
+                                  <Input
+                                    type="number"
+                                    value={motor.price}
+                                    onChange={(e) =>
+                                      updateMotor(motor.id, {
+                                        price: Number(e.target.value || 0),
+                                      })
+                                    }
+                                  />
+                                </div>
+
+                                <div className="md:col-span-2">
+                                  <Label>Descrição</Label>
+                                  <Input
+                                    value={motor.description}
+                                    onChange={(e) =>
+                                      updateMotor(motor.id, {
+                                        description: e.target.value,
+                                      })
+                                    }
+                                    placeholder="Motor turbo com câmbio automático"
+                                  />
+                                </div>
+
+                                <div>
+                                  <Label>Potência</Label>
+                                  <Input
+                                    value={motor.power}
+                                    onChange={(e) =>
+                                      updateMotor(motor.id, { power: e.target.value })
+                                    }
+                                    placeholder="150 cv"
+                                  />
+                                </div>
+
+                                <div>
+                                  <Label>Torque</Label>
+                                  <Input
+                                    value={motor.torque}
+                                    onChange={(e) =>
+                                      updateMotor(motor.id, { torque: e.target.value })
+                                    }
+                                    placeholder="25,5 kgfm"
+                                  />
+                                </div>
+
+                                <div>
+                                  <Label>Combustível</Label>
+                                  <Input
+                                    value={motor.fuel}
+                                    onChange={(e) =>
+                                      updateMotor(motor.id, { fuel: e.target.value })
+                                    }
+                                    placeholder="Total Flex"
+                                  />
+                                </div>
+
+                                <div>
+                                  <Label>Transmissão</Label>
+                                  <Input
+                                    value={motor.transmission}
+                                    onChange={(e) =>
+                                      updateMotor(motor.id, {
+                                        transmission: e.target.value,
+                                      })
+                                    }
+                                    placeholder="Automático de 6 velocidades"
+                                  />
+                                </div>
+
+                                <div>
+                                  <Label>Tração</Label>
+                                  <Input
+                                    value={motor.traction}
+                                    onChange={(e) =>
+                                      updateMotor(motor.id, { traction: e.target.value })
+                                    }
+                                    placeholder="Tração dianteira"
+                                  />
+                                </div>
+
+                                <div>
+                                  <Label>Aceleração</Label>
+                                  <Input
+                                    value={motor.acceleration}
+                                    onChange={(e) =>
+                                      updateMotor(motor.id, {
+                                        acceleration: e.target.value,
+                                      })
+                                    }
+                                    placeholder="0 a 100 km/h em 8,9 s"
+                                  />
+                                </div>
+
+                                <div>
+                                  <Label>Velocidade máxima</Label>
+                                  <Input
+                                    value={motor.maxSpeed}
+                                    onChange={(e) =>
+                                      updateMotor(motor.id, {
+                                        maxSpeed: e.target.value,
+                                      })
+                                    }
+                                    placeholder="205 km/h"
+                                  />
+                                </div>
+
+                                <div className="md:col-span-2">
+                                  <Label>Consumo</Label>
+                                  <Input
+                                    value={motor.consumption}
+                                    onChange={(e) =>
+                                      updateMotor(motor.id, {
+                                        consumption: e.target.value,
+                                      })
+                                    }
+                                    placeholder="Cidade/Estrada ou informação comercial"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-
-                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        <div>
-                          <Label>Nome do motor</Label>
-                          <Input
-                            value={motor.name}
-                            onChange={(e) =>
-                              updateMotor(motor.id, { name: e.target.value })
-                            }
-                            placeholder="250 TSI"
-                          />
-                        </div>
-
-                        <div>
-                          <Label>Preço base desse motor</Label>
-                          <Input
-                            type="number"
-                            value={motor.price}
-                            onChange={(e) =>
-                              updateMotor(motor.id, {
-                                price: Number(e.target.value || 0),
-                              })
-                            }
-                          />
-                        </div>
-
-                        <div className="md:col-span-2">
-                          <Label>Descrição</Label>
-                          <Input
-                            value={motor.description}
-                            onChange={(e) =>
-                              updateMotor(motor.id, {
-                                description: e.target.value,
-                              })
-                            }
-                            placeholder="Motor turbo com câmbio automático"
-                          />
-                        </div>
-
-                        <div>
-                          <Label>Potência</Label>
-                          <Input
-                            value={motor.power}
-                            onChange={(e) =>
-                              updateMotor(motor.id, { power: e.target.value })
-                            }
-                            placeholder="150 cv"
-                          />
-                        </div>
-
-                        <div>
-                          <Label>Torque</Label>
-                          <Input
-                            value={motor.torque}
-                            onChange={(e) =>
-                              updateMotor(motor.id, { torque: e.target.value })
-                            }
-                            placeholder="25,5 kgfm"
-                          />
-                        </div>
-
-                        <div>
-                          <Label>Combustível</Label>
-                          <Input
-                            value={motor.fuel}
-                            onChange={(e) =>
-                              updateMotor(motor.id, { fuel: e.target.value })
-                            }
-                            placeholder="Total Flex"
-                          />
-                        </div>
-
-                        <div>
-                          <Label>Transmissão</Label>
-                          <Input
-                            value={motor.transmission}
-                            onChange={(e) =>
-                              updateMotor(motor.id, {
-                                transmission: e.target.value,
-                              })
-                            }
-                            placeholder="Automático de 6 velocidades"
-                          />
-                        </div>
-
-                        <div>
-                          <Label>Tração</Label>
-                          <Input
-                            value={motor.traction}
-                            onChange={(e) =>
-                              updateMotor(motor.id, { traction: e.target.value })
-                            }
-                            placeholder="Tração dianteira"
-                          />
-                        </div>
-
-                        <div>
-                          <Label>Aceleração</Label>
-                          <Input
-                            value={motor.acceleration}
-                            onChange={(e) =>
-                              updateMotor(motor.id, {
-                                acceleration: e.target.value,
-                              })
-                            }
-                            placeholder="0 a 100 km/h em 8,9 s"
-                          />
-                        </div>
-
-                        <div>
-                          <Label>Velocidade máxima</Label>
-                          <Input
-                            value={motor.maxSpeed}
-                            onChange={(e) =>
-                              updateMotor(motor.id, {
-                                maxSpeed: e.target.value,
-                              })
-                            }
-                            placeholder="205 km/h"
-                          />
-                        </div>
-
-                        <div className="md:col-span-2">
-                          <Label>Consumo</Label>
-                          <Input
-                            value={motor.consumption}
-                            onChange={(e) =>
-                              updateMotor(motor.id, {
-                                consumption: e.target.value,
-                              })
-                            }
-                            placeholder="Cidade/Estrada ou informação comercial"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </Card>
             )}
 
             {activeTab === "colors" && (
               <Card
-                title="Cores externas com imagens por ângulo"
+                title="Cores por versão/modelo"
                 icon={<Palette size={16} />}
                 right={
                   <Button
                     type="button"
                     variant="vw"
                     icon={<Plus size={14} />}
-                    onClick={() => setColors((prev) => [...prev, createDefaultColor()])}
+                    onClick={() => addColor()}
                   >
                     Adicionar cor
                   </Button>
                 }
               >
+                <div className="mb-5">
+                  <HelpBox>
+                    Cada cor pertence a uma versão/modelo específico. Exemplo: uma cor do T-Cross Sense pode usar imagens diferentes da mesma cor no T-Cross Highline, porque rodas, acabamento e para-choque podem mudar. No builder, ao escolher uma versão, aparecem somente as cores ligadas a ela.
+                  </HelpBox>
+                </div>
+
                 <div className="space-y-5">
-                  {colors.map((color) => (
-                    <div
-                      key={color.id}
-                      className="overflow-hidden rounded-[22px] border border-slate-200 bg-slate-50"
-                    >
-                      <div
-                        className="h-16 border-b border-slate-200"
-                        style={{ background: color.hex }}
-                      />
+                  {versions.map((version) => {
+                    const versionColors = colors.filter((color) => color.versionId === version.id);
 
-                      <div className="flex items-start justify-between gap-3 p-4">
-                        <div>
-                          <div className="text-[10px] font-black uppercase text-slate-400">
-                            Cor externa
+                    return (
+                      <div key={version.id} className="rounded-[24px] border border-blue-100 bg-blue-50/40 p-4">
+                        <div className="mb-4 flex flex-col justify-between gap-3 md:flex-row md:items-center">
+                          <div>
+                            <div className="text-[10px] font-black uppercase tracking-[0.14em] text-blue-700/70">Versão/modelo</div>
+                            <h3 className="text-lg font-black text-slate-950">{version.name}</h3>
+                            <p className="text-xs text-slate-500">Cores cadastradas somente para esta versão.</p>
                           </div>
-                          <div className="font-black text-slate-900">
-                            {color.name || "Sem nome"}
-                          </div>
-                          <div className="text-xs text-slate-500">
-                            {color.type} • {money(color.price)}
-                          </div>
+                          <Button type="button" variant="vw" icon={<Plus size={14} />} onClick={() => addColor(version.id)}>
+                            Cor desta versão
+                          </Button>
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setColors((prev) =>
-                              prev.filter((item) => item.id !== color.id)
-                            )
-                          }
-                          className="rounded-xl p-2 text-red-600 hover:bg-red-50"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        <div className="space-y-5">
+                          {versionColors.length === 0 ? (
+                            <div className="rounded-2xl border border-dashed border-blue-200 bg-white p-4 text-sm text-slate-500">
+                              Nenhuma cor ligada a esta versão ainda. Clique em <strong>Cor desta versão</strong>.
+                            </div>
+                          ) : null}
+
+                          {versionColors.map((color) => (
+                            <div
+                              key={color.id}
+                              className="overflow-hidden rounded-[22px] border border-slate-200 bg-white"
+                            >
+                              <div
+                                className="h-16 border-b border-slate-200"
+                                style={{ background: color.hex }}
+                              />
+
+                              <div className="flex items-start justify-between gap-3 p-4">
+                                <div>
+                                  <div className="text-[10px] font-black uppercase text-slate-400">
+                                    Cor externa
+                                  </div>
+                                  <div className="font-black text-slate-900">
+                                    {color.name || "Sem nome"}
+                                  </div>
+                                  <div className="text-xs text-slate-500">
+                                    {color.type} • {money(color.price)}
+                                  </div>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setColors((prev) =>
+                                      prev.filter((item) => item.id !== color.id)
+                                    )
+                                  }
+                                  className="rounded-xl p-2 text-red-600 hover:bg-red-50"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
+
+                              <div className="grid grid-cols-1 gap-4 p-4 md:grid-cols-2">
+                                <div className="md:col-span-2">
+                                  <Label>Versão/modelo desta cor</Label>
+                                  <select
+                                    value={color.versionId || version.id}
+                                    onChange={(e) => updateColor(color.id, { versionId: e.target.value })}
+                                    className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-black/5"
+                                  >
+                                    {versions.map((option) => (
+                                      <option key={option.id} value={option.id}>
+                                        {option.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                <div>
+                                  <Label>Nome da cor</Label>
+                                  <Input
+                                    value={color.name}
+                                    onChange={(e) =>
+                                      updateColor(color.id, { name: e.target.value })
+                                    }
+                                  />
+                                </div>
+
+                                <div>
+                                  <Label>Tipo</Label>
+                                  <Input
+                                    value={color.type}
+                                    onChange={(e) =>
+                                      updateColor(color.id, { type: e.target.value })
+                                    }
+                                    placeholder="Sólida, Metálica..."
+                                  />
+                                </div>
+
+                                <div>
+                                  <Label>Preço adicional</Label>
+                                  <Input
+                                    type="number"
+                                    value={color.price}
+                                    onChange={(e) =>
+                                      updateColor(color.id, {
+                                        price: Number(e.target.value || 0),
+                                      })
+                                    }
+                                  />
+                                </div>
+
+                                <div>
+                                  <Label>Hex da bolha da cor</Label>
+                                  <Input
+                                    value={color.hex}
+                                    onChange={(e) =>
+                                      updateColor(color.id, { hex: e.target.value })
+                                    }
+                                    placeholder="#001e50"
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="border-t border-slate-200 bg-white p-4">
+                                <div className="mb-4 flex items-center gap-2 text-sm font-black uppercase text-slate-900">
+                                  <Camera size={16} />
+                                  Imagens desta cor nesta versão
+                                </div>
+
+                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                  <UploadField
+                                    label="Frente do carro nessa cor"
+                                    hint="Aparece quando o cliente escolhe o ângulo Frente."
+                                    value={color.images.front}
+                                    onChange={(value) =>
+                                      updateColorImage(color.id, "front", value)
+                                    }
+                                    onUpload={(file) =>
+                                      handleUpload(
+                                        file,
+                                        `colors/${version.id}/${color.id}/front`,
+                                        (url) => updateColorImage(color.id, "front", url)
+                                      )
+                                    }
+                                    uploading={uploading}
+                                  />
+
+                                  <UploadField
+                                    label="Lateral do carro nessa cor"
+                                    hint="Imagem principal do configurador quando a cor é selecionada."
+                                    value={color.images.side}
+                                    onChange={(value) =>
+                                      updateColorImage(color.id, "side", value)
+                                    }
+                                    onUpload={(file) =>
+                                      handleUpload(
+                                        file,
+                                        `colors/${version.id}/${color.id}/side`,
+                                        (url) => updateColorImage(color.id, "side", url)
+                                      )
+                                    }
+                                    uploading={uploading}
+                                  />
+
+                                  <UploadField
+                                    label="Traseira do carro nessa cor"
+                                    hint="Aparece quando o cliente escolhe o ângulo Traseira."
+                                    value={color.images.rear}
+                                    onChange={(value) =>
+                                      updateColorImage(color.id, "rear", value)
+                                    }
+                                    onUpload={(file) =>
+                                      handleUpload(
+                                        file,
+                                        `colors/${version.id}/${color.id}/rear`,
+                                        (url) => updateColorImage(color.id, "rear", url)
+                                      )
+                                    }
+                                    uploading={uploading}
+                                  />
+
+                                  <UploadField
+                                    label="Imagem 3/4 opcional"
+                                    hint="Opcional. Pode ser usada como imagem mais comercial do veículo."
+                                    value={color.images.threeQuarter}
+                                    onChange={(value) =>
+                                      updateColorImage(color.id, "threeQuarter", value)
+                                    }
+                                    onUpload={(file) =>
+                                      handleUpload(
+                                        file,
+                                        `colors/${version.id}/${color.id}/three-quarter`,
+                                        (url) =>
+                                          updateColorImage(color.id, "threeQuarter", url)
+                                      )
+                                    }
+                                    uploading={uploading}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-
-                      <div className="grid grid-cols-1 gap-4 p-4 md:grid-cols-2">
-                        <div>
-                          <Label>Nome da cor</Label>
-                          <Input
-                            value={color.name}
-                            onChange={(e) =>
-                              updateColor(color.id, { name: e.target.value })
-                            }
-                          />
-                        </div>
-
-                        <div>
-                          <Label>Tipo</Label>
-                          <Input
-                            value={color.type}
-                            onChange={(e) =>
-                              updateColor(color.id, { type: e.target.value })
-                            }
-                            placeholder="Sólida, Metálica..."
-                          />
-                        </div>
-
-                        <div>
-                          <Label>Preço adicional</Label>
-                          <Input
-                            type="number"
-                            value={color.price}
-                            onChange={(e) =>
-                              updateColor(color.id, {
-                                price: Number(e.target.value || 0),
-                              })
-                            }
-                          />
-                        </div>
-
-                        <div>
-                          <Label>Hex da cor</Label>
-                          <Input
-                            value={color.hex}
-                            onChange={(e) =>
-                              updateColor(color.id, { hex: e.target.value })
-                            }
-                            placeholder="#001e50"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="border-t border-slate-200 bg-white p-4">
-                        <div className="mb-4 flex items-center gap-2 text-sm font-black uppercase text-slate-900">
-                          <Camera size={16} />
-                          Imagens do veículo nessa cor
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                          <UploadField
-                            label="Frente"
-                            value={color.images.front}
-                            onChange={(value) =>
-                              updateColorImage(color.id, "front", value)
-                            }
-                            onUpload={(file) =>
-                              handleUpload(
-                                file,
-                                `colors/${color.id}/front`,
-                                (url) => updateColorImage(color.id, "front", url)
-                              )
-                            }
-                            uploading={uploading}
-                          />
-
-                          <UploadField
-                            label="Lateral"
-                            value={color.images.side}
-                            onChange={(value) =>
-                              updateColorImage(color.id, "side", value)
-                            }
-                            onUpload={(file) =>
-                              handleUpload(
-                                file,
-                                `colors/${color.id}/side`,
-                                (url) => updateColorImage(color.id, "side", url)
-                              )
-                            }
-                            uploading={uploading}
-                          />
-
-                          <UploadField
-                            label="Traseira"
-                            value={color.images.rear}
-                            onChange={(value) =>
-                              updateColorImage(color.id, "rear", value)
-                            }
-                            onUpload={(file) =>
-                              handleUpload(
-                                file,
-                                `colors/${color.id}/rear`,
-                                (url) => updateColorImage(color.id, "rear", url)
-                              )
-                            }
-                            uploading={uploading}
-                          />
-
-                          <UploadField
-                            label="3/4"
-                            value={color.images.threeQuarter}
-                            onChange={(value) =>
-                              updateColorImage(color.id, "threeQuarter", value)
-                            }
-                            onUpload={(file) =>
-                              handleUpload(
-                                file,
-                                `colors/${color.id}/three-quarter`,
-                                (url) =>
-                                  updateColorImage(color.id, "threeQuarter", url)
-                              )
-                            }
-                            uploading={uploading}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </Card>
             )}
 
             {activeTab === "interiors" && (
               <Card
-                title="Acabamentos internos"
+                title="Volante, banco e painel"
                 icon={<Armchair size={16} />}
                 right={
-                  <Button
-                    type="button"
-                    variant="vw"
-                    icon={<Plus size={14} />}
-                    onClick={() =>
-                      setInteriors((prev) => [...prev, createDefaultInterior()])
-                    }
-                  >
-                    Adicionar interior
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" variant="gray" icon={<Plus size={14} />} onClick={() => addInterior("seat")}>Banco</Button>
+                    <Button type="button" variant="gray" icon={<Plus size={14} />} onClick={() => addInterior("steering")}>Volante</Button>
+                    <Button type="button" variant="gray" icon={<Plus size={14} />} onClick={() => addInterior("panel")}>Painel</Button>
+                  </div>
                 }
               >
+                <div className="mb-5">
+                  <HelpBox>
+                    Cadastre imagens internas separadas. O builder reconhece pelo tipo salvo aqui: <strong>banco</strong>, <strong>volante</strong> e <strong>painel</strong>. Isso evita depender só do nome do arquivo.
+                  </HelpBox>
+                </div>
+
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   {interiors.map((interior) => (
                     <div
@@ -1587,7 +1995,13 @@ export default function AdminVolkswagenVehicleCreatePage() {
                       <div className="flex items-start justify-between gap-3 p-4">
                         <div>
                           <div className="text-[10px] font-black uppercase text-slate-400">
-                            Interior
+                            {normalizeInteriorKind(interior) === "seat"
+                              ? "Banco"
+                              : normalizeInteriorKind(interior) === "steering"
+                              ? "Volante"
+                              : normalizeInteriorKind(interior) === "panel"
+                              ? "Painel"
+                              : "Interior"}
                           </div>
                           <div className="font-black text-slate-900">
                             {interior.name || "Sem nome"}
@@ -1615,18 +2029,36 @@ export default function AdminVolkswagenVehicleCreatePage() {
                           <img
                             src={interior.image}
                             alt={interior.name}
-                            className="h-36 w-full object-cover"
+                            className="h-44 w-full object-cover"
                           />
                         </div>
                       ) : (
-                        <div className="flex h-28 items-center justify-center border-y border-slate-200 bg-white text-xs font-black text-slate-300">
+                        <div className="flex h-36 items-center justify-center border-y border-slate-200 bg-white text-xs font-black text-slate-300">
                           Sem imagem
                         </div>
                       )}
 
                       <div className="space-y-3 p-4">
                         <div>
-                          <Label>Nome do interior</Label>
+                          <Label>Tipo da imagem interna</Label>
+                          <select
+                            value={normalizeInteriorKind(interior)}
+                            onChange={(e) =>
+                              updateInterior(interior.id, {
+                                kind: e.target.value as InteriorKind,
+                              })
+                            }
+                            className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-black/5"
+                          >
+                            <option value="seat">Banco</option>
+                            <option value="steering">Volante</option>
+                            <option value="panel">Painel</option>
+                            <option value="general">Interior geral</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <Label>Nome</Label>
                           <Input
                             value={interior.name}
                             onChange={(e) =>
@@ -1651,7 +2083,7 @@ export default function AdminVolkswagenVehicleCreatePage() {
                         </div>
 
                         <div>
-                          <Label>Descrição do interior</Label>
+                          <Label>Descrição</Label>
                           <Textarea
                             rows={3}
                             value={interior.description}
@@ -1664,7 +2096,8 @@ export default function AdminVolkswagenVehicleCreatePage() {
                         </div>
 
                         <UploadField
-                          label="Imagem do interior"
+                          label="Imagem interna"
+                          hint="Use esta área para banco, volante, painel ou visão geral interna."
                           value={interior.image}
                           onChange={(value) =>
                             updateInterior(interior.id, { image: value })
@@ -1672,7 +2105,7 @@ export default function AdminVolkswagenVehicleCreatePage() {
                           onUpload={(file) =>
                             handleUpload(
                               file,
-                              `interiors/${interior.id}`,
+                              `interiors/${normalizeInteriorKind(interior)}/${interior.id}`,
                               (url) => updateInterior(interior.id, { image: url })
                             )
                           }
@@ -1691,16 +2124,28 @@ export default function AdminVolkswagenVehicleCreatePage() {
                 title="Galeria geral do veículo"
                 icon={<ImageIcon size={16} />}
                 right={
-                  <Button
-                    type="button"
-                    variant="vw"
-                    icon={<Plus size={14} />}
-                    onClick={() =>
-                      setGallery((prev) => [...prev, createDefaultGalleryImage()])
-                    }
-                  >
-                    Adicionar imagem
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="vw"
+                      icon={<Plus size={14} />}
+                      onClick={() =>
+                        setGallery((prev) => [...prev, createDefaultGalleryImage("exterior")])
+                      }
+                    >
+                      Exterior
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="gray"
+                      icon={<Plus size={14} />}
+                      onClick={() =>
+                        setGallery((prev) => [...prev, createDefaultGalleryImage("interior")])
+                      }
+                    >
+                      Interior
+                    </Button>
+                  </div>
                 }
               >
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -1873,7 +2318,7 @@ export default function AdminVolkswagenVehicleCreatePage() {
                     <div className="rounded-xl bg-slate-50 p-3">
                       <strong>{interiors.length}</strong>
                       <br />
-                      interior
+                      interiores
                     </div>
                   </div>
 
@@ -1886,7 +2331,13 @@ export default function AdminVolkswagenVehicleCreatePage() {
                       <strong>Cor:</strong> {previewColor?.name || "—"}
                     </p>
                     <p className="mt-1">
-                      <strong>Interior:</strong> {previewInterior?.name || "—"}
+                      <strong>Banco:</strong> {seatInterior?.name || "—"}
+                    </p>
+                    <p className="mt-1">
+                      <strong>Volante:</strong> {steeringInterior?.name || "—"}
+                    </p>
+                    <p className="mt-1">
+                      <strong>Painel:</strong> {panelInterior?.name || "—"}
                     </p>
                   </div>
                 </div>
@@ -1897,13 +2348,35 @@ export default function AdminVolkswagenVehicleCreatePage() {
                   <ChecklistLine label="Nome" ok={Boolean(modelName.trim())} />
                   <ChecklistLine label="Slug" ok={Boolean(computedSlug)} />
                   <ChecklistLine label="Nome completo" ok={Boolean(fullName.trim())} />
-                  <ChecklistLine label="Imagem principal" ok={Boolean(mainImage.trim())} />
-                  <ChecklistLine label="Imagem lateral" ok={Boolean(sideImage.trim())} />
+                  <ChecklistLine label="Capa catálogo" ok={Boolean(catalogCover.trim())} />
+                  <ChecklistLine label="Hover catálogo" ok={Boolean(catalogHover.trim())} />
+                  <ChecklistLine label="Hero builder" ok={Boolean(mainImage.trim())} />
+                  <ChecklistLine label="Lateral padrão" ok={Boolean(sideImage.trim())} />
                   <ChecklistLine label="Versões" ok={versions.length > 0} />
-                  <ChecklistLine label="Motores" ok={motors.length > 0} />
-                  <ChecklistLine label="Cores" ok={colors.length > 0} />
-                  <ChecklistLine label="Interior" ok={interiors.length > 0} />
-                  <ChecklistLine label="Galeria" ok={gallery.length > 0} />
+                  <ChecklistLine
+                    label="Fotos das versões"
+                    ok={versions.length > 0 && versions.every((v) => v.images?.front && v.images?.side && v.images?.rear)}
+                  />
+                  <ChecklistLine
+                    label="Motores por versão"
+                    ok={versions.length > 0 && versions.every((version) => motors.some((motor) => motor.versionId === version.id))}
+                  />
+                  <ChecklistLine
+                    label="Cores por versão"
+                    ok={versions.length > 0 && versions.every((version) => colors.some((color) => color.versionId === version.id))}
+                  />
+                  <ChecklistLine
+                    label="Frente/lateral/traseira"
+                    ok={colors.length > 0 && colors.every((c) => c.images.front && c.images.side && c.images.rear)}
+                  />
+                  <ChecklistLine
+                    label="Banco"
+                    ok={Boolean(seatInterior?.image)}
+                  />
+                  <ChecklistLine
+                    label="Volante"
+                    ok={Boolean(steeringInterior?.image)}
+                  />
                 </div>
               </Card>
 

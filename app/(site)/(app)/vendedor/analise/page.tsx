@@ -2,6 +2,7 @@
 
 import { useEffect, useState, Suspense, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 import {
   ArrowLeft,
   Loader2,
@@ -96,6 +97,79 @@ const parseDigitsToBRLNumber = (raw: string) => {
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
+const safeNumber = (v: any) => {
+  const n = typeof v === "number" ? v : parseFloat(String(v || "0"));
+  return Number.isFinite(n) ? n : 0;
+};
+
+type BuilderOrderPayload = {
+  source?: string;
+  status?: string;
+  brand?: string;
+  vehicle_slug?: string;
+  vehicle_name?: string;
+  vehicle_title?: string;
+  vehicle_description?: string;
+  vehicle_image?: string;
+  version?: {
+    id?: string;
+    name?: string;
+    description?: string;
+    price?: number;
+    image?: string;
+  };
+  color?: {
+    id?: string;
+    name?: string;
+    description?: string;
+    category?: string;
+    price?: number;
+    image?: string;
+    hex?: string;
+    versionId?: string;
+  } | null;
+  kits?: any[];
+  accessories?: any[];
+  totals?: {
+    vehicle?: number;
+    color?: number;
+    kits?: number;
+    accessories?: number;
+    total?: number;
+    monthly_108?: number;
+  };
+};
+
+function builderOrderToInitialData(order: BuilderOrderPayload | null) {
+  if (!order) return null;
+
+  const modelo =
+    order.version?.name ||
+    [order.vehicle_name, order.color?.name].filter(Boolean).join(" - ") ||
+    "Veículo Selecionado";
+
+  const valor =
+    safeNumber(order.totals?.total) ||
+    safeNumber(order.version?.price) + safeNumber(order.color?.price) ||
+    0;
+
+  const imagem =
+    order.vehicle_image ||
+    order.color?.image ||
+    order.version?.image ||
+    "";
+
+  return {
+    modelo,
+    valor,
+    imagem,
+    vehicleSlug: order.vehicle_slug || "",
+    vehicleName: order.vehicle_name || "",
+    versionName: order.version?.name || "",
+    colorName: order.color?.name || "",
+  };
+}
+
 function findCoupon(
   codeRaw: string,
   sellerId?: string | null
@@ -135,17 +209,102 @@ function AnaliseContent() {
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
 
+  const pedidoId = searchParams.get("pedido") || "";
+  const [builderOrder, setBuilderOrder] = useState<BuilderOrderPayload | null>(null);
+  const builderInitialData = useMemo(
+    () => builderOrderToInitialData(builderOrder),
+    [builderOrder]
+  );
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadBuilderOrder() {
+      if (!pedidoId) {
+        try {
+          const cached = localStorage.getItem("wb_analysis_order") || localStorage.getItem("wb_builder_order");
+          if (cached && active) setBuilderOrder(JSON.parse(cached));
+        } catch {}
+        return;
+      }
+
+      try {
+        const cached = localStorage.getItem("wb_analysis_order") || localStorage.getItem("wb_builder_order");
+        if (cached && active) {
+          const parsed = JSON.parse(cached);
+          setBuilderOrder(parsed);
+        }
+      } catch {}
+
+      try {
+        const { data, error } = await supabase
+          .from("contract_orders")
+          .select("payload, vehicle_name, version_name, color_name, vehicle_image, total_value")
+          .eq("id", pedidoId)
+          .maybeSingle();
+
+        if (!active) return;
+
+        if (!error && data) {
+          const payload = (data as any).payload || {
+            vehicle_name: (data as any).vehicle_name,
+            vehicle_image: (data as any).vehicle_image,
+            version: {
+              name: (data as any).version_name,
+              price: safeNumber((data as any).total_value),
+              image: (data as any).vehicle_image,
+            },
+            color: {
+              name: (data as any).color_name,
+              image: (data as any).vehicle_image,
+              price: 0,
+            },
+            totals: {
+              total: safeNumber((data as any).total_value),
+            },
+          };
+
+          setBuilderOrder(payload);
+          localStorage.setItem("wb_analysis_order", JSON.stringify(payload));
+        }
+      } catch (e) {
+        console.warn("Não foi possível carregar pedido do builder:", e);
+      }
+    }
+
+    loadBuilderOrder();
+
+    return () => {
+      active = false;
+    };
+  }, [pedidoId]);
+
   const dadosIniciais = useMemo(
     () => ({
       nome: searchParams.get("nome") || "Cliente",
-      modelo: searchParams.get("modelo") || "Veículo Selecionado",
-      valor: parseFloat(searchParams.get("valor") || "0"),
-      entradaUrl: parseFloat(searchParams.get("entrada") || "0") || 0,
-      imagem: searchParams.get("imagem") || "",
+      modelo:
+        searchParams.get("modelo") ||
+        builderInitialData?.modelo ||
+        "Veículo Selecionado",
+      valor:
+        safeNumber(searchParams.get("valor")) ||
+        builderInitialData?.valor ||
+        0,
+      entradaUrl: safeNumber(searchParams.get("entrada")) || 0,
+      imagem:
+        searchParams.get("imagem") ||
+        builderInitialData?.imagem ||
+        "",
       vendedorId: searchParams.get("vendedor") || searchParams.get("vendedor_id") || null,
+      pedidoId,
+      origem: searchParams.get("origem") || "",
+      vehicleSlug: searchParams.get("vehicle_slug") || builderInitialData?.vehicleSlug || "",
+      vehicleName: searchParams.get("vehicle_name") || builderInitialData?.vehicleName || "",
+      versionName: searchParams.get("versao") || builderInitialData?.versionName || "",
+      colorName: searchParams.get("cor") || builderInitialData?.colorName || "",
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [searchParams.toString()]
+    [searchParams.toString(), builderInitialData, pedidoId]
   );
 
   // ENTRADA com máscara BRL
@@ -305,6 +464,15 @@ function AnaliseContent() {
     const params = new URLSearchParams(searchParams.toString());
     params.set("tipo", "CONSORCIO");
     params.set("entrada", String(entradaManual || 0));
+    params.set("modelo", dadosIniciais.modelo);
+    params.set("valor", String(dadosIniciais.valor || 0));
+    params.set("imagem", dadosIniciais.imagem || "");
+    params.set("pedido", dadosIniciais.pedidoId || "");
+    params.set("origem", dadosIniciais.origem || "builder");
+    params.set("vehicle_slug", dadosIniciais.vehicleSlug || "");
+    params.set("vehicle_name", dadosIniciais.vehicleName || "");
+    params.set("versao", dadosIniciais.versionName || dadosIniciais.modelo || "");
+    params.set("cor", dadosIniciais.colorName || "");
 
     const valorCarro = dadosIniciais.valor || 0;
     const credito = Math.max(0, valorCarro - (entradaManual || 0));
@@ -362,6 +530,13 @@ function AnaliseContent() {
       params.set("parcela_final", String(lanceCalc.parcelaFinal));
       params.set("credito_apos_lance", String(lanceCalc.creditoAposLance));
     }
+
+    try {
+      if (builderOrder) {
+        localStorage.setItem("wb_contract_order", JSON.stringify(builderOrder));
+      }
+      localStorage.setItem("wb_contract_params", params.toString());
+    } catch {}
 
     router.push(`/vendedor/contrato?${params.toString()}`);
   };
@@ -763,18 +938,45 @@ function AnaliseContent() {
 
               <div className="flex-1">
                 {resultado?.financiamento?.planos?.map((p: any) => (
-                  <div
+                  <button
                     key={p.prazo}
-                    className="flex justify-between items-center py-3 px-2 rounded-xl hover:bg-slate-50 transition-all border border-transparent hover:border-slate-200"
+                    type="button"
+                    onClick={() => {
+                      const params = new URLSearchParams(searchParams.toString());
+                      params.set("tipo", "FINANCIAMENTO");
+                      params.set("modelo", dadosIniciais.modelo);
+                      params.set("valor", String(dadosIniciais.valor || 0));
+                      params.set("entrada", String(entradaManual || 0));
+                      params.set("imagem", dadosIniciais.imagem || "");
+                      params.set("pedido", dadosIniciais.pedidoId || "");
+                      params.set("origem", dadosIniciais.origem || "builder");
+                      params.set("prazo_escolhido", String(p.prazo));
+                      params.set("parcela_escolhida", String(p.parcela));
+                      params.set("total_final", String(round2((p.total || 0) + (entradaManual || 0))));
+                      params.set("vehicle_slug", dadosIniciais.vehicleSlug || "");
+                      params.set("vehicle_name", dadosIniciais.vehicleName || "");
+                      params.set("versao", dadosIniciais.versionName || dadosIniciais.modelo || "");
+                      params.set("cor", dadosIniciais.colorName || "");
+
+                      try {
+                        if (builderOrder) {
+                          localStorage.setItem("wb_contract_order", JSON.stringify(builderOrder));
+                        }
+                        localStorage.setItem("wb_contract_params", params.toString());
+                      } catch {}
+
+                      router.push(`/vendedor/contrato?${params.toString()}`);
+                    }}
+                    className="flex w-full justify-between items-center py-3 px-2 rounded-xl hover:bg-slate-50 transition-all border border-transparent hover:border-slate-200 text-left"
                   >
                     <span className="inline-flex items-center gap-2">
                       <span className="px-2 py-1 rounded-lg bg-slate-100 text-slate-700 text-[11px] font-black">
                         {p.prazo}x
                       </span>
-                      <span className="text-sm font-bold text-slate-500">estimativa</span>
+                      <span className="text-sm font-bold text-slate-500">clique para usar no contrato</span>
                     </span>
                     <span className="font-black text-slate-900">{formatMoney(p.parcela)}</span>
-                  </div>
+                  </button>
                 ))}
               </div>
 
