@@ -1,6 +1,5 @@
 "use client";
 
-import React from "react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -134,8 +133,13 @@ const fallbackVehicle: VehicleConfig = {
       price: 107190,
       fuel: "Total Flex",
       transmission: "Manual",
-      image: VW_IMAGES.teraThumb,
+      image: VW_IMAGES.teraThumb || VW_IMAGES.teraExterior,
       description: "Versão de entrada do Volkswagen Tera.",
+      images: {
+        front: VW_IMAGES.teraExterior,
+        side: VW_IMAGES.teraExterior,
+        rear: VW_IMAGES.teraExterior,
+      },
     },
   ],
   motors: [
@@ -162,7 +166,11 @@ const fallbackVehicle: VehicleConfig = {
       price: 0,
       hex: "#efefec",
       image: VW_IMAGES.teraExterior,
-      images: { side: VW_IMAGES.teraExterior },
+      images: {
+        front: VW_IMAGES.teraExterior,
+        side: VW_IMAGES.teraExterior,
+        rear: VW_IMAGES.teraExterior,
+      },
     },
   ],
   interiors: [
@@ -186,10 +194,11 @@ function money(value: number) {
 
 function normalizeColor(color: any): Color {
   const images = color?.images || {};
+
   const image =
-    images.side ||
-    images.threeQuarter ||
     images.front ||
+    images.threeQuarter ||
+    images.side ||
     images.rear ||
     color?.image ||
     "";
@@ -207,29 +216,81 @@ function normalizeColor(color: any): Color {
 }
 
 function normalizeVehicleFromDb(row: VehicleDbRow): VehicleConfig {
-  const versions = Array.isArray(row.versions) && row.versions.length ? row.versions : fallbackVehicle.versions;
-  const motors = Array.isArray(row.motors) && row.motors.length ? row.motors : fallbackVehicle.motors;
-  const colors = Array.isArray(row.colors) && row.colors.length ? row.colors.map(normalizeColor) : fallbackVehicle.colors;
-  const interiors = Array.isArray(row.interiors) && row.interiors.length ? row.interiors : fallbackVehicle.interiors;
+  const versions =
+    Array.isArray(row.versions) && row.versions.length
+      ? row.versions
+      : fallbackVehicle.versions;
+
+  const motors =
+    Array.isArray(row.motors) && row.motors.length
+      ? row.motors
+      : fallbackVehicle.motors;
+
+  const colors =
+    Array.isArray(row.colors) && row.colors.length
+      ? row.colors.map(normalizeColor)
+      : fallbackVehicle.colors;
+
+  const interiors =
+    Array.isArray(row.interiors) && row.interiors.length
+      ? row.interiors
+      : fallbackVehicle.interiors;
+
+  const mainFrontImage =
+    row.exterior_image_url ||
+    row.image_url ||
+    row.catalog_cover_url ||
+    row.side_image_url ||
+    "";
 
   return {
     slug: row.slug,
     name: row.model_name,
     fullName: row.full_name || row.model_name,
-    heroImage: row.image_url || row.side_image_url || row.catalog_cover_url || "",
-    exteriorImage: row.exterior_image_url || row.side_image_url || row.image_url || "",
+    heroImage: mainFrontImage,
+    exteriorImage: mainFrontImage,
     interiorImage: row.interior_image_url || interiors[0]?.image || "",
-    sideImage: row.side_image_url || row.exterior_image_url || row.image_url || "",
-    catalogCover: row.catalog_cover_url || row.side_image_url || row.image_url || "",
-    versions: versions.map((item) => ({
-      ...item,
-      price: Number(item.price || 0),
-      image: item.image || item.images?.side || row.side_image_url || row.image_url || "",
-      description: item.description || "",
-      images: item.images || {
-        side: item.image || row.side_image_url || row.image_url || "",
-      },
-    })),
+    sideImage: row.side_image_url || mainFrontImage,
+    catalogCover: row.catalog_cover_url || mainFrontImage,
+    versions: versions.map((item) => {
+      const itemImages = item.images || {};
+      const frontImage =
+        itemImages.front ||
+        itemImages.threeQuarter ||
+        item.image ||
+        row.exterior_image_url ||
+        row.image_url ||
+        row.catalog_cover_url ||
+        row.side_image_url ||
+        "";
+
+      return {
+        ...item,
+        price: Number(item.price || 0),
+        image: frontImage,
+        description: item.description || "",
+        images: {
+          front:
+            itemImages.front ||
+            itemImages.threeQuarter ||
+            frontImage ||
+            mainFrontImage,
+          side:
+            itemImages.side ||
+            row.side_image_url ||
+            itemImages.front ||
+            frontImage ||
+            mainFrontImage,
+          rear:
+            itemImages.rear ||
+            itemImages.side ||
+            row.side_image_url ||
+            frontImage ||
+            mainFrontImage,
+          threeQuarter: itemImages.threeQuarter || itemImages.front || frontImage,
+        },
+      };
+    }),
     motors: motors.map((item, index) => ({
       ...item,
       versionId: item.versionId || versions[index]?.id || versions[0]?.id || "",
@@ -242,6 +303,31 @@ function normalizeVehicleFromDb(row: VehicleDbRow): VehicleConfig {
     colors: colors.map((item, index) => ({
       ...item,
       versionId: item.versionId || versions[index]?.id || versions[0]?.id || "",
+      images: {
+        front:
+          item.images?.front ||
+          item.images?.threeQuarter ||
+          item.image ||
+          mainFrontImage,
+        side:
+          item.images?.side ||
+          row.side_image_url ||
+          item.images?.front ||
+          item.image ||
+          mainFrontImage,
+        rear:
+          item.images?.rear ||
+          item.images?.side ||
+          row.side_image_url ||
+          item.image ||
+          mainFrontImage,
+        threeQuarter: item.images?.threeQuarter || item.images?.front || item.image,
+      },
+      image:
+        item.images?.front ||
+        item.images?.threeQuarter ||
+        item.image ||
+        mainFrontImage,
     })),
     interiors: interiors.map((item) => ({
       ...item,
@@ -253,25 +339,25 @@ function normalizeVehicleFromDb(row: VehicleDbRow): VehicleConfig {
   };
 }
 
-function getVersionImage(version: Version, view: ViewKey = "side") {
+function getVersionImage(version: Version, view: ViewKey = "front") {
   return (
     version.images?.[view] ||
-    version.images?.side ||
     version.images?.front ||
-    version.images?.rear ||
     version.images?.threeQuarter ||
+    version.images?.side ||
+    version.images?.rear ||
     version.image ||
     ""
   );
 }
 
-function getColorImage(color: Color, view: ViewKey = "side") {
+function getColorImage(color: Color, view: ViewKey = "front") {
   return (
     color.images?.[view] ||
-    color.images?.side ||
     color.images?.front ||
-    color.images?.rear ||
     color.images?.threeQuarter ||
+    color.images?.side ||
+    color.images?.rear ||
     color.image ||
     ""
   );
@@ -289,7 +375,12 @@ function isSteeringWheelReference(item: Interior | GalleryImage) {
   const name = "name" in item ? item.name || "" : "";
   const description = "description" in item ? item.description || "" : "";
   const text = normalizeForSearch(`${title} ${name} ${description}`);
-  return text.includes("volante") || text.includes("direcao") || text.includes("steering");
+
+  return (
+    text.includes("volante") ||
+    text.includes("direcao") ||
+    text.includes("steering")
+  );
 }
 
 function isSeatReference(item: Interior | GalleryImage) {
@@ -297,11 +388,19 @@ function isSeatReference(item: Interior | GalleryImage) {
   const name = "name" in item ? item.name || "" : "";
   const description = "description" in item ? item.description || "" : "";
   const text = normalizeForSearch(`${title} ${name} ${description}`);
-  return text.includes("banco") || text.includes("assento") || text.includes("seat") || text.includes("couro") || text.includes("tecido");
+
+  return (
+    text.includes("banco") ||
+    text.includes("assento") ||
+    text.includes("seat") ||
+    text.includes("couro") ||
+    text.includes("tecido")
+  );
 }
 
 function getInteriorReference(vehicle: VehicleConfig, key: InteriorViewKey) {
-  const matcher = key === "steeringWheel" ? isSteeringWheelReference : isSeatReference;
+  const matcher =
+    key === "steeringWheel" ? isSteeringWheelReference : isSeatReference;
 
   const interior = vehicle.interiors.find((item) => matcher(item));
   if (interior?.image) return interior;
@@ -316,14 +415,19 @@ function getInteriorReference(vehicle: VehicleConfig, key: InteriorViewKey) {
       name: galleryItem.title,
       price: 0,
       image: galleryItem.image,
-      description: key === "steeringWheel" ? "Referência de volante" : "Referência de banco",
+      description:
+        key === "steeringWheel" ? "Referência de volante" : "Referência de banco",
     } as Interior;
   }
 
   return null;
 }
 
-function getInteriorImage(vehicle: VehicleConfig, selectedInterior: Interior, key: InteriorViewKey) {
+function getInteriorImage(
+  vehicle: VehicleConfig,
+  selectedInterior: Interior,
+  key: InteriorViewKey
+) {
   return (
     getInteriorReference(vehicle, key)?.image ||
     selectedInterior?.image ||
@@ -339,12 +443,22 @@ export default function VolkswagenBuilderPage() {
   const [loading, setLoading] = useState(true);
   const [vehicle, setVehicle] = useState<VehicleConfig>(fallbackVehicle);
   const [step, setStep] = useState<Step>("versoes");
-  const [view, setView] = useState<ViewKey>("side");
-  const [interiorView, setInteriorView] = useState<InteriorViewKey>("steeringWheel");
-  const [selectedVersion, setSelectedVersion] = useState<Version>(fallbackVehicle.versions[0]);
-  const [selectedMotor, setSelectedMotor] = useState<Motor>(fallbackVehicle.motors[0]);
-  const [selectedColor, setSelectedColor] = useState<Color>(fallbackVehicle.colors[0]);
-  const [selectedInterior, setSelectedInterior] = useState<Interior>(fallbackVehicle.interiors[0]);
+  const [view, setView] = useState<ViewKey>("front");
+  const [interiorView, setInteriorView] =
+    useState<InteriorViewKey>("steeringWheel");
+
+  const [selectedVersion, setSelectedVersion] = useState<Version>(
+    fallbackVehicle.versions[0]
+  );
+  const [selectedMotor, setSelectedMotor] = useState<Motor>(
+    fallbackVehicle.motors[0]
+  );
+  const [selectedColor, setSelectedColor] = useState<Color>(
+    fallbackVehicle.colors[0]
+  );
+  const [selectedInterior, setSelectedInterior] = useState<Interior>(
+    fallbackVehicle.interiors[0]
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -364,13 +478,19 @@ export default function VolkswagenBuilderPage() {
 
       if (!mounted) return;
 
-      const nextVehicle = !error && data ? normalizeVehicleFromDb(data as VehicleDbRow) : fallbackVehicle;
+      const nextVehicle =
+        !error && data
+          ? normalizeVehicleFromDb(data as VehicleDbRow)
+          : fallbackVehicle;
 
       setVehicle(nextVehicle);
+
       const firstVersion = nextVehicle.versions[0];
+
       const firstMotor =
         nextVehicle.motors.find((motor) => motor.versionId === firstVersion?.id) ||
         nextVehicle.motors[0];
+
       const firstColor =
         nextVehicle.colors.find((color) => color.versionId === firstVersion?.id) ||
         nextVehicle.colors[0];
@@ -380,7 +500,7 @@ export default function VolkswagenBuilderPage() {
       setSelectedColor(firstColor);
       setSelectedInterior(nextVehicle.interiors[0]);
       setStep("versoes");
-      setView("side");
+      setView("front");
       setInteriorView("steeringWheel");
       setLoading(false);
     }
@@ -393,12 +513,18 @@ export default function VolkswagenBuilderPage() {
   }, [vehicleSlug]);
 
   const availableMotors = useMemo(() => {
-    const filtered = vehicle.motors.filter((motor) => motor.versionId === selectedVersion?.id);
+    const filtered = vehicle.motors.filter(
+      (motor) => motor.versionId === selectedVersion?.id
+    );
+
     return filtered.length ? filtered : vehicle.motors;
   }, [vehicle.motors, selectedVersion]);
 
   const availableColors = useMemo(() => {
-    const filtered = vehicle.colors.filter((color) => color.versionId === selectedVersion?.id);
+    const filtered = vehicle.colors.filter(
+      (color) => color.versionId === selectedVersion?.id
+    );
+
     return filtered.length ? filtered : vehicle.colors;
   }, [vehicle.colors, selectedVersion]);
 
@@ -420,7 +546,13 @@ export default function VolkswagenBuilderPage() {
     if (nextColor && nextColor.id !== selectedColor?.id) {
       setSelectedColor(nextColor);
     }
-  }, [selectedVersion, availableMotors, availableColors, selectedMotor?.id, selectedColor?.id]);
+  }, [
+    selectedVersion,
+    availableMotors,
+    availableColors,
+    selectedMotor?.id,
+    selectedColor?.id,
+  ]);
 
   const total =
     Number(selectedVersion?.price || 0) +
@@ -435,29 +567,40 @@ export default function VolkswagenBuilderPage() {
     if (step === "cor") {
       return (
         getColorImage(selectedColor, view) ||
-        getVersionImage(selectedVersion, view) ||
-        vehicle.sideImage ||
+        getColorImage(selectedColor, "front") ||
+        getVersionImage(selectedVersion, "front") ||
         vehicle.exteriorImage ||
-        vehicle.heroImage
+        vehicle.heroImage ||
+        vehicle.sideImage
       );
     }
 
     if (step === "resumo") {
       return (
-        getColorImage(selectedColor, "side") ||
-        getVersionImage(selectedVersion, "side") ||
-        vehicle.sideImage ||
-        vehicle.heroImage
+        getColorImage(selectedColor, "front") ||
+        getVersionImage(selectedVersion, "front") ||
+        vehicle.exteriorImage ||
+        vehicle.heroImage ||
+        vehicle.sideImage
       );
     }
 
     return (
       getVersionImage(selectedVersion, view) ||
-      vehicle.sideImage ||
+      getVersionImage(selectedVersion, "front") ||
       vehicle.exteriorImage ||
-      vehicle.heroImage
+      vehicle.heroImage ||
+      vehicle.sideImage
     );
-  }, [step, vehicle, selectedVersion, selectedColor, selectedInterior, view, interiorView]);
+  }, [
+    step,
+    vehicle,
+    selectedVersion,
+    selectedColor,
+    selectedInterior,
+    view,
+    interiorView,
+  ]);
 
   const goNext = () => {
     if (step === "versoes") return setStep("motor");
@@ -482,7 +625,9 @@ export default function VolkswagenBuilderPage() {
       <main className="flex min-h-screen items-center justify-center bg-white text-[#001e50]">
         <div className="text-center">
           <Loader2 className="mx-auto h-8 w-8 animate-spin" />
-          <p className="mt-3 text-sm font-bold uppercase">Carregando Volkswagen...</p>
+          <p className="mt-3 text-sm font-bold uppercase">
+            Carregando Volkswagen...
+          </p>
         </div>
       </main>
     );
@@ -493,16 +638,38 @@ export default function VolkswagenBuilderPage() {
       <header className="fixed left-0 top-0 z-[80] h-[46px] w-full border-b border-black/10 bg-white text-[#001e50]">
         <div className="flex h-full items-center justify-between px-4 md:px-[76px]">
           <div className="flex h-full items-center gap-6">
-            <img src={VW_IMAGES.logo} alt="Volkswagen" className="h-[24px] w-auto" />
-            <Link href="/volkswagen" className="hidden text-[13px] font-bold md:block">Menu</Link>
-            <Link href="/volkswagen" className="hidden text-[13px] font-bold md:block">
-              Configure seu novo Volkswagen
+            <img
+              src={VW_IMAGES.logo}
+              alt="Volkswagen"
+              className="h-[24px] w-auto"
+            />
+
+            <Link
+              href="/volkswagen"
+              className="hidden text-[13px] font-bold md:block"
+            >
+              Menu
             </Link>
-            <Link href="/volkswagen" className="hidden text-[13px] font-bold md:block">
-              Conheça nossas ofertas
+
+            <Link
+              href="/volkswagen"
+              className="hidden text-[13px] font-bold md:block"
+            >
+
             </Link>
-            <Link href="/volkswagen" className="hidden text-[13px] font-bold md:block">
-              Serviços e Pós-vendas
+
+            <Link
+              href="/volkswagen"
+              className="hidden text-[13px] font-bold md:block"
+            >
+
+            </Link>
+
+            <Link
+              href="/volkswagen"
+              className="hidden text-[13px] font-bold md:block"
+            >
+
             </Link>
           </div>
 
@@ -523,7 +690,10 @@ export default function VolkswagenBuilderPage() {
           ].map(([key, label]) => (
             <button
               key={key}
-              onClick={() => setStep(key as Step)}
+              onClick={() => {
+                setStep(key as Step);
+                if (key !== "interior") setView("front");
+              }}
               className={`rounded-full px-4 py-2 font-semibold transition ${
                 step === key ? "bg-[#001e50] text-white" : "text-[#001e50]"
               }`}
@@ -535,19 +705,24 @@ export default function VolkswagenBuilderPage() {
         </div>
       </nav>
 
-      <section className="grid min-h-screen grid-cols-1 pt-[88px] pb-[78px] lg:grid-cols-[minmax(0,1fr)_minmax(480px,560px)] lg:pb-[70px]">
-        <div className="relative min-h-[58vh] overflow-hidden bg-[#f4f4f4] lg:min-h-[calc(100vh-158px)]">
+      <section className="grid min-h-screen grid-cols-1 pb-[78px] pt-[88px] lg:grid-cols-[minmax(0,1fr)_minmax(480px,560px)] lg:pb-[70px]">
+        <div className="builder-vw-stage relative min-h-[58vh] overflow-hidden bg-white lg:min-h-[calc(100vh-158px)]">
           {step !== "resumo" ? (
             <>
               {currentImage ? (
-                <img
-                  key={`${step}-${step === "interior" ? interiorView : view}-${currentImage}`}
-                  src={currentImage}
-                  alt={vehicle.name}
-                  className="builder-vw-image h-[58vh] w-full object-contain p-4 md:p-8 lg:h-[calc(100vh-158px)] lg:p-10"
-                />
+                <div className="flex h-[58vh] w-full items-center justify-center bg-white px-4 py-6 md:px-8 lg:h-[calc(100vh-158px)] lg:px-12">
+                  <img
+                    key={`${step}-${
+                      step === "interior" ? interiorView : view
+                    }-${currentImage}`}
+                    src={currentImage}
+                    alt={vehicle.name}
+                    className="builder-vw-image h-full w-full object-contain"
+                    draggable={false}
+                  />
+                </div>
               ) : (
-                <div className="flex h-[58vh] items-center justify-center text-sm font-black uppercase text-[#001e50]/40 lg:h-[calc(100vh-138px)]">
+                <div className="flex h-[58vh] items-center justify-center bg-white text-sm font-black uppercase text-[#001e50]/40 lg:h-[calc(100vh-138px)]">
                   Sem imagem cadastrada
                 </div>
               )}
@@ -567,7 +742,9 @@ export default function VolkswagenBuilderPage() {
                           if (ref) setSelectedInterior(ref);
                         }}
                         className={`rounded-full px-3 py-1 text-[11px] font-bold ${
-                          interiorView === key ? "bg-[#001e50] text-white" : "text-[#001e50]"
+                          interiorView === key
+                            ? "bg-[#001e50] text-white"
+                            : "text-[#001e50]"
                         }`}
                       >
                         {label}
@@ -583,7 +760,9 @@ export default function VolkswagenBuilderPage() {
                         type="button"
                         onClick={() => setView(key)}
                         className={`rounded-full px-3 py-1 text-[11px] font-bold ${
-                          view === key ? "bg-[#001e50] text-white" : "text-[#001e50]"
+                          view === key
+                            ? "bg-[#001e50] text-white"
+                            : "text-[#001e50]"
                         }`}
                       >
                         {label}
@@ -591,7 +770,7 @@ export default function VolkswagenBuilderPage() {
                     ))}
               </div>
 
-              <div className="absolute bottom-8 right-8 hidden gap-2 rounded-md bg-white px-3 py-2 md:flex">
+              <div className="absolute bottom-8 right-8 hidden gap-2 rounded-md bg-white px-3 py-2 shadow md:flex">
                 <ImageIcon className="h-5 w-5" />
                 <Car className="h-5 w-5" />
               </div>
@@ -600,11 +779,14 @@ export default function VolkswagenBuilderPage() {
             <div className="mx-auto grid max-w-[1320px] grid-cols-1 gap-8 px-5 py-8 lg:grid-cols-[minmax(0,1fr)_400px] lg:px-10 xl:px-14">
               <div>
                 {currentImage ? (
-                  <img
-                    src={currentImage}
-                    alt={vehicle.name}
-                    className="h-[260px] w-full rounded-2xl bg-[#f4f4f4] object-contain p-4 md:h-[430px]"
-                  />
+                  <div className="flex h-[260px] w-full items-center justify-center rounded-2xl bg-white p-4 shadow-sm md:h-[430px]">
+                    <img
+                      src={currentImage}
+                      alt={vehicle.name}
+                      className="builder-vw-image h-full w-full object-contain"
+                      draggable={false}
+                    />
+                  </div>
                 ) : null}
 
                 <p className="mt-3 text-[13px]">{vehicle.fullName}</p>
@@ -615,7 +797,9 @@ export default function VolkswagenBuilderPage() {
                   <button className="min-w-max border-b-2 border-[#001e50] pb-3">
                     Configuração selecionada
                   </button>
-                  <button className="min-w-max pb-3">Equipamentos de série</button>
+                  <button className="min-w-max pb-3">
+                    Equipamentos de série
+                  </button>
                   <button className="min-w-max pb-3">Dados técnicos</button>
                 </div>
 
@@ -624,13 +808,21 @@ export default function VolkswagenBuilderPage() {
                   main={selectedMotor.name}
                   sub={selectedMotor.description}
                   right={`Preço ${money(total)} Preço Total`}
-                  footer={`Potência ${selectedMotor.power}${selectedMotor.torque ? ` • Torque ${selectedMotor.torque}` : ""}`}
+                  footer={`Potência ${selectedMotor.power}${
+                    selectedMotor.torque
+                      ? ` • Torque ${selectedMotor.torque}`
+                      : ""
+                  }`}
                 />
 
                 <SummaryBox
                   title="2. Exterior selecionado"
                   main={selectedColor.name}
-                  sub={selectedColor.price === 0 ? "Sem custos adicionais" : money(selectedColor.price)}
+                  sub={
+                    selectedColor.price === 0
+                      ? "Sem custos adicionais"
+                      : money(selectedColor.price)
+                  }
                   right=""
                   footer={selectedColor.type}
                   color={selectedColor.hex}
@@ -653,7 +845,10 @@ export default function VolkswagenBuilderPage() {
                 <p className="text-center text-[13px] font-bold">
                   {vehicle.name}. {selectedVersion.name}
                 </p>
-                <h2 className="mt-2 text-center text-[30px] font-bold">Resumo</h2>
+
+                <h2 className="mt-2 text-center text-[30px] font-bold">
+                  Resumo
+                </h2>
 
                 <div className="mt-8 border-b border-black/10 pb-5">
                   <div className="flex justify-between text-[14px]">
@@ -681,7 +876,11 @@ export default function VolkswagenBuilderPage() {
                       {vehicle.versions.length} versões
                     </h1>
                   </div>
-                  <button className="rounded-full border border-[#001e50] px-4 py-2 text-[13px]" type="button">
+
+                  <button
+                    className="rounded-full border border-[#001e50] px-4 py-2 text-[13px]"
+                    type="button"
+                  >
                     ≡ Filtros
                   </button>
                 </div>
@@ -695,15 +894,19 @@ export default function VolkswagenBuilderPage() {
                         key={version.id}
                         onClick={() => {
                           const nextMotor =
-                            vehicle.motors.find((motor) => motor.versionId === version.id) ||
-                            vehicle.motors[0];
+                            vehicle.motors.find(
+                              (motor) => motor.versionId === version.id
+                            ) || vehicle.motors[0];
+
                           const nextColor =
-                            vehicle.colors.find((color) => color.versionId === version.id) ||
-                            vehicle.colors[0];
+                            vehicle.colors.find(
+                              (color) => color.versionId === version.id
+                            ) || vehicle.colors[0];
 
                           setSelectedVersion(version);
                           if (nextMotor) setSelectedMotor(nextMotor);
                           if (nextColor) setSelectedColor(nextColor);
+                          setView("front");
                         }}
                         className={`w-full rounded-2xl border bg-white p-5 text-left shadow-sm transition hover:shadow-md ${
                           active ? "border-[#159447]" : "border-black/15"
@@ -712,9 +915,14 @@ export default function VolkswagenBuilderPage() {
                       >
                         <div className="flex justify-between gap-4">
                           <div>
-                            <h3 className="text-[18px] font-bold">{version.name}</h3>
-                            <p className="mt-2 text-[13px]">{version.description}</p>
+                            <h3 className="text-[18px] font-bold">
+                              {version.name}
+                            </h3>
+                            <p className="mt-2 text-[13px]">
+                              {version.description}
+                            </p>
                           </div>
+
                           {active ? (
                             <Check className="h-5 w-5 shrink-0 rounded-full bg-[#159447] text-white" />
                           ) : (
@@ -729,13 +937,17 @@ export default function VolkswagenBuilderPage() {
                         </p>
 
                         <div className="mt-2 flex gap-2 text-[12px]">
-                          <span className="bg-[#eef2f5] px-2 py-1">{version.fuel}</span>
+                          <span className="bg-[#eef2f5] px-2 py-1">
+                            {version.fuel}
+                          </span>
                           <span className="bg-[#eef2f5] px-2 py-1">
                             {version.transmission}
                           </span>
                         </div>
 
-                        <strong className="mt-4 block">{money(version.price)}</strong>
+                        <strong className="mt-4 block">
+                          {money(version.price)}
+                        </strong>
                       </button>
                     );
                   })}
@@ -746,10 +958,14 @@ export default function VolkswagenBuilderPage() {
             {step === "motor" && (
               <>
                 <p className="text-[14px]">{vehicle.fullName}</p>
+
                 <p className="mt-8 text-[14px] font-bold">
                   {vehicle.name}. {selectedVersion.name}
                 </p>
-                <h1 className="text-[34px] font-bold">{availableMotors.length} Motor</h1>
+
+                <h1 className="text-[34px] font-bold">
+                  {availableMotors.length} Motor
+                </h1>
 
                 <div className="mt-6 space-y-4">
                   {availableMotors.map((motor) => {
@@ -758,7 +974,10 @@ export default function VolkswagenBuilderPage() {
                     return (
                       <button
                         key={motor.id}
-                        onClick={() => setSelectedMotor(motor)}
+                        onClick={() => {
+                          setSelectedMotor(motor);
+                          setView("front");
+                        }}
                         className={`w-full rounded-2xl border bg-white p-5 text-left shadow-sm transition hover:shadow-md ${
                           active ? "border-[#159447]" : "border-black/15"
                         }`}
@@ -766,7 +985,9 @@ export default function VolkswagenBuilderPage() {
                       >
                         <div className="flex justify-between gap-4">
                           <div>
-                            <h3 className="text-[17px] font-bold">{motor.name}</h3>
+                            <h3 className="text-[17px] font-bold">
+                              {motor.name}
+                            </h3>
                             <p className="mt-1">{motor.description}</p>
                           </div>
 
@@ -776,7 +997,9 @@ export default function VolkswagenBuilderPage() {
                         </div>
 
                         <div className="mt-4 flex flex-wrap gap-2 text-[12px]">
-                          <span className="bg-[#eef2f5] px-2 py-1">{motor.fuel}</span>
+                          <span className="bg-[#eef2f5] px-2 py-1">
+                            {motor.fuel}
+                          </span>
                           <span className="bg-[#eef2f5] px-2 py-1">
                             {motor.transmission}
                           </span>
@@ -793,12 +1016,19 @@ export default function VolkswagenBuilderPage() {
                         <div className="mt-5 grid grid-cols-[1fr_auto] gap-x-4 gap-y-3 text-sm">
                           <span>Potência</span>
                           <strong>{motor.power}</strong>
+
                           {motor.torque ? <span>Torque</span> : null}
                           {motor.torque ? <strong>{motor.torque}</strong> : null}
+
                           {motor.acceleration ? <span>Aceleração</span> : null}
-                          {motor.acceleration ? <strong>{motor.acceleration}</strong> : null}
+                          {motor.acceleration ? (
+                            <strong>{motor.acceleration}</strong>
+                          ) : null}
+
                           {motor.maxSpeed ? <span>Vel. máxima</span> : null}
-                          {motor.maxSpeed ? <strong>{motor.maxSpeed}</strong> : null}
+                          {motor.maxSpeed ? (
+                            <strong>{motor.maxSpeed}</strong>
+                          ) : null}
                         </div>
                       </button>
                     );
@@ -812,11 +1042,17 @@ export default function VolkswagenBuilderPage() {
                 <p className="text-[14px]">
                   {vehicle.name}. {selectedVersion.name}
                 </p>
-                <h1 className="text-[34px] font-bold">{availableColors.length} Exterior</h1>
 
-                {Array.from(new Set(availableColors.map((item) => item.type || "Cores"))).map((type) => (
+                <h1 className="text-[34px] font-bold">
+                  {availableColors.length} Exterior
+                </h1>
+
+                {Array.from(
+                  new Set(availableColors.map((item) => item.type || "Cores"))
+                ).map((type) => (
                   <div key={type} className="mt-8">
                     <p className="mb-3 text-[14px]">{type}</p>
+
                     <div className="flex flex-wrap gap-3">
                       {availableColors
                         .filter((color) => (color.type || "Cores") === type)
@@ -825,7 +1061,10 @@ export default function VolkswagenBuilderPage() {
                             key={color.id}
                             color={color}
                             active={selectedColor.id === color.id}
-                            onClick={() => setSelectedColor(color)}
+                            onClick={() => {
+                              setSelectedColor(color);
+                              setView("front");
+                            }}
                           />
                         ))}
                     </div>
@@ -834,6 +1073,7 @@ export default function VolkswagenBuilderPage() {
 
                 <div className="mt-8 rounded-2xl border border-[#159447] bg-[#f8fbf9] p-5 shadow-sm">
                   <h3 className="font-bold">{selectedColor.name}</h3>
+
                   <p className="mt-4 text-[13px] font-bold">
                     {selectedColor.price === 0
                       ? "Sem custos adicionais"
@@ -848,24 +1088,34 @@ export default function VolkswagenBuilderPage() {
                 <p className="text-[14px]">
                   {vehicle.name}. {selectedVersion.name}
                 </p>
-                <h1 className="text-[34px] font-bold">{vehicle.interiors.length} Interior</h1>
 
-                <p className="mt-8 text-[15px] font-bold">Referências internas</p>
+                <h1 className="text-[34px] font-bold">
+                  {vehicle.interiors.length} Interior
+                </h1>
+
+                <p className="mt-8 text-[15px] font-bold">
+                  Referências internas
+                </p>
 
                 <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {([
-                    ["steeringWheel", "Volante", "Cadastre uma imagem com nome contendo Volante"],
+                  {[
+                    [
+                      "steeringWheel",
+                      "Volante",
+                      "Cadastre uma imagem com nome contendo Volante",
+                    ],
                     ["seat", "Banco", "Cadastre uma imagem com nome contendo Banco"],
-                  ] as [InteriorViewKey, string, string][]).map(([key, label, hint]) => {
-                    const ref = getInteriorReference(vehicle, key);
-                    const active = interiorView === key;
+                  ].map(([key, label, hint]) => {
+                    const viewKey = key as InteriorViewKey;
+                    const ref = getInteriorReference(vehicle, viewKey);
+                    const active = interiorView === viewKey;
 
                     return (
                       <button
                         key={key}
                         type="button"
                         onClick={() => {
-                          setInteriorView(key);
+                          setInteriorView(viewKey);
                           if (ref) setSelectedInterior(ref);
                         }}
                         className={`overflow-hidden rounded-2xl border bg-white text-left shadow-sm transition hover:shadow-md ${
@@ -891,6 +1141,7 @@ export default function VolkswagenBuilderPage() {
                               {ref?.name || hint}
                             </p>
                           </div>
+
                           {active && (
                             <Check className="h-5 w-5 shrink-0 rounded-full bg-[#159447] text-white" />
                           )}
@@ -900,7 +1151,9 @@ export default function VolkswagenBuilderPage() {
                   })}
                 </div>
 
-                <p className="mt-8 text-[15px] font-bold">Outros acabamentos internos</p>
+                <p className="mt-8 text-[15px] font-bold">
+                  Outros acabamentos internos
+                </p>
 
                 <div className="mt-4 space-y-4">
                   {vehicle.interiors.map((interior) => {
@@ -926,10 +1179,14 @@ export default function VolkswagenBuilderPage() {
                         <div className="flex items-center justify-between gap-4 p-4">
                           <div>
                             <strong>{interior.name}</strong>
+
                             {interior.description ? (
-                              <p className="mt-1 text-xs text-[#001e50]/70">{interior.description}</p>
+                              <p className="mt-1 text-xs text-[#001e50]/70">
+                                {interior.description}
+                              </p>
                             ) : null}
                           </div>
+
                           {active && (
                             <Check className="h-5 w-5 shrink-0 rounded-full bg-[#159447] text-white" />
                           )}
@@ -970,18 +1227,38 @@ export default function VolkswagenBuilderPage() {
       </a>
 
       <style jsx global>{`
+        .builder-vw-stage {
+          background:
+            radial-gradient(circle at center, rgba(0, 30, 80, 0.035), transparent 46%),
+            #ffffff;
+        }
+
         .builder-vw-image {
+          max-width: 92%;
+          max-height: 92%;
+          object-fit: contain;
+          object-position: center;
           animation: builderVwImage 0.35s ease-out;
+          image-rendering: auto;
+          filter: contrast(1.035) saturate(1.035);
+        }
+
+        @media (min-width: 1024px) {
+          .builder-vw-image {
+            max-width: 88%;
+            max-height: 88%;
+          }
         }
 
         @keyframes builderVwImage {
           from {
             opacity: 0;
-            transform: scale(1.01);
+            transform: translateY(8px) scale(0.985);
           }
+
           to {
             opacity: 1;
-            transform: scale(1);
+            transform: translateY(0) scale(1);
           }
         }
       `}</style>
@@ -1011,6 +1288,7 @@ function ColorButton({
         className="h-[52px] w-[52px] rounded-full border border-black/10"
         style={{ background: color.hex }}
       />
+
       {active && (
         <Check className="absolute -right-1 -top-1 h-5 w-5 rounded-full bg-[#159447] text-white" />
       )}

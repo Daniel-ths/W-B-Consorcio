@@ -7,9 +7,7 @@ import {
   Car,
   ChevronRight,
   ChevronLeft,
-  MapPin,
   MessageCircle,
-  Search,
 } from "lucide-react";
 
 type HeroSlide = {
@@ -23,6 +21,7 @@ type Vehicle = {
   slug: string;
   name: string;
   image: string;
+  hoverImage?: string;
   badge?: string;
 };
 
@@ -31,15 +30,19 @@ type VehicleRow = {
   slug: string;
   catalog_cover_url?: string | null;
   image_url?: string | null;
+  hover_image_url?: string | null;
   is_visible?: boolean | null;
 };
 
 const VW_IMAGES = {
   logo: "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/avatars/Volkswagen_logo_2019.svg%20(1).png",
 
-  hero1: "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/avatars/Volkswagen/t-cross-selecao_banner_desk%20(1).webp",
-  hero2: "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/avatars/Volkswagen/Teste-e-Comprove-Desktop.webp",
-  hero3: "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/avatars/Volkswagen/tiguan2026_externa_entardecer.webp",
+  hero1:
+    "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/avatars/Volkswagen/t-cross-selecao_banner_desk%20(1).webp",
+  hero2:
+    "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/avatars/Volkswagen/Teste-e-Comprove-Desktop.webp",
+  hero3:
+    "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/avatars/Volkswagen/tiguan2026_externa_entardecer.webp",
 
   tera: "COLE_AQUI_CARRO_TERA",
   tcross: "COLE_AQUI_CARRO_T_CROSS",
@@ -189,7 +192,10 @@ export default function VolkswagenPage() {
   const vehicles = dbVehicles.length > 0 ? dbVehicles : fallbackVehicles;
 
   const itemsPerPage = 4;
-  const totalCatalogPages = Math.max(1, Math.ceil(vehicles.length / itemsPerPage));
+  const totalCatalogPages = Math.max(
+    1,
+    Math.ceil(vehicles.length / itemsPerPage)
+  );
 
   const visibleVehicles = useMemo(() => {
     const start = catalogPage * itemsPerPage;
@@ -221,22 +227,31 @@ export default function VolkswagenPage() {
     <main className="min-h-screen bg-white text-[#001e50]">
       <header className="fixed left-0 top-0 z-[80] h-[46px] w-full bg-black/95 text-white">
         <div className="flex h-full items-center justify-between px-[76px]">
-          <div className="flex h-full items-center gap-6">
-            <img src={VW_IMAGES.logo} alt="Volkswagen" className="h-[24px] w-auto" />
+          <div className="flex h-full items-center gap-7">
+            <img
+              src={VW_IMAGES.logo}
+              alt="Volkswagen"
+              className="h-[24px] w-auto"
+            />
 
-            <button className="text-[13px] font-bold">Menu</button>
-            <a href="#modelos" className="text-[13px] font-bold">
+            <button className="text-[13px] font-bold transition-all duration-300 hover:scale-[1.04] hover:text-[#7fd8ff]">
+              Menu
+            </button>
+
+            <a
+              href="#modelos"
+              className="text-[14px] font-bold transition-all duration-300 hover:scale-[1.04] hover:text-[#7fd8ff]"
+            >
               Configure seu novo Volkswagen
             </a>
-            <a href="#ofertas" className="text-[13px] font-bold">
-              Conheça nossas ofertas
-            </a>
-            <a href="#servicos" className="text-[13px] font-bold">
-              Serviços e Pós-vendas
+
+            <a
+              href="#modelos"
+              className="text-[14px] font-bold transition-all duration-300 hover:scale-[1.04] hover:text-[#7fd8ff]"
+            >
+              Monte seu Volkswagen
             </a>
           </div>
-
-          <Search className="h-5 w-5" />
         </div>
       </header>
 
@@ -263,19 +278,26 @@ export default function VolkswagenPage() {
           key={`${currentHero.id}-text`}
           className="vw-hero-text absolute bottom-[110px] left-[76px] z-10 text-white"
         >
-          <h1 className="text-[42px] font-light leading-none">{currentHero.title}</h1>
-          <p className="mt-5 text-[15px] font-semibold">{currentHero.subtitle}</p>
+          <h1 className="text-[42px] font-light leading-none">
+            {currentHero.title}
+          </h1>
+          <p className="mt-5 text-[15px] font-semibold">
+            {currentHero.subtitle}
+          </p>
 
-          <button className="mt-8 rounded-full bg-white px-8 py-3 text-[13px] font-semibold text-[#001e50]">
+          <a
+            href="#modelos"
+            className="mt-8 inline-flex rounded-full bg-white px-9 py-3 text-[14px] font-semibold text-[#001e50] transition-all duration-300 hover:translate-y-[-2px] hover:scale-[1.03] hover:bg-[#e8f7ff]"
+          >
             Conheça
-          </button>
+          </a>
         </div>
 
         <div className="absolute bottom-[52px] right-[90px] z-10 flex items-center gap-4">
           <button
             type="button"
             onClick={() => setHeroPaused(!heroPaused)}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white transition-all duration-300 hover:scale-105"
           >
             {heroPaused ? "▶" : "Ⅱ"}
           </button>
@@ -296,35 +318,26 @@ export default function VolkswagenPage() {
         </div>
       </section>
 
-      <div className="fixed bottom-0 left-0 z-[90] flex h-[54px] w-full items-center justify-end gap-8 border-t border-black/10 bg-white px-[82px] text-[13px] text-[#001e50]">
-        <Link
-          href={`/volkswagen/builder?vehicle=${visibleVehicles[0]?.slug || "tera"}`}
-          className="flex h-[40px] items-center gap-2 rounded-full bg-[#48c7ef] px-6 font-semibold text-[#001e50]"
+      <div className="fixed bottom-0 left-0 z-[90] flex h-[62px] w-full items-center justify-end gap-8 border-t border-black/10 bg-white px-[82px] text-[#001e50]">
+        <a
+          href="#modelos"
+          className="vw-float-build flex h-[46px] items-center gap-3 rounded-full bg-[#48c7ef] px-8 text-[14px] font-bold text-[#001e50] shadow-[0_10px_28px_rgba(72,199,239,0.35)] transition-all duration-300 hover:translate-y-[-2px] hover:scale-[1.04] hover:bg-[#67d8ff]"
         >
           <Car className="h-5 w-5" />
           Monte o seu Volkswagen
-        </Link>
+        </a>
       </div>
 
       <a
         href="#"
-        className="fixed bottom-[22px] left-3 z-[100] flex h-[52px] w-[52px] items-center justify-center rounded-full bg-[#22d366] text-white shadow-xl"
+        className="fixed bottom-[22px] left-3 z-[100] flex h-[52px] w-[52px] items-center justify-center rounded-full bg-[#22d366] text-white shadow-xl transition-all duration-300 hover:scale-110"
       >
         <MessageCircle className="h-7 w-7" />
       </a>
 
-      <div className="fixed right-0 top-[170px] z-[100] hidden flex-col md:flex">
-        <button className="flex h-[48px] w-[42px] items-center justify-center rounded-l-md bg-[#004a98] text-white">
-          ♿
-        </button>
-        <button className="mt-[2px] flex h-[48px] w-[42px] items-center justify-center rounded-l-md bg-[#004a98] text-white">
-          🖐️
-        </button>
-      </div>
-
-      <section id="modelos" className="bg-white px-[76px] pb-24 pt-20">
+      <section id="modelos" className="bg-white px-[76px] pb-24 pt-24">
         <div className="mx-auto max-w-[1500px] text-center">
-          <h2 className="text-[46px] font-bold tracking-[-0.03em]">
+          <h2 className="vw-section-title text-[50px] font-bold tracking-[-0.03em]">
             Encontre o seu Volkswagen
           </h2>
 
@@ -333,19 +346,21 @@ export default function VolkswagenPage() {
             explore todos os modelos para escolher o Volkswagen 0 km que mais combina com você.
           </p>
 
-          <h3 className="mt-14 text-[44px] font-bold tracking-[-0.03em]">
+          <h3 className="mt-14 text-[48px] font-bold tracking-[-0.03em]">
             Modelos Recomendados
           </h3>
 
-          <button className="mt-4 text-[13px] underline">
+          <button className="mt-4 text-[14px] underline transition-all duration-300 hover:text-[#0057c2]">
             Selecione um dos modelos para configurar
           </button>
 
-          <div className="relative mt-12 overflow-hidden">
+          <div className="relative mt-14 overflow-hidden">
             <div
               key={`catalog-${catalogPage}-${dbVehicles.length}`}
-              className={`vw-catalog-enter grid grid-cols-4 gap-4 ${
-                catalogDirection === "next" ? "vw-catalog-next" : "vw-catalog-prev"
+              className={`vw-catalog-enter grid grid-cols-4 gap-6 ${
+                catalogDirection === "next"
+                  ? "vw-catalog-next"
+                  : "vw-catalog-prev"
               }`}
             >
               {visibleVehicles.map((vehicle, index) => (
@@ -353,15 +368,15 @@ export default function VolkswagenPage() {
                   key={vehicle.slug}
                   href={`/volkswagen/builder?vehicle=${vehicle.slug}`}
                   className="group block text-center"
-                  style={{ animationDelay: `${index * 80}ms` }}
+                  style={{ animationDelay: `${index * 90}ms` }}
                 >
-                  <div className="flex h-[170px] items-end justify-center bg-gradient-to-b from-[#eef2f5] to-white">
+                  <div className="flex h-[220px] items-end justify-center overflow-hidden bg-gradient-to-b from-[#eef2f5] to-white transition-all duration-500 group-hover:shadow-[0_18px_45px_rgba(0,30,80,0.12)]">
                     {vehicle.image ? (
-<img
-  src={vehicle.image}
-  alt={vehicle.name}
-  className="max-h-[165px] w-full object-contain transition-opacity duration-300 group-hover:opacity-95"
-/>
+                      <img
+                        src={vehicle.image}
+                        alt={vehicle.name}
+                        className="max-h-[210px] w-full object-contain transition-all duration-500 group-hover:scale-[1.06] group-hover:opacity-95"
+                      />
                     ) : (
                       <div className="flex h-full w-full items-center justify-center rounded-xl bg-[#eef2f5] text-xs font-bold uppercase text-[#001e50]/40">
                         Sem imagem
@@ -369,7 +384,9 @@ export default function VolkswagenPage() {
                     )}
                   </div>
 
-                  <h4 className="mt-8 text-[22px] font-bold">{vehicle.name}</h4>
+                  <h4 className="mt-8 text-[24px] font-bold transition-all duration-300 group-hover:translate-y-[-2px]">
+                    {vehicle.name}
+                  </h4>
 
                   {vehicle.badge && (
                     <div className="mx-auto mt-3 w-fit rounded-sm bg-[#19d3d3] px-3 py-1 text-[12px]">
@@ -381,13 +398,6 @@ export default function VolkswagenPage() {
                     <span className="rounded-full bg-[#001e50] px-10 py-3 text-[16px] font-semibold text-white">
                       Monte o seu
                     </span>
-
-                    <span className="flex items-center gap-2 text-[15px] underline">
-                      <span className="flex h-6 w-6 items-center justify-center rounded-full border border-[#001e50] text-[14px] font-bold">
-                        i
-                      </span>
-                      Mais informações
-                    </span>
                   </div>
                 </Link>
               ))}
@@ -398,7 +408,7 @@ export default function VolkswagenPage() {
                 <button
                   type="button"
                   onClick={prevCatalogPage}
-                  className="absolute left-2 top-[88px] flex h-[52px] w-[52px] items-center justify-center rounded-full bg-[#001e50] text-white transition hover:scale-105"
+                  className="absolute left-2 top-[105px] flex h-[52px] w-[52px] items-center justify-center rounded-full bg-[#001e50] text-white transition-all duration-300 hover:scale-110 hover:bg-[#003b8f]"
                   aria-label="Carros anteriores"
                 >
                   <ChevronLeft className="h-7 w-7" />
@@ -407,7 +417,7 @@ export default function VolkswagenPage() {
                 <button
                   type="button"
                   onClick={nextCatalogPage}
-                  className="absolute right-2 top-[88px] flex h-[52px] w-[52px] items-center justify-center rounded-full bg-[#001e50] text-white transition hover:scale-105"
+                  className="absolute right-2 top-[105px] flex h-[52px] w-[52px] items-center justify-center rounded-full bg-[#001e50] text-white transition-all duration-300 hover:scale-110 hover:bg-[#003b8f]"
                   aria-label="Próximos carros"
                 >
                   <ChevronRight className="h-7 w-7" />
@@ -415,7 +425,7 @@ export default function VolkswagenPage() {
               </>
             )}
 
-            <div className="mt-8 flex justify-center gap-2">
+            <div className="mt-10 flex justify-center gap-2">
               {Array.from({ length: totalCatalogPages }).map((_, index) => (
                 <button
                   key={index}
@@ -424,8 +434,10 @@ export default function VolkswagenPage() {
                     setCatalogDirection(index > catalogPage ? "next" : "prev");
                     setCatalogPage(index);
                   }}
-                  className={`h-2 rounded-full transition-all ${
-                    catalogPage === index ? "w-8 bg-[#001e50]" : "w-2 bg-[#001e50]/30"
+                  className={`h-2 rounded-full transition-all duration-300 ${
+                    catalogPage === index
+                      ? "w-8 bg-[#001e50]"
+                      : "w-2 bg-[#001e50]/30"
                   }`}
                   aria-label={`Ir para página ${index + 1} do catálogo`}
                 />
@@ -457,13 +469,13 @@ export default function VolkswagenPage() {
               </p>
 
               <p className="mt-16 max-w-[430px] text-[15px] leading-7 text-[#001e50]/80">
-                O Novo Tiguan R-Line traduz o encontro entre sofisticação, performance e
-                tecnologia de ponta. Com design marcante, motorização potente e soluções
-                inteligentes de condução e segurança, ele eleva cada trajeto a uma
-                experiência premium.
+                O Novo Tiguan R-Line traduz o encontro entre sofisticação,
+                performance e tecnologia de ponta. Com design marcante,
+                motorização potente e soluções inteligentes de condução e
+                segurança, ele eleva cada trajeto a uma experiência premium.
               </p>
 
-              <button className="mt-28 rounded-full bg-[#001e50] px-8 py-3 text-[14px] font-semibold text-white">
+              <button className="mt-28 rounded-full bg-[#001e50] px-8 py-3 text-[14px] font-semibold text-white transition-all duration-300 hover:translate-y-[-2px] hover:scale-[1.03]">
                 Conheça o Novo Tiguan R-Line
               </button>
             </div>
@@ -486,10 +498,10 @@ export default function VolkswagenPage() {
             </p>
 
             <p className="mt-10 text-[15px] leading-7 text-[#001e50]/85">
-              Mais que um SUV, o Volkswagen Tera nasceu para se destacar. Produzido no Brasil,
-              o veículo reúne design sofisticado, tecnologia inteligente e performance
-              equilibrada para transformar cada trajeto em uma experiência marcada por presença,
-              conforto e personalidade.
+              Mais que um SUV, o Volkswagen Tera nasceu para se destacar.
+              Produzido no Brasil, o veículo reúne design sofisticado, tecnologia
+              inteligente e performance equilibrada para transformar cada trajeto
+              em uma experiência marcada por presença, conforto e personalidade.
             </p>
           </div>
 
@@ -509,13 +521,14 @@ export default function VolkswagenPage() {
               <p className="mt-3 text-[18px] text-white/80">A lenda voltou</p>
 
               <p className="mt-14 text-[15px] leading-7 text-white/90">
-                Com 245 cv de pura adrenalina, o ícone das ruas volta ao Brasil mais potente,
-                tecnológico e exclusivo do que nunca. Mas o Golf GTI não conquista apenas pelo
-                que entrega na pista. Seu design ousado apresenta elementos que reforçam sua
-                personalidade inconfundível.
+                Com 245 cv de pura adrenalina, o ícone das ruas volta ao Brasil
+                mais potente, tecnológico e exclusivo do que nunca. Mas o Golf
+                GTI não conquista apenas pelo que entrega na pista. Seu design
+                ousado apresenta elementos que reforçam sua personalidade
+                inconfundível.
               </p>
 
-              <button className="mt-40 rounded-full bg-white px-8 py-3 text-[14px] font-semibold text-[#001e50]">
+              <button className="mt-40 rounded-full bg-white px-8 py-3 text-[14px] font-semibold text-[#001e50] transition-all duration-300 hover:translate-y-[-2px] hover:scale-[1.03]">
                 Conheça os detalhes do Golf GTI
               </button>
             </div>
@@ -564,6 +577,10 @@ export default function VolkswagenPage() {
       </footer>
 
       <style jsx global>{`
+        html {
+          scroll-behavior: smooth;
+        }
+
         .vw-hero-enter {
           animation: vwHeroEnter 0.75s cubic-bezier(0.22, 1, 0.36, 1);
         }
@@ -572,17 +589,26 @@ export default function VolkswagenPage() {
           animation: vwHeroText 0.55s ease-out;
         }
 
+        .vw-section-title {
+          animation: vwSectionTitle 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        .vw-float-build {
+          animation: vwFloatBuild 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
         .vw-catalog-enter > a {
           opacity: 0;
-          animation: vwCatalogCard 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+          animation: vwCatalogCard 0.55s cubic-bezier(0.22, 1, 0.36, 1)
+            forwards;
         }
 
         .vw-catalog-next {
-          animation: vwCatalogNext 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+          animation: vwCatalogNext 0.5s cubic-bezier(0.22, 1, 0.36, 1);
         }
 
         .vw-catalog-prev {
-          animation: vwCatalogPrev 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+          animation: vwCatalogPrev 0.5s cubic-bezier(0.22, 1, 0.36, 1);
         }
 
         @keyframes vwHeroEnter {
@@ -607,10 +633,32 @@ export default function VolkswagenPage() {
           }
         }
 
+        @keyframes vwSectionTitle {
+          from {
+            opacity: 0;
+            transform: translateY(24px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @keyframes vwFloatBuild {
+          from {
+            opacity: 0;
+            transform: translateY(18px) scale(0.96);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+
         @keyframes vwCatalogCard {
           from {
             opacity: 0;
-            transform: translateY(22px) scale(0.985);
+            transform: translateY(24px) scale(0.975);
           }
           to {
             opacity: 1;
