@@ -216,7 +216,7 @@ type CustomerErrors = {
 };
 
 const ORDER_TABLE_NAME = "contract_orders";
-const ANALYSIS_ROUTE = "/vendedor/analise";
+const ANALYSIS_ROUTE = "/vendedor/analise-volkswagen";
 
 const PHONE_PREFIX_DISPLAY = "+55 ";
 const DEFAULT_DDD = "91";
