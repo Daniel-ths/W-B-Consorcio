@@ -324,6 +324,41 @@ function mapVehicleFromDb(row: VehicleRow): Vehicle {
   };
 }
 
+function isValidImageUrl(url?: string | null) {
+  if (!url) return false;
+
+  const value = String(url).trim();
+
+  if (!value) return false;
+  if (value.startsWith("COLE_AQUI")) return false;
+
+  return value.startsWith("http");
+}
+
+function preloadOneImage(url: string) {
+  return new Promise<void>((resolve) => {
+    const img = new Image();
+
+    img.onload = () => resolve();
+    img.onerror = () => resolve();
+    img.src = url;
+  });
+}
+
+async function preloadImages(urls: string[], timeoutMs = 1800) {
+  const safeUrls = Array.from(new Set(urls.filter(isValidImageUrl)));
+
+  if (!safeUrls.length) return;
+
+  const preload = Promise.all(safeUrls.map(preloadOneImage)).then(() => undefined);
+
+  const timeout = new Promise<void>((resolve) => {
+    window.setTimeout(resolve, timeoutMs);
+  });
+
+  await Promise.race([preload, timeout]);
+}
+
 
 function FiatNavbar() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -739,29 +774,61 @@ export default function FiatPage() {
     "category"
   );
   const [dbVehicles, setDbVehicles] = useState<Vehicle[]>([]);
+  const [pageLoading, setPageLoading] = useState(true);
 
   useEffect(() => {
+    let mounted = true;
+
     async function loadFiatVehicles() {
-      const { data, error } = await supabase
-        .from("vehicles")
-        .select("model_name, slug, catalog_cover_url, image_url, is_visible")
-        .eq("brand", "fiat")
-        .eq("is_visible", true)
-        .order("id", { ascending: false });
+      setPageLoading(true);
 
-      if (error) {
-        console.error("Erro ao carregar veículos Fiat:", error.message);
-        return;
+      try {
+        const { data, error } = await supabase
+          .from("vehicles")
+          .select("model_name, slug, catalog_cover_url, image_url, is_visible")
+          .eq("brand", "fiat")
+          .eq("is_visible", true)
+          .order("id", { ascending: false });
+
+        if (!mounted) return;
+
+        if (error) {
+          console.error("Erro ao carregar veículos Fiat:", error.message);
+        }
+
+        const mapped = !error
+          ? ((data || []) as VehicleRow[])
+              .filter((vehicle) => vehicle.slug && vehicle.model_name)
+              .map(mapVehicleFromDb)
+          : [];
+
+        setDbVehicles(mapped);
+
+        const vehiclesToUse = mapped.length > 0 ? mapped : fallbackVehicles;
+
+        await preloadImages(
+          [
+            FIAT_IMAGES.logo,
+            FIAT_IMAGES.heroBg,
+            FIAT_IMAGES.heroMain,
+            FIAT_IMAGES.promoLeft,
+            FIAT_IMAGES.promoRight,
+            ...vehiclesToUse.slice(0, 5).map((vehicle) => vehicle.image),
+          ],
+          2200
+        );
+      } finally {
+        if (mounted) {
+          setPageLoading(false);
+        }
       }
-
-      const mapped = ((data || []) as VehicleRow[])
-        .filter((vehicle) => vehicle.slug && vehicle.model_name)
-        .map(mapVehicleFromDb);
-
-      setDbVehicles(mapped);
     }
 
     loadFiatVehicles();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -821,6 +888,57 @@ export default function FiatPage() {
     setPage((prev) => (prev + 1) % totalPages);
   };
 
+  if (pageLoading) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#f1f0e8] text-black">
+        <div className="w-full max-w-[430px] px-6 text-center">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-black">
+            <img
+              src={FIAT_IMAGES.logo}
+              alt="Fiat"
+              className="h-8 w-auto object-contain"
+              loading="eager"
+              decoding="async"
+            />
+          </div>
+
+          <h1 className="mt-6 text-[28px] font-black uppercase tracking-tight">
+            Preparando sua Fiat
+          </h1>
+
+          <p className="mt-3 text-[14px] font-semibold leading-6 text-black/65">
+            Estamos carregando imagens, ofertas e catálogo para deixar a página mais fluida.
+          </p>
+
+          <div className="mt-7 h-2 overflow-hidden rounded-full bg-black/10">
+            <div className="fiat-loading-bar h-full rounded-full bg-[#ff1435]" />
+          </div>
+        </div>
+
+        <style jsx global>{`
+          .fiat-loading-bar {
+            width: 45%;
+            animation: fiatLoadingBar 1.1s ease-in-out infinite;
+          }
+
+          @keyframes fiatLoadingBar {
+            0% {
+              transform: translateX(-120%);
+            }
+
+            50% {
+              transform: translateX(60%);
+            }
+
+            100% {
+              transform: translateX(235%);
+            }
+          }
+        `}</style>
+      </main>
+    );
+  }
+
   return (
     <main id="top" className="min-h-screen bg-[#f1f0e8] pt-16 text-black">
       <FiatNavbar />
@@ -831,6 +949,8 @@ export default function FiatPage() {
             src={FIAT_IMAGES.heroBg}
             alt="Hero background"
             className="h-full w-full object-cover"
+            loading="eager"
+            decoding="async"
           />
         </div>
 
@@ -860,11 +980,15 @@ export default function FiatPage() {
             </div>
 
             <div className="relative flex items-center justify-center md:justify-end">
-              <img
-                src={FIAT_IMAGES.heroMain}
-                alt=""
-                className="relative z-10 w-full max-w-[860px] object-contain md:max-w-[940px] md:translate-x-[-10px] md:translate-y-[10px]"
-              />
+              {isValidImageUrl(FIAT_IMAGES.heroMain) ? (
+                <img
+                  src={FIAT_IMAGES.heroMain}
+                  alt=""
+                  className="fiat-hero-car relative z-10 w-full max-w-[860px] object-contain opacity-0 md:max-w-[940px] md:translate-x-[-10px] md:translate-y-[10px]"
+                  loading="eager"
+                  decoding="async"
+                />
+              ) : null}
             </div>
           </div>
 
@@ -884,6 +1008,8 @@ export default function FiatPage() {
               src={FIAT_IMAGES.promoLeft}
               alt="Promoção esquerda"
               className="block w-full object-cover"
+              loading="lazy"
+              decoding="async"
             />
           </a>
 
@@ -892,6 +1018,8 @@ export default function FiatPage() {
               src={FIAT_IMAGES.promoRight}
               alt="Promoção direita"
               className="block w-full object-cover"
+              loading="lazy"
+              decoding="async"
             />
           </a>
         </div>
@@ -956,7 +1084,9 @@ export default function FiatPage() {
                             <img
                               src={vehicle.image}
                               alt={vehicle.name}
-                              className="max-h-full w-full object-contain transition-transform duration-500 hover:scale-[1.03]"
+                              className="fiat-catalog-car max-h-full w-full object-contain opacity-0 transition-transform duration-500 hover:scale-[1.03]"
+                              loading={index <= 2 ? "eager" : "lazy"}
+                              decoding="async"
                             />
                           ) : (
                             <div className="flex h-full w-full items-center justify-center rounded-xl bg-white/60 text-xs font-black uppercase text-black/40">
@@ -1029,6 +1159,8 @@ export default function FiatPage() {
               src={FIAT_IMAGES.abarthBanner}
               alt="Abarth"
               className="block w-full object-cover"
+              loading="lazy"
+              decoding="async"
             />
           </a>
         </div>
@@ -1041,6 +1173,8 @@ export default function FiatPage() {
               src={FIAT_IMAGES.fastbackCard}
               alt="Novo Fiat Fastback"
               className="block w-full object-cover"
+              loading="lazy"
+              decoding="async"
             />
           </a>
 
@@ -1049,6 +1183,8 @@ export default function FiatPage() {
               src={FIAT_IMAGES.connectMeCard}
               alt="Fiat Connect Me"
               className="block w-full object-cover"
+              loading="lazy"
+              decoding="async"
             />
           </a>
         </div>
@@ -1084,6 +1220,8 @@ export default function FiatPage() {
                     src={item.image}
                     alt={item.title}
                     className="block h-auto w-full object-cover"
+                    loading="lazy"
+                    decoding="async"
                   />
                 </a>
 
@@ -1129,6 +1267,8 @@ export default function FiatPage() {
               src={FIAT_IMAGES.footerLogo}
               alt="Fiat"
               className="h-[86px] w-auto object-contain md:h-[96px]"
+              loading="lazy"
+              decoding="async"
             />
 
             <div className="mt-10 flex items-center gap-8 text-white">
@@ -1211,7 +1351,27 @@ export default function FiatPage() {
             transform: translateY(0) scale(1);
           }
         }
-      `}</style>
+
+
+        .fiat-hero-car {
+          animation: fiatImageIn 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+
+        .fiat-catalog-car {
+          animation: fiatImageIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+
+        @keyframes fiatImageIn {
+          from {
+            opacity: 0;
+            transform: translateY(12px) scale(0.985);
+          }
+
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }      `}</style>
     </main>
   );
 }

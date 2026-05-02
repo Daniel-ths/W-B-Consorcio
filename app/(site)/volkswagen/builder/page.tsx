@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import {
   Car,
@@ -12,6 +12,7 @@ import {
   Loader2,
   MessageCircle,
   Search,
+  AlertCircle,
 } from "lucide-react";
 
 type Step = "versoes" | "motor" | "cor" | "interior" | "resumo";
@@ -107,6 +108,335 @@ type VehicleDbRow = {
   gallery?: GalleryImage[] | null;
 };
 
+type ContractOrderPayload = {
+  source: "volkswagen_builder";
+  status: "pendente_analise";
+  brand: "volkswagen";
+  vehicle_slug: string;
+  vehicle_name: string;
+  vehicle_title: string;
+  vehicle_description: string;
+  vehicle_image: string;
+  client: {
+    name: string;
+    cpf: string;
+    email: string;
+    phone: string;
+  };
+  seller: {
+    name: string;
+    id?: string | null;
+    email?: string | null;
+  };
+  version: {
+    id: string;
+    name: string;
+    description: string;
+    price: number;
+    image: string;
+  };
+  motor: {
+    id: string;
+    name: string;
+    description: string;
+    price: number;
+    power: string;
+    fuel: string;
+    transmission: string;
+    traction: string;
+  };
+  color: {
+    id: string;
+    name: string;
+    type: string;
+    price: number;
+    image: string;
+    hex: string;
+    versionId?: string;
+  } | null;
+  interior: {
+    id: string;
+    name: string;
+    price: number;
+    image: string;
+    description: string;
+  } | null;
+  totals: {
+    vehicle: number;
+    color: number;
+    interior: number;
+    total: number;
+    monthly_108: number;
+  };
+  payment: PaymentPayload;
+  created_at: string;
+};
+
+type PaymentType = "consorcio" | "financiamento";
+
+type ConsortiumInstallment = {
+  months: number;
+  value: number;
+};
+
+type ConsortiumPlan = {
+  code: string;
+  category: "auto" | "pesados";
+  tableName: string;
+  credit: number;
+  adminTax: number;
+  installments: ConsortiumInstallment[];
+};
+
+type PaymentPayload =
+  | {
+      type: "consorcio";
+      tableName: string;
+      category: "auto" | "pesados";
+      code: string;
+      credit: number;
+      adminTax: number;
+      selectedMonths: number;
+      installment: number;
+      vehicleValue: number;
+      rule: "credito_igual_ou_acima";
+    }
+  | {
+      type: "financiamento";
+      vehicleValue: number;
+      status: "simular_na_analise";
+    };
+
+type CustomerErrors = {
+  clientName: string;
+  clientCpf: string;
+  clientEmail: string;
+  clientPhone: string;
+  sellerName: string;
+};
+
+const ORDER_TABLE_NAME = "contract_orders";
+const ANALYSIS_ROUTE = "/vendedor/analise";
+
+const PHONE_PREFIX_DISPLAY = "+55 ";
+const DEFAULT_DDD = "91";
+
+const emptyCustomerErrors: CustomerErrors = {
+  clientName: "",
+  clientCpf: "",
+  clientEmail: "",
+  clientPhone: "",
+  sellerName: "",
+};
+
+const VW_AUTO_CONSORTIUM_PLANS: ConsortiumPlan[] = [
+  {
+    code: "VW003",
+    category: "auto",
+    tableName: "Tabela Normal Auto",
+    credit: 45000,
+    adminTax: 21,
+    installments: [
+      { months: 80, value: 556 },
+      { months: 70, value: 665 },
+      { months: 60, value: 770 },
+    ],
+  },
+  {
+    code: "VW005",
+    category: "auto",
+    tableName: "Tabela Normal Auto",
+    credit: 55000,
+    adminTax: 21,
+    installments: [
+      { months: 80, value: 717 },
+      { months: 70, value: 813 },
+      { months: 60, value: 942 },
+    ],
+  },
+  {
+    code: "VW008",
+    category: "auto",
+    tableName: "Tabela Normal Auto",
+    credit: 70000,
+    adminTax: 21,
+    installments: [
+      { months: 80, value: 915 },
+      { months: 70, value: 1038 },
+      { months: 60, value: 1202 },
+    ],
+  },
+  {
+    code: "VW012",
+    category: "auto",
+    tableName: "Tabela Normal Auto",
+    credit: 90000,
+    adminTax: 21,
+    installments: [
+      { months: 80, value: 1175 },
+      { months: 70, value: 1336 },
+      { months: 60, value: 1547 },
+    ],
+  },
+  {
+    code: "VW016",
+    category: "auto",
+    tableName: "Tabela Normal Auto",
+    credit: 120000,
+    adminTax: 21,
+    installments: [
+      { months: 80, value: 1564 },
+      { months: 70, value: 1775 },
+      { months: 60, value: 2055 },
+    ],
+  },
+  {
+    code: "VW017",
+    category: "auto",
+    tableName: "Tabela Normal Auto",
+    credit: 130000,
+    adminTax: 21,
+    installments: [
+      { months: 80, value: 1694 },
+      { months: 70, value: 1929 },
+      { months: 60, value: 2227 },
+    ],
+  },
+  {
+    code: "VW018",
+    category: "auto",
+    tableName: "Tabela Normal Auto",
+    credit: 140000,
+    adminTax: 21,
+    installments: [
+      { months: 80, value: 1824 },
+      { months: 70, value: 2074 },
+      { months: 60, value: 2400 },
+    ],
+  },
+  {
+    code: "VW019",
+    category: "auto",
+    tableName: "Tabela Normal Auto",
+    credit: 150000,
+    adminTax: 21,
+    installments: [
+      { months: 80, value: 1955 },
+      { months: 70, value: 2218 },
+      { months: 60, value: 2570 },
+    ],
+  },
+  {
+    code: "VW020",
+    category: "auto",
+    tableName: "Tabela Normal Auto",
+    credit: 160000,
+    adminTax: 21,
+    installments: [
+      { months: 80, value: 2085 },
+      { months: 70, value: 2368 },
+      { months: 60, value: 2730 },
+    ],
+  },
+  {
+    code: "VW021",
+    category: "auto",
+    tableName: "Tabela Normal Auto",
+    credit: 170000,
+    adminTax: 21,
+    installments: [
+      { months: 80, value: 2216 },
+      { months: 70, value: 2515 },
+      { months: 60, value: 2921 },
+    ],
+  },
+  {
+    code: "VW022",
+    category: "auto",
+    tableName: "Tabela Normal Auto",
+    credit: 180000,
+    adminTax: 21,
+    installments: [
+      { months: 80, value: 2346 },
+      { months: 70, value: 2659 },
+      { months: 60, value: 3095 },
+    ],
+  },
+  {
+    code: "VW023",
+    category: "auto",
+    tableName: "Tabela Normal Auto",
+    credit: 190000,
+    adminTax: 21,
+    installments: [
+      { months: 80, value: 2477 },
+      { months: 70, value: 2811 },
+      { months: 60, value: 3255 },
+    ],
+  },
+  {
+    code: "VW024",
+    category: "auto",
+    tableName: "Tabela Normal Auto",
+    credit: 200000,
+    adminTax: 21,
+    installments: [
+      { months: 80, value: 2607 },
+      { months: 70, value: 2959 },
+      { months: 60, value: 3420 },
+    ],
+  },
+  {
+    code: "VW025",
+    category: "auto",
+    tableName: "Tabela Normal Auto",
+    credit: 210000,
+    adminTax: 21,
+    installments: [
+      { months: 80, value: 2738 },
+      { months: 70, value: 3106 },
+      { months: 60, value: 3598 },
+    ],
+  },
+  {
+    code: "VW026",
+    category: "auto",
+    tableName: "Tabela Normal Auto",
+    credit: 220000,
+    adminTax: 21,
+    installments: [
+      { months: 80, value: 2868 },
+      { months: 70, value: 3255 },
+      { months: 60, value: 3780 },
+    ],
+  },
+  {
+    code: "VW027",
+    category: "auto",
+    tableName: "Tabela Normal Auto",
+    credit: 230000,
+    adminTax: 21,
+    installments: [
+      { months: 80, value: 2999 },
+      { months: 70, value: 3402 },
+      { months: 60, value: 3940 },
+    ],
+  },
+  {
+    code: "VW028",
+    category: "auto",
+    tableName: "Tabela Normal Auto",
+    credit: 240000,
+    adminTax: 21,
+    installments: [
+      { months: 80, value: 3129 },
+      { months: 70, value: 3549 },
+      { months: 60, value: 4115 },
+    ],
+  },
+];
+
+
 const VW_IMAGES = {
   logo: "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/avatars/Volkswagen_logo_2019.svg%20(1).png",
   teraMain:
@@ -192,6 +522,73 @@ function money(value: number) {
   });
 }
 
+const onlyDigits = (value: string) => String(value || "").replace(/\D/g, "");
+
+const maskCPF = (value: string) => {
+  return String(value || "")
+    .replace(/\D/g, "")
+    .slice(0, 11)
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d{1,2})/, "$1-$2")
+    .replace(/(-\d{2})\d+?$/, "$1");
+};
+
+const validateEmail = (email: string) =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+const normalizeSellerName = (value: string) =>
+  String(value || "").replace(/\s+/g, " ").trim().toUpperCase();
+
+const toE164Digits = (displayPhone: string) => {
+  const digits = onlyDigits(displayPhone);
+
+  if (digits.startsWith("55")) {
+    const national = digits.slice(2);
+
+    if (national.length === 10 || national.length === 11) {
+      return `55${national}`;
+    }
+
+    if ((national.length === 8 || national.length === 9) && DEFAULT_DDD) {
+      return `55${DEFAULT_DDD}${national}`;
+    }
+
+    return null;
+  }
+
+  if (digits.length === 10 || digits.length === 11) {
+    return `55${digits}`;
+  }
+
+  if ((digits.length === 8 || digits.length === 9) && DEFAULT_DDD) {
+    return `55${DEFAULT_DDD}${digits}`;
+  }
+
+  return null;
+};
+
+const formatPhoneInput = (value: string) => {
+  let digits = onlyDigits(value);
+
+  if (digits.startsWith("55")) {
+    digits = digits.slice(2);
+  }
+
+  digits = digits.slice(0, 11);
+
+  const ddd = digits.slice(0, 2);
+  const number = digits.slice(2);
+
+  if (!digits) return PHONE_PREFIX_DISPLAY;
+  if (digits.length <= 2) return `${PHONE_PREFIX_DISPLAY}(${ddd}`;
+  if (number.length <= 5) return `${PHONE_PREFIX_DISPLAY}(${ddd}) ${number}`;
+
+  return `${PHONE_PREFIX_DISPLAY}(${ddd}) ${number.slice(0, 5)}-${number.slice(
+    5
+  )}`;
+};
+
 function normalizeColor(color: any): Color {
   const images = color?.images || {};
 
@@ -254,6 +651,7 @@ function normalizeVehicleFromDb(row: VehicleDbRow): VehicleConfig {
     catalogCover: row.catalog_cover_url || mainFrontImage,
     versions: versions.map((item) => {
       const itemImages = item.images || {};
+
       const frontImage =
         itemImages.front ||
         itemImages.threeQuarter ||
@@ -287,7 +685,8 @@ function normalizeVehicleFromDb(row: VehicleDbRow): VehicleConfig {
             row.side_image_url ||
             frontImage ||
             mainFrontImage,
-          threeQuarter: itemImages.threeQuarter || itemImages.front || frontImage,
+          threeQuarter:
+            itemImages.threeQuarter || itemImages.front || frontImage,
         },
       };
     }),
@@ -321,7 +720,8 @@ function normalizeVehicleFromDb(row: VehicleDbRow): VehicleConfig {
           row.side_image_url ||
           item.image ||
           mainFrontImage,
-        threeQuarter: item.images?.threeQuarter || item.images?.front || item.image,
+        threeQuarter:
+          item.images?.threeQuarter || item.images?.front || item.image,
       },
       image:
         item.images?.front ||
@@ -416,7 +816,9 @@ function getInteriorReference(vehicle: VehicleConfig, key: InteriorViewKey) {
       price: 0,
       image: galleryItem.image,
       description:
-        key === "steeringWheel" ? "Referência de volante" : "Referência de banco",
+        key === "steeringWheel"
+          ? "Referência de volante"
+          : "Referência de banco",
     } as Interior;
   }
 
@@ -436,7 +838,92 @@ function getInteriorImage(
   );
 }
 
+function getSafeImageUrls(vehicle: VehicleConfig) {
+  const urls = new Set<string>();
+
+  const add = (url?: string | null) => {
+    if (url && typeof url === "string" && url.trim().startsWith("http")) {
+      urls.add(url.trim());
+    }
+  };
+
+  add(vehicle.heroImage);
+  add(vehicle.exteriorImage);
+  add(vehicle.sideImage);
+  add(vehicle.catalogCover);
+  add(vehicle.interiorImage);
+
+  vehicle.versions.forEach((version) => {
+    add(version.image);
+    add(version.images?.front);
+    add(version.images?.side);
+    add(version.images?.rear);
+    add(version.images?.threeQuarter);
+  });
+
+  vehicle.colors.forEach((color) => {
+    add(color.image);
+    add(color.images?.front);
+    add(color.images?.side);
+    add(color.images?.rear);
+    add(color.images?.threeQuarter);
+  });
+
+  vehicle.interiors.forEach((interior) => {
+    add(interior.image);
+  });
+
+  vehicle.gallery.forEach((item) => {
+    add(item.image);
+  });
+
+  return Array.from(urls);
+}
+
+function preloadOneImage(url: string) {
+  return new Promise<void>((resolve) => {
+    const img = new Image();
+
+    const done = () => resolve();
+
+    img.onload = done;
+    img.onerror = done;
+    img.src = url;
+  });
+}
+
+async function preloadVehicleImages(vehicle: VehicleConfig) {
+  const urls = getSafeImageUrls(vehicle);
+
+  if (!urls.length) return;
+
+  const timeout = new Promise<void>((resolve) => {
+    window.setTimeout(resolve, 2600);
+  });
+
+  const preload = Promise.all(urls.map(preloadOneImage)).then(() => undefined);
+
+  await Promise.race([preload, timeout]);
+}
+
+function findBestConsortiumPlan(totalValue: number, plans: ConsortiumPlan[]) {
+  const sorted = [...plans].sort((a, b) => a.credit - b.credit);
+
+  return (
+    sorted.find((plan) => plan.credit >= totalValue) ||
+    sorted[sorted.length - 1]
+  );
+}
+
+function getPreferredInstallment(plan: ConsortiumPlan, selectedMonths: number) {
+  return (
+    plan.installments.find((item) => item.months === selectedMonths) ||
+    plan.installments[0]
+  );
+}
+
 export default function VolkswagenBuilderPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const vehicleSlug = searchParams.get("vehicle") || "tera";
 
@@ -460,11 +947,51 @@ export default function VolkswagenBuilderPage() {
     fallbackVehicle.interiors[0]
   );
 
+  const [savingOrder, setSavingOrder] = useState(false);
+  const [editMessage, setEditMessage] = useState("");
+
+  const [loggedUser, setLoggedUser] = useState<any>(null);
+  const [clientName, setClientName] = useState("");
+  const [clientCpf, setClientCpf] = useState("");
+  const [clientEmail, setClientEmail] = useState("");
+  const [clientPhone, setClientPhone] = useState(PHONE_PREFIX_DISPLAY);
+  const [sellerName, setSellerName] = useState("");
+  const [customerErrors, setCustomerErrors] =
+    useState<CustomerErrors>(emptyCustomerErrors);
+
+  const [paymentType, setPaymentType] = useState<PaymentType>("consorcio");
+  const [selectedConsortiumMonths, setSelectedConsortiumMonths] = useState(80);
+
+  useEffect(() => {
+    async function loadLoggedUser() {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        setLoggedUser(user || null);
+
+        const email = String(user?.email || "").trim().toLowerCase();
+
+        if (email && !sellerName) {
+          const beforeAt = email.split("@")[0] || "";
+          setSellerName(beforeAt ? beforeAt.toUpperCase() : email.toUpperCase());
+        }
+      } catch {
+        setLoggedUser(null);
+      }
+    }
+
+    loadLoggedUser();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     let mounted = true;
 
     async function loadVehicle() {
       setLoading(true);
+      setEditMessage("");
 
       const { data, error } = await supabase
         .from("vehicles")
@@ -483,18 +1010,19 @@ export default function VolkswagenBuilderPage() {
           ? normalizeVehicleFromDb(data as VehicleDbRow)
           : fallbackVehicle;
 
-      setVehicle(nextVehicle);
-
       const firstVersion = nextVehicle.versions[0];
 
       const firstMotor =
-        nextVehicle.motors.find((motor) => motor.versionId === firstVersion?.id) ||
-        nextVehicle.motors[0];
+        nextVehicle.motors.find(
+          (motor) => motor.versionId === firstVersion?.id
+        ) || nextVehicle.motors[0];
 
       const firstColor =
-        nextVehicle.colors.find((color) => color.versionId === firstVersion?.id) ||
-        nextVehicle.colors[0];
+        nextVehicle.colors.find(
+          (color) => color.versionId === firstVersion?.id
+        ) || nextVehicle.colors[0];
 
+      setVehicle(nextVehicle);
       setSelectedVersion(firstVersion);
       setSelectedMotor(firstMotor);
       setSelectedColor(firstColor);
@@ -502,6 +1030,11 @@ export default function VolkswagenBuilderPage() {
       setStep("versoes");
       setView("front");
       setInteriorView("steeringWheel");
+
+      await preloadVehicleImages(nextVehicle);
+
+      if (!mounted) return;
+
       setLoading(false);
     }
 
@@ -559,6 +1092,32 @@ export default function VolkswagenBuilderPage() {
     Number(selectedColor?.price || 0) +
     Number(selectedInterior?.price || 0);
 
+  const monthly = total / 108;
+
+  const suggestedConsortiumPlan = useMemo(() => {
+    return findBestConsortiumPlan(total, VW_AUTO_CONSORTIUM_PLANS);
+  }, [total]);
+
+  const selectedConsortiumInstallment = useMemo(() => {
+    return getPreferredInstallment(
+      suggestedConsortiumPlan,
+      selectedConsortiumMonths
+    );
+  }, [suggestedConsortiumPlan, selectedConsortiumMonths]);
+
+  useEffect(() => {
+    if (
+      suggestedConsortiumPlan &&
+      !suggestedConsortiumPlan.installments.some(
+        (item) => item.months === selectedConsortiumMonths
+      )
+    ) {
+      setSelectedConsortiumMonths(
+        suggestedConsortiumPlan.installments[0]?.months || 80
+      );
+    }
+  }, [suggestedConsortiumPlan, selectedConsortiumMonths]);
+
   const currentImage = useMemo(() => {
     if (step === "interior") {
       return getInteriorImage(vehicle, selectedInterior, interiorView);
@@ -602,11 +1161,277 @@ export default function VolkswagenBuilderPage() {
     interiorView,
   ]);
 
-  const goNext = () => {
+  function buildContractOrderPayload(): ContractOrderPayload {
+    const vehicleImage =
+      currentImage ||
+      getColorImage(selectedColor, "front") ||
+      getVersionImage(selectedVersion, "front") ||
+      vehicle.heroImage ||
+      vehicle.exteriorImage ||
+      vehicle.sideImage ||
+      "";
+
+    return {
+      source: "volkswagen_builder",
+      status: "pendente_analise",
+      brand: "volkswagen",
+      vehicle_slug: vehicle.slug,
+      vehicle_name: vehicle.name,
+      vehicle_title: `Monte o seu ${vehicle.name}`,
+      vehicle_description: vehicle.fullName || vehicle.name,
+      vehicle_image: vehicleImage,
+      client: {
+        name: clientName.trim(),
+        cpf: clientCpf.trim(),
+        email: clientEmail.trim().toLowerCase(),
+        phone: toE164Digits(clientPhone) || "",
+      },
+      seller: {
+        name: normalizeSellerName(sellerName),
+        id: loggedUser?.id || null,
+        email: String(loggedUser?.email || "").trim().toLowerCase() || null,
+      },
+      version: {
+        id: selectedVersion.id,
+        name: selectedVersion.name,
+        description: selectedVersion.description || "",
+        price: Number(selectedVersion.price || 0),
+        image:
+          getVersionImage(selectedVersion, "front") ||
+          selectedVersion.image ||
+          vehicleImage,
+      },
+      motor: {
+        id: selectedMotor.id,
+        name: selectedMotor.name,
+        description: selectedMotor.description || "",
+        price: Number(selectedMotor.price || 0),
+        power: selectedMotor.power || "",
+        fuel: selectedMotor.fuel || "",
+        transmission: selectedMotor.transmission || "",
+        traction: selectedMotor.traction || "",
+      },
+      color: selectedColor
+        ? {
+            id: selectedColor.id,
+            name: selectedColor.name,
+            type: selectedColor.type || "",
+            price: Number(selectedColor.price || 0),
+            image:
+              getColorImage(selectedColor, "front") ||
+              selectedColor.image ||
+              vehicleImage,
+            hex: selectedColor.hex || "#111111",
+            versionId: selectedColor.versionId || selectedVersion.id,
+          }
+        : null,
+      interior: selectedInterior
+        ? {
+            id: selectedInterior.id,
+            name: selectedInterior.name,
+            price: Number(selectedInterior.price || 0),
+            image: selectedInterior.image || "",
+            description: selectedInterior.description || "",
+          }
+        : null,
+      totals: {
+        vehicle: Number(selectedVersion.price || 0),
+        color: Number(selectedColor?.price || 0),
+        interior: Number(selectedInterior?.price || 0),
+        total,
+        monthly_108: monthly,
+      },
+      payment:
+        paymentType === "consorcio"
+          ? {
+              type: "consorcio",
+              tableName: suggestedConsortiumPlan.tableName,
+              category: suggestedConsortiumPlan.category,
+              code: suggestedConsortiumPlan.code,
+              credit: suggestedConsortiumPlan.credit,
+              adminTax: suggestedConsortiumPlan.adminTax,
+              selectedMonths: selectedConsortiumInstallment.months,
+              installment: selectedConsortiumInstallment.value,
+              vehicleValue: total,
+              rule: "credito_igual_ou_acima",
+            }
+          : {
+              type: "financiamento",
+              vehicleValue: total,
+              status: "simular_na_analise",
+            },
+      created_at: new Date().toISOString(),
+    };
+  }
+
+  function validateCustomerData() {
+    const nextErrors: CustomerErrors = { ...emptyCustomerErrors };
+    let hasError = false;
+
+    if (clientName.trim().length < 3) {
+      nextErrors.clientName = "Nome completo é obrigatório.";
+      hasError = true;
+    }
+
+    if (clientCpf.trim().length < 14) {
+      nextErrors.clientCpf = "CPF inválido ou incompleto.";
+      hasError = true;
+    }
+
+    if (!clientEmail.trim() || !validateEmail(clientEmail.trim())) {
+      nextErrors.clientEmail = "Insira um e-mail válido.";
+      hasError = true;
+    }
+
+    const phoneDigits = toE164Digits(clientPhone);
+
+    if (!phoneDigits) {
+      nextErrors.clientPhone = "Telefone inválido. Digite com DDD.";
+      hasError = true;
+    }
+
+    if (normalizeSellerName(sellerName).length < 3) {
+      nextErrors.sellerName = "Informe o vendedor que atendeu o cliente.";
+      hasError = true;
+    }
+
+    setCustomerErrors(nextErrors);
+
+    if (hasError) {
+      setEditMessage("Preencha os dados do cliente antes de enviar para análise.");
+      setStep("resumo");
+      return false;
+    }
+
+    return true;
+  }
+
+  async function saveOrderAndGoAnalysis() {
+    setEditMessage("");
+
+    if (!selectedVersion?.id) {
+      setEditMessage("Escolha uma versão antes de concluir.");
+      setStep("versoes");
+      return;
+    }
+
+    if (!selectedColor?.id) {
+      setEditMessage("Escolha uma cor antes de concluir.");
+      setStep("cor");
+      return;
+    }
+
+    if (!validateCustomerData()) return;
+
+    const orderPayload = buildContractOrderPayload();
+
+    try {
+      setSavingOrder(true);
+
+      localStorage.setItem("wb_builder_order", JSON.stringify(orderPayload));
+      localStorage.setItem("wb_analysis_order", JSON.stringify(orderPayload));
+      localStorage.setItem(
+        "wb_builder_order_updated_at",
+        new Date().toISOString()
+      );
+      localStorage.setItem(
+        "wb_analysis_order_updated_at",
+        new Date().toISOString()
+      );
+
+      localStorage.setItem(
+        "wb_builder_customer",
+        JSON.stringify({
+          nome: clientName.trim(),
+          cpf: clientCpf.trim(),
+          email: clientEmail.trim().toLowerCase(),
+          telefone: toE164Digits(clientPhone) || "",
+          vendedor: normalizeSellerName(sellerName),
+        })
+      );
+
+      const { data, error } = await supabase
+        .from(ORDER_TABLE_NAME)
+        .insert({
+          source: orderPayload.source,
+          status: orderPayload.status,
+          brand: orderPayload.brand,
+          vehicle_slug: orderPayload.vehicle_slug,
+          vehicle_name: orderPayload.vehicle_name,
+          version_name: orderPayload.version.name,
+          color_name: orderPayload.color?.name || "",
+          vehicle_image: orderPayload.vehicle_image,
+          total_value: orderPayload.totals.total,
+          monthly_value: orderPayload.totals.monthly_108,
+          payload: orderPayload,
+        })
+        .select("id")
+        .single();
+
+      if (error) throw error;
+
+      const pedidoId = data?.id ? String(data.id) : "";
+
+      const analysisParams = new URLSearchParams();
+
+      analysisParams.set("origem", "builder");
+      analysisParams.set(
+        "modelo",
+        orderPayload.version.name || orderPayload.vehicle_name
+      );
+      analysisParams.set(
+        "valor",
+        String(orderPayload.totals.total || orderPayload.version.price || 0)
+      );
+      analysisParams.set("imagem", orderPayload.vehicle_image || "");
+      analysisParams.set("vehicle_slug", orderPayload.vehicle_slug);
+      analysisParams.set("vehicle_name", orderPayload.vehicle_name);
+      analysisParams.set("versao", orderPayload.version.name);
+      analysisParams.set("motor", orderPayload.motor.name);
+      analysisParams.set("cor", orderPayload.color?.name || "");
+      analysisParams.set("nome", orderPayload.client.name);
+      analysisParams.set("cpf", orderPayload.client.cpf);
+      analysisParams.set("email", orderPayload.client.email);
+      analysisParams.set("telefone", orderPayload.client.phone);
+      analysisParams.set("vendedor", orderPayload.seller.name);
+      analysisParams.set("vendedor_id", orderPayload.seller.id || "");
+      analysisParams.set("vendedor_email", orderPayload.seller.email || "");
+      analysisParams.set("payment_type", orderPayload.payment.type);
+
+      if (orderPayload.payment.type === "consorcio") {
+        analysisParams.set("consorcio_tabela", orderPayload.payment.tableName);
+        analysisParams.set("consorcio_codigo", orderPayload.payment.code);
+        analysisParams.set("consorcio_credito", String(orderPayload.payment.credit));
+        analysisParams.set("consorcio_prazo", String(orderPayload.payment.selectedMonths));
+        analysisParams.set("consorcio_parcela", String(orderPayload.payment.installment));
+        analysisParams.set("consorcio_taxa_admin", String(orderPayload.payment.adminTax));
+      }
+
+      if (pedidoId) {
+        localStorage.setItem("wb_builder_order_id", pedidoId);
+        analysisParams.set("pedido", pedidoId);
+      }
+
+      router.push(`${ANALYSIS_ROUTE}?${analysisParams.toString()}`);
+    } catch (e: any) {
+      console.error("Erro ao salvar pedido do builder Volkswagen:", e);
+
+      setEditMessage(
+        e?.message ||
+          "Erro ao salvar o pedido. Verifique se a tabela contract_orders existe no Supabase."
+      );
+    } finally {
+      setSavingOrder(false);
+    }
+  }
+
+  const goNext = async () => {
     if (step === "versoes") return setStep("motor");
     if (step === "motor") return setStep("cor");
     if (step === "cor") return setStep("interior");
     if (step === "interior") return setStep("resumo");
+
+    await saveOrderAndGoAnalysis();
   };
 
   const nextLabel =
@@ -618,17 +1443,50 @@ export default function VolkswagenBuilderPage() {
       ? "Interior"
       : step === "interior"
       ? "Resumo"
-      : "Tenho Interesse";
+      : savingOrder
+      ? "Salvando pedido..."
+      : "Concluir e ir para análise";
 
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-white text-[#001e50]">
-        <div className="text-center">
-          <Loader2 className="mx-auto h-8 w-8 animate-spin" />
-          <p className="mt-3 text-sm font-bold uppercase">
-            Carregando Volkswagen...
+        <div className="w-full max-w-[420px] px-6 text-center">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#eef4ff]">
+            <Loader2 className="h-8 w-8 animate-spin text-[#001e50]" />
+          </div>
+
+          <h1 className="mt-6 text-[26px] font-bold tracking-[-0.03em]">
+            Preparando seu Volkswagen
+          </h1>
+
+          <p className="mt-3 text-[14px] leading-6 text-[#001e50]/70">
           </p>
+
+          <div className="mt-7 h-2 overflow-hidden rounded-full bg-[#e7edf7]">
+            <div className="builder-loading-bar h-full rounded-full bg-[#0055d8]" />
+          </div>
         </div>
+
+        <style jsx global>{`
+          .builder-loading-bar {
+            width: 45%;
+            animation: builderLoadingBar 1.15s ease-in-out infinite;
+          }
+
+          @keyframes builderLoadingBar {
+            0% {
+              transform: translateX(-110%);
+            }
+
+            50% {
+              transform: translateX(55%);
+            }
+
+            100% {
+              transform: translateX(230%);
+            }
+          }
+        `}</style>
       </main>
     );
   }
@@ -655,21 +1513,21 @@ export default function VolkswagenBuilderPage() {
               href="/volkswagen"
               className="hidden text-[13px] font-bold md:block"
             >
-
+              Configure seu novo Volkswagen
             </Link>
 
             <Link
               href="/volkswagen"
               className="hidden text-[13px] font-bold md:block"
             >
-
+              Conheça nossas ofertas
             </Link>
 
             <Link
               href="/volkswagen"
               className="hidden text-[13px] font-bold md:block"
             >
-
+              Serviços e Pós-vendas
             </Link>
           </div>
 
@@ -705,12 +1563,18 @@ export default function VolkswagenBuilderPage() {
         </div>
       </nav>
 
+      {editMessage && (
+        <div className="fixed left-0 top-[88px] z-[120] w-full bg-[#001e50] px-4 py-2 text-center text-[12px] font-bold text-white">
+          {editMessage}
+        </div>
+      )}
+
       <section className="grid min-h-screen grid-cols-1 pb-[78px] pt-[88px] lg:grid-cols-[minmax(0,1fr)_minmax(480px,560px)] lg:pb-[70px]">
         <div className="builder-vw-stage relative min-h-[58vh] overflow-hidden bg-white lg:min-h-[calc(100vh-158px)]">
           {step !== "resumo" ? (
             <>
               {currentImage ? (
-                <div className="flex h-[58vh] w-full items-center justify-center bg-white px-4 py-6 md:px-8 lg:h-[calc(100vh-158px)] lg:px-12">
+                <div className="flex h-[58vh] w-full items-center justify-center overflow-visible bg-white px-2 py-3 md:px-4 lg:h-[calc(100vh-158px)] lg:px-5">
                   <img
                     key={`${step}-${
                       step === "interior" ? interiorView : view
@@ -776,91 +1640,252 @@ export default function VolkswagenBuilderPage() {
               </div>
             </>
           ) : (
-            <div className="mx-auto grid max-w-[1320px] grid-cols-1 gap-8 px-5 py-8 lg:grid-cols-[minmax(0,1fr)_400px] lg:px-10 xl:px-14">
-              <div>
-                {currentImage ? (
-                  <div className="flex h-[260px] w-full items-center justify-center rounded-2xl bg-white p-4 shadow-sm md:h-[430px]">
-                    <img
-                      src={currentImage}
-                      alt={vehicle.name}
-                      className="builder-vw-image h-full w-full object-contain"
-                      draggable={false}
-                    />
+            <div className="mx-auto grid max-w-[1420px] grid-cols-1 gap-8 px-5 py-8 lg:grid-cols-[minmax(0,1fr)_430px] lg:px-10 xl:px-14">
+              <div className="space-y-6">
+                <div className="overflow-hidden rounded-[28px] border border-black/10 bg-white shadow-[0_18px_55px_rgba(0,30,80,0.08)]">
+                  <div className="relative flex min-h-[420px] items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_center,rgba(0,85,216,0.08),transparent_48%),#ffffff] p-6">
+                    {currentImage ? (
+                      <img
+                        src={currentImage}
+                        alt={vehicle.name}
+                        className="builder-vw-summary-car h-full max-h-[430px] w-full scale-[1.08] object-contain"
+                        draggable={false}
+                      />
+                    ) : (
+                      <div className="text-sm font-black uppercase text-[#001e50]/35">
+                        Sem imagem cadastrada
+                      </div>
+                    )}
+
+                    <div className="absolute left-6 top-6 rounded-full bg-[#001e50] px-4 py-2 text-[12px] font-bold text-white">
+                      Configuração selecionada
+                    </div>
                   </div>
-                ) : null}
 
-                <p className="mt-3 text-[13px]">{vehicle.fullName}</p>
+                  <div className="grid gap-6 border-t border-black/10 p-6 md:grid-cols-[1fr_auto] md:items-end">
+                    <div>
+                      <p className="text-[13px] font-bold text-[#0055d8]">
+                        {vehicle.name}
+                      </p>
 
-                <h1 className="mt-6 text-[36px] font-bold">Resumo</h1>
+                      <h1 className="mt-1 text-[34px] font-bold leading-tight tracking-[-0.04em] md:text-[42px]">
+                        {selectedVersion.name}
+                      </h1>
 
-                <div className="mt-6 flex gap-8 overflow-x-auto border-b border-black/20 text-[14px]">
-                  <button className="min-w-max border-b-2 border-[#001e50] pb-3">
-                    Configuração selecionada
-                  </button>
-                  <button className="min-w-max pb-3">
-                    Equipamentos de série
-                  </button>
-                  <button className="min-w-max pb-3">Dados técnicos</button>
-                </div>
+                      <p className="mt-3 max-w-[760px] text-[14px] leading-6 text-[#001e50]/70">
+                        {vehicle.fullName}
+                      </p>
+                    </div>
 
-                <SummaryBox
-                  title="1. Motor selecionado"
-                  main={selectedMotor.name}
-                  sub={selectedMotor.description}
-                  right={`Preço ${money(total)} Preço Total`}
-                  footer={`Potência ${selectedMotor.power}${
-                    selectedMotor.torque
-                      ? ` • Torque ${selectedMotor.torque}`
-                      : ""
-                  }`}
-                />
-
-                <SummaryBox
-                  title="2. Exterior selecionado"
-                  main={selectedColor.name}
-                  sub={
-                    selectedColor.price === 0
-                      ? "Sem custos adicionais"
-                      : money(selectedColor.price)
-                  }
-                  right=""
-                  footer={selectedColor.type}
-                  color={selectedColor.hex}
-                />
-
-                <SummaryBox
-                  title="3. Interior selecionado"
-                  main={selectedInterior.name}
-                  sub={
-                    selectedInterior.price === 0
-                      ? "Sem custos adicionais"
-                      : money(selectedInterior.price)
-                  }
-                  right=""
-                  footer={selectedInterior.description || ""}
-                />
-              </div>
-
-              <div className="h-fit rounded-2xl bg-[#f3f3f3] p-6 shadow-sm lg:sticky lg:top-[112px] lg:p-8">
-                <p className="text-center text-[13px] font-bold">
-                  {vehicle.name}. {selectedVersion.name}
-                </p>
-
-                <h2 className="mt-2 text-center text-[30px] font-bold">
-                  Resumo
-                </h2>
-
-                <div className="mt-8 border-b border-black/10 pb-5">
-                  <div className="flex justify-between text-[14px]">
-                    <span>Preço Total</span>
-                    <strong>{money(total)}</strong>
+                    <div className="rounded-2xl bg-[#f4f7fb] p-5 text-left md:min-w-[230px]">
+                      <p className="text-[12px] font-bold uppercase text-[#001e50]/55">
+                        Preço total
+                      </p>
+                      <strong className="mt-1 block text-[28px] leading-none">
+                        {money(total)}
+                      </strong>
+                      <p className="mt-3 text-[13px] text-[#001e50]/65">
+                        Simulação em 108x: <strong>{money(monthly)}</strong>
+                      </p>
+                    </div>
                   </div>
                 </div>
 
-                <button className="mt-8 h-[46px] w-full rounded-full bg-[#001e50] text-[14px] font-bold text-white">
-                  Tenho Interesse
-                </button>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <SummaryBox
+                    title="1. Versão selecionada"
+                    main={selectedVersion.name}
+                    sub={selectedVersion.description || vehicle.fullName}
+                    right={money(selectedVersion.price)}
+                    footer={`${selectedVersion.fuel} • ${selectedVersion.transmission}`}
+                  />
+
+                  <SummaryBox
+                    title="2. Motor selecionado"
+                    main={selectedMotor.name}
+                    sub={selectedMotor.description}
+                    right=""
+                    footer={`Potência ${selectedMotor.power}${
+                      selectedMotor.torque
+                        ? ` • Torque ${selectedMotor.torque}`
+                        : ""
+                    }`}
+                  />
+
+                  <SummaryBox
+                    title="3. Exterior selecionado"
+                    main={selectedColor.name}
+                    sub={
+                      selectedColor.price === 0
+                        ? "Sem custos adicionais"
+                        : money(selectedColor.price)
+                    }
+                    right=""
+                    footer={selectedColor.type}
+                    color={selectedColor.hex}
+                  />
+
+                  <SummaryBox
+                    title="4. Interior selecionado"
+                    main={selectedInterior.name}
+                    sub={
+                      selectedInterior.price === 0
+                        ? "Sem custos adicionais"
+                        : money(selectedInterior.price)
+                    }
+                    right=""
+                    footer={selectedInterior.description || ""}
+                  />
+                </div>
               </div>
+
+              <aside className="h-fit rounded-[28px] border border-black/10 bg-[#f7f9fc] p-5 shadow-[0_18px_55px_rgba(0,30,80,0.08)] lg:sticky lg:top-[112px] lg:p-6">
+                <div className="rounded-3xl bg-white p-5 shadow-sm">
+                  <p className="text-center text-[13px] font-bold text-[#0055d8]">
+                    {vehicle.name}. {selectedVersion.name}
+                  </p>
+
+                  <h2 className="mt-2 text-center text-[30px] font-bold tracking-[-0.04em]">
+                    Finalizar configuração
+                  </h2>
+
+                  <div className="mt-6 rounded-2xl bg-[#001e50] p-5 text-white">
+                    <div className="flex justify-between gap-4 text-[14px]">
+                      <span>Preço Total</span>
+                      <strong>{money(total)}</strong>
+                    </div>
+
+                    <div className="mt-3 flex justify-between gap-4 border-t border-white/15 pt-3 text-[13px] text-white/80">
+                      <span>Simulação 108x</span>
+                      <strong>{money(monthly)}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                <PaymentChoiceBox
+                  paymentType={paymentType}
+                  setPaymentType={setPaymentType}
+                  total={total}
+                  consortiumPlan={suggestedConsortiumPlan}
+                  selectedMonths={selectedConsortiumMonths}
+                  setSelectedMonths={setSelectedConsortiumMonths}
+                  selectedInstallment={selectedConsortiumInstallment}
+                />
+
+                <div className="mt-5 rounded-3xl bg-white p-5 shadow-sm">
+                  <div className="mb-4">
+                    <h3 className="text-[15px] font-bold uppercase">
+                      Dados do cliente
+                    </h3>
+
+                    <p className="mt-1 text-[12px] leading-tight text-[#001e50]/60">
+                      Esses dados seguem para a análise, consulta de CPF e contrato
+                      junto com o Volkswagen configurado.
+                    </p>
+                  </div>
+
+                  <CustomerField
+                    label="Nome completo"
+                    value={clientName}
+                    error={customerErrors.clientName}
+                    placeholder="Nome do cliente"
+                    onChange={(value) => {
+                      setClientName(value);
+                      if (customerErrors.clientName) {
+                        setCustomerErrors((prev) => ({
+                          ...prev,
+                          clientName: "",
+                        }));
+                      }
+                    }}
+                  />
+
+                  <CustomerField
+                    label="CPF"
+                    value={clientCpf}
+                    error={customerErrors.clientCpf}
+                    placeholder="000.000.000-00"
+                    maxLength={14}
+                    onChange={(value) => {
+                      setClientCpf(maskCPF(value));
+                      if (customerErrors.clientCpf) {
+                        setCustomerErrors((prev) => ({
+                          ...prev,
+                          clientCpf: "",
+                        }));
+                      }
+                    }}
+                  />
+
+                  <CustomerField
+                    label="E-mail"
+                    value={clientEmail}
+                    error={customerErrors.clientEmail}
+                    placeholder="cliente@email.com"
+                    onChange={(value) => {
+                      setClientEmail(value);
+                      if (customerErrors.clientEmail) {
+                        setCustomerErrors((prev) => ({
+                          ...prev,
+                          clientEmail: "",
+                        }));
+                      }
+                    }}
+                  />
+
+                  <CustomerField
+                    label="Telefone"
+                    value={clientPhone}
+                    error={customerErrors.clientPhone}
+                    placeholder="+55 (91) 9XXXX-XXXX"
+                    maxLength={PHONE_PREFIX_DISPLAY.length + 16}
+                    onChange={(value) => {
+                      setClientPhone(formatPhoneInput(value));
+                      if (customerErrors.clientPhone) {
+                        setCustomerErrors((prev) => ({
+                          ...prev,
+                          clientPhone: "",
+                        }));
+                      }
+                    }}
+                  />
+
+                  <CustomerField
+                    label="Vendedor"
+                    value={sellerName}
+                    error={customerErrors.sellerName}
+                    placeholder="Nome do vendedor"
+                    onChange={(value) => {
+                      setSellerName(value);
+                      if (customerErrors.sellerName) {
+                        setCustomerErrors((prev) => ({
+                          ...prev,
+                          sellerName: "",
+                        }));
+                      }
+                    }}
+                  />
+
+                  <div className="mt-4 rounded-2xl border border-black/10 bg-[#f4f7fb] p-4 text-[12px] leading-tight text-[#001e50]/75">
+                    <strong>Prévia:</strong> {clientName || "Cliente"} será
+                    enviado para análise com CPF {clientCpf || "---"}, veículo{" "}
+                    {selectedVersion.name}, cor {selectedColor?.name || "---"},
+                    valor {money(total)} e forma de pagamento {paymentType === "consorcio" ? "consórcio" : "financiamento"}.
+                  </div>
+
+                  <button
+                    onClick={saveOrderAndGoAnalysis}
+                    disabled={savingOrder}
+                    className="mt-6 flex h-[50px] w-full items-center justify-center gap-2 rounded-full bg-[#0055d8] text-[14px] font-bold text-white shadow-lg transition hover:bg-[#0044ad] disabled:cursor-not-allowed disabled:opacity-70"
+                    type="button"
+                  >
+                    {savingOrder
+                      ? "Salvando pedido..."
+                      : "Concluir e ir para análise"}
+                    <ChevronRight className="h-5 w-5" />
+                  </button>
+                </div>
+              </aside>
             </div>
           )}
         </div>
@@ -1210,7 +2235,8 @@ export default function VolkswagenBuilderPage() {
 
           <button
             onClick={goNext}
-            className="flex h-[44px] shrink-0 items-center gap-2 rounded-full bg-[#0055d8] px-5 text-[14px] font-bold text-white shadow-lg transition hover:bg-[#0044ad] md:px-8"
+            disabled={savingOrder}
+            className="flex h-[44px] shrink-0 items-center gap-2 rounded-full bg-[#0055d8] px-5 text-[14px] font-bold text-white shadow-lg transition hover:bg-[#0044ad] disabled:cursor-not-allowed disabled:opacity-70 md:px-8"
             type="button"
           >
             {nextLabel}
@@ -1234,31 +2260,66 @@ export default function VolkswagenBuilderPage() {
         }
 
         .builder-vw-image {
-          max-width: 92%;
-          max-height: 92%;
+          width: 100%;
+          height: 100%;
+          max-width: 108%;
+          max-height: 108%;
           object-fit: contain;
           object-position: center;
           animation: builderVwImage 0.35s ease-out;
           image-rendering: auto;
           filter: contrast(1.035) saturate(1.035);
+          transform: scale(1.1);
+        }
+
+        .builder-vw-summary-car {
+          animation: builderSummaryCar 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+          filter: contrast(1.035) saturate(1.035);
         }
 
         @media (min-width: 1024px) {
           .builder-vw-image {
-            max-width: 88%;
-            max-height: 88%;
+            max-width: 112%;
+            max-height: 112%;
+            transform: scale(1.14);
           }
         }
 
         @keyframes builderVwImage {
           from {
             opacity: 0;
-            transform: translateY(8px) scale(0.985);
+            transform: translateY(8px) scale(1.06);
           }
 
           to {
             opacity: 1;
-            transform: translateY(0) scale(1);
+            transform: translateY(0) scale(1.1);
+          }
+        }
+
+        @media (min-width: 1024px) {
+          @keyframes builderVwImage {
+            from {
+              opacity: 0;
+              transform: translateY(8px) scale(1.1);
+            }
+
+            to {
+              opacity: 1;
+              transform: translateY(0) scale(1.14);
+            }
+          }
+        }
+
+        @keyframes builderSummaryCar {
+          from {
+            opacity: 0;
+            transform: translateY(14px) scale(1.04);
+          }
+
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1.08);
           }
         }
       `}</style>
@@ -1296,6 +2357,118 @@ function ColorButton({
   );
 }
 
+function PaymentChoiceBox({
+  paymentType,
+  setPaymentType,
+  total,
+  consortiumPlan,
+  selectedMonths,
+  setSelectedMonths,
+  selectedInstallment,
+}: {
+  paymentType: PaymentType;
+  setPaymentType: (value: PaymentType) => void;
+  total: number;
+  consortiumPlan: ConsortiumPlan;
+  selectedMonths: number;
+  setSelectedMonths: (value: number) => void;
+  selectedInstallment: ConsortiumInstallment;
+}) {
+  return (
+    <div className="mt-5 rounded-3xl bg-white p-5 shadow-sm">
+      <div className="mb-4">
+        <h3 className="text-[15px] font-bold uppercase">Forma de pagamento</h3>
+        <p className="mt-1 text-[12px] leading-tight text-[#001e50]/60">
+          Escolha se o cliente seguirá para análise como consórcio ou financiamento.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 rounded-2xl bg-[#eef2f7] p-1">
+        <button
+          type="button"
+          onClick={() => setPaymentType("consorcio")}
+          className={`h-10 rounded-xl text-[12px] font-bold transition ${
+            paymentType === "consorcio"
+              ? "bg-[#001e50] text-white shadow"
+              : "text-[#001e50]/70 hover:bg-white"
+          }`}
+        >
+          Consórcio
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setPaymentType("financiamento")}
+          className={`h-10 rounded-xl text-[12px] font-bold transition ${
+            paymentType === "financiamento"
+              ? "bg-[#001e50] text-white shadow"
+              : "text-[#001e50]/70 hover:bg-white"
+          }`}
+        >
+          Financiamento
+        </button>
+      </div>
+
+      {paymentType === "consorcio" ? (
+        <div className="mt-4 rounded-2xl border border-[#0055d8]/20 bg-[#f4f7fb] p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-black uppercase text-[#0055d8]">
+                Plano sugerido
+              </p>
+              <h4 className="mt-1 text-[18px] font-bold">
+                Crédito {money(consortiumPlan.credit)}
+              </h4>
+              <p className="mt-1 text-[11px] text-[#001e50]/60">
+                {consortiumPlan.tableName} • Código {consortiumPlan.code} • Taxa adm. {consortiumPlan.adminTax}%
+              </p>
+            </div>
+            <span className="rounded-full bg-white px-3 py-1 text-[11px] font-bold text-[#001e50] shadow-sm">
+              Valor do carro: {money(total)}
+            </span>
+          </div>
+
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            {consortiumPlan.installments.map((item) => {
+              const active = selectedMonths === item.months;
+
+              return (
+                <button
+                  key={item.months}
+                  type="button"
+                  onClick={() => setSelectedMonths(item.months)}
+                  className={`rounded-2xl border p-3 text-left transition ${
+                    active
+                      ? "border-[#159447] bg-white shadow"
+                      : "border-black/10 bg-white/70 hover:bg-white"
+                  }`}
+                >
+                  <span className="block text-[11px] font-bold text-[#001e50]/55">
+                    {item.months}x
+                  </span>
+                  <strong className="mt-1 block text-[13px]">
+                    {money(item.value)}
+                  </strong>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-4 rounded-xl bg-white p-3 text-[12px] text-[#001e50]/70">
+            Selecionado: <strong>{selectedInstallment.months}x de {money(selectedInstallment.value)}</strong>.
+            O sistema usa o primeiro crédito igual ou acima do valor configurado.
+          </div>
+        </div>
+      ) : (
+        <div className="mt-4 rounded-2xl border border-black/10 bg-[#f4f7fb] p-4 text-[12px] leading-5 text-[#001e50]/70">
+          <strong>Financiamento selecionado.</strong> O valor {money(total)} será enviado para a análise para simulação manual/financeira.
+          Quando seu cliente enviar a tabela de financiamento, dá para automatizar as parcelas igual ao consórcio.
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SummaryBox({
   title,
   main,
@@ -1312,32 +2485,73 @@ function SummaryBox({
   color?: string;
 }) {
   return (
-    <div className="mt-8">
-      <h3 className="mb-3 text-[17px] font-bold">{title}</h3>
+    <div className="h-full rounded-3xl border border-black/10 bg-white p-5 shadow-[0_12px_35px_rgba(0,30,80,0.06)]">
+      <h3 className="text-[13px] font-bold uppercase text-[#0055d8]">
+        {title}
+      </h3>
 
-      <div className="rounded-2xl border border-[#159447] bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <strong>{main}</strong>
-            <p className="mt-2 text-[14px]">{sub}</p>
-          </div>
-
-          {color ? (
-            <span
-              className="h-[58px] w-[58px] shrink-0 rounded-full border border-black/20"
-              style={{ background: color }}
-            />
-          ) : (
-            <strong>{right}</strong>
-          )}
+      <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <strong className="block text-[16px] leading-tight">{main}</strong>
+          <p className="mt-2 text-[13px] leading-5 text-[#001e50]/65">{sub}</p>
         </div>
 
-        {footer && (
-          <div className="mt-5 border-t border-black/10 pt-4 text-[14px]">
-            {footer}
-          </div>
-        )}
+        {color ? (
+          <span
+            className="h-[58px] w-[58px] shrink-0 rounded-full border border-black/20 shadow-inner"
+            style={{ background: color }}
+          />
+        ) : right ? (
+          <strong className="text-[15px]">{right}</strong>
+        ) : null}
       </div>
+
+      {footer && (
+        <div className="mt-5 border-t border-black/10 pt-4 text-[13px] text-[#001e50]/75">
+          {footer}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CustomerField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  error,
+  maxLength,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  error?: string;
+  maxLength?: number;
+}) {
+  return (
+    <div className="mb-3">
+      <label className="mb-1 block text-[10px] font-black uppercase tracking-wide text-[#001e50]/50">
+        {label}
+      </label>
+
+      <input
+        value={value}
+        maxLength={maxLength}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        className={`h-10 w-full rounded-xl border bg-white px-3 text-[12px] font-bold outline-none transition focus:border-[#0055d8] ${
+          error ? "border-red-400 bg-red-50" : "border-black/15"
+        }`}
+      />
+
+      {error ? (
+        <p className="mt-1 flex items-center gap-1 text-[10px] font-bold text-red-600">
+          <AlertCircle className="h-3 w-3" />
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }

@@ -15,6 +15,7 @@ import {
   Save,
   UploadCloud,
   User,
+  Loader2,
 } from "lucide-react";
 
 type BuilderStep = 1 | 2 | 3 | 4 | 5;
@@ -209,7 +210,8 @@ const vehiclesBuilderConfig: Record<string, VehicleBuilderConfig> = {
       {
         id: "branco-banchisa",
         name: "Branco Banchisa com teto preto Vulcano",
-        description: "Combinação contrastante com teto preto para visual mais moderno.",
+        description:
+          "Combinação contrastante com teto preto para visual mais moderno.",
         category: "Sólidas",
         price: 990,
         image: FIAT_IMAGES.colorWhite,
@@ -218,7 +220,8 @@ const vehiclesBuilderConfig: Record<string, VehicleBuilderConfig> = {
       {
         id: "cinza-silverstone",
         name: "Cinza Silverstone com teto preto Vulcano",
-        description: "Tom metálico sofisticado com teto preto para presença mais premium.",
+        description:
+          "Tom metálico sofisticado com teto preto para presença mais premium.",
         category: "Metálicas",
         price: 1990,
         image: FIAT_IMAGES.colorSilver,
@@ -227,7 +230,8 @@ const vehiclesBuilderConfig: Record<string, VehicleBuilderConfig> = {
       {
         id: "azul-amalfi",
         name: "Azul Amalfi com teto preto Vulcano",
-        description: "Cor metálica marcante para destacar o design do Fastback.",
+        description:
+          "Cor metálica marcante para destacar o design do Fastback.",
         category: "Metálicas",
         price: 1990,
         image: FIAT_IMAGES.colorBlue,
@@ -245,14 +249,16 @@ const vehiclesBuilderConfig: Record<string, VehicleBuilderConfig> = {
       {
         id: "connect-me-sensor",
         name: "Connect Me & Sensor de ponto cego",
-        description: "Pacote de conectividade e segurança para facilitar sua rotina.",
+        description:
+          "Pacote de conectividade e segurança para facilitar sua rotina.",
         price: 3990,
         image: FIAT_IMAGES.kitConnect,
       },
       {
         id: "pack-sunroof",
         name: "Pack Sunroof",
-        description: "Teto solar para uma experiência mais premium e iluminada.",
+        description:
+          "Teto solar para uma experiência mais premium e iluminada.",
         price: 4990,
         image: FIAT_IMAGES.kitSunroof,
       },
@@ -340,7 +346,8 @@ const vehiclesBuilderConfig: Record<string, VehicleBuilderConfig> = {
       {
         id: "connect-me",
         name: "Fiat Connect Me",
-        description: "Serviços conectados para acompanhar informações do veículo.",
+        description:
+          "Serviços conectados para acompanhar informações do veículo.",
         price: 2490,
         image: FIAT_IMAGES.kitConnect,
       },
@@ -371,7 +378,6 @@ const vehiclesBuilderConfig: Record<string, VehicleBuilderConfig> = {
   },
 };
 
-
 const PHONE_PREFIX_DISPLAY = "+55 ";
 const DEFAULT_DDD = "91";
 
@@ -387,17 +393,22 @@ const maskCPF = (value: string) => {
     .replace(/(-\d{2})\d+?$/, "$1");
 };
 
-const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+const validateEmail = (email: string) =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
 const normalizeSellerName = (value: string) =>
-  String(value || "").replace(/\s+/g, " ").trim().toUpperCase();
+  String(value || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase();
 
 const toE164Digits = (displayPhone: string) => {
   const digits = onlyDigits(displayPhone);
 
   if (digits.startsWith("55")) {
     const national = digits.slice(2);
-    if (national.length === 10 || national.length === 11) return `55${national}`;
+    if (national.length === 10 || national.length === 11)
+      return `55${national}`;
     if ((national.length === 8 || national.length === 9) && DEFAULT_DDD) {
       return `55${DEFAULT_DDD}${national}`;
     }
@@ -484,7 +495,6 @@ function normalizeVehicleFromDb(data: VehicleDbRow): VehicleBuilderConfig {
   };
 }
 
-
 function getColorsForVersion(colors: OptionItem[], versionId?: string) {
   if (!versionId) return [];
   return colors.filter((color) => color.versionId === versionId);
@@ -506,11 +516,13 @@ async function uploadImageToSupabase(file: File, folder: string) {
     .toString(36)
     .slice(2, 10)}.${ext}`;
 
-  const { error } = await supabase.storage.from(BUCKET_NAME).upload(path, file, {
-    cacheControl: "3600",
-    upsert: true,
-    contentType: file.type || "image/*",
-  });
+  const { error } = await supabase.storage
+    .from(BUCKET_NAME)
+    .upload(path, file, {
+      cacheControl: "3600",
+      upsert: true,
+      contentType: file.type || "image/*",
+    });
 
   if (error) throw error;
 
@@ -521,6 +533,62 @@ async function uploadImageToSupabase(file: File, folder: string) {
   return url;
 }
 
+function isValidImageUrl(url?: string | null) {
+  if (!url) return false;
+
+  const value = String(url).trim();
+
+  if (!value) return false;
+  if (value.startsWith("COLE_AQUI")) return false;
+
+  return value.startsWith("http");
+}
+
+function getSafeBuilderImages(vehicle: VehicleBuilderConfig) {
+  const urls = new Set<string>();
+
+  const add = (url?: string | null) => {
+    if (isValidImageUrl(url)) urls.add(String(url).trim());
+  };
+
+  add(FIAT_IMAGES.logo);
+  add(FIAT_IMAGES.footerLogo);
+  add(vehicle.mainImage);
+
+  vehicle.versions.forEach((item) => add(item.image));
+  vehicle.colors.forEach((item) => add(item.image));
+  vehicle.kits.forEach((item) => add(item.image));
+  vehicle.accessories.forEach((item) => add(item.image));
+
+  return Array.from(urls);
+}
+
+function preloadOneImage(url: string) {
+  return new Promise<void>((resolve) => {
+    const img = new Image();
+
+    img.onload = () => resolve();
+    img.onerror = () => resolve();
+    img.src = url;
+  });
+}
+
+async function preloadBuilderImages(
+  vehicle: VehicleBuilderConfig,
+  timeoutMs = 2300,
+) {
+  const urls = getSafeBuilderImages(vehicle);
+
+  if (!urls.length) return;
+
+  const preload = Promise.all(urls.map(preloadOneImage)).then(() => undefined);
+  const timeout = new Promise<void>((resolve) =>
+    window.setTimeout(resolve, timeoutMs),
+  );
+
+  await Promise.race([preload, timeout]);
+}
+
 export default function FiatBuilderPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -529,20 +597,24 @@ export default function FiatBuilderPage() {
   const editMode = searchParams.get("edit") === "true";
 
   const fallbackVehicle =
-    vehiclesBuilderConfig[vehicleSlug] || vehiclesBuilderConfig["fastback-hybrid"];
+    vehiclesBuilderConfig[vehicleSlug] ||
+    vehiclesBuilderConfig["fastback-hybrid"];
 
   const [currentVehicle, setCurrentVehicle] =
     useState<VehicleBuilderConfig>(fallbackVehicle);
+  const [loadingVehicle, setLoadingVehicle] = useState(true);
 
   const [dbId, setDbId] = useState<number | null>(null);
   const [step, setStep] = useState<BuilderStep>(1);
   const [selectedVersion, setSelectedVersion] = useState<Version>(
-    fallbackVehicle.versions[0]
+    fallbackVehicle.versions[0],
   );
   const [selectedColor, setSelectedColor] = useState<OptionItem | null>(
-    fallbackVehicle.colors.find((color) => color.versionId === fallbackVehicle.versions[0]?.id) ||
+    fallbackVehicle.colors.find(
+      (color) => color.versionId === fallbackVehicle.versions[0]?.id,
+    ) ||
       fallbackVehicle.colors[0] ||
-      null
+      null,
   );
   const [selectedKits, setSelectedKits] = useState<string[]>([]);
   const [selectedAccessories, setSelectedAccessories] = useState<string[]>([]);
@@ -557,7 +629,8 @@ export default function FiatBuilderPage() {
   const [clientEmail, setClientEmail] = useState("");
   const [clientPhone, setClientPhone] = useState(PHONE_PREFIX_DISPLAY);
   const [sellerName, setSellerName] = useState("");
-  const [customerErrors, setCustomerErrors] = useState<CustomerErrors>(emptyCustomerErrors);
+  const [customerErrors, setCustomerErrors] =
+    useState<CustomerErrors>(emptyCustomerErrors);
 
   useEffect(() => {
     async function loadLoggedUser() {
@@ -568,10 +641,14 @@ export default function FiatBuilderPage() {
 
         setLoggedUser(user || null);
 
-        const email = String(user?.email || "").trim().toLowerCase();
+        const email = String(user?.email || "")
+          .trim()
+          .toLowerCase();
         if (email && !sellerName) {
           const beforeAt = email.split("@")[0] || "";
-          setSellerName(beforeAt ? beforeAt.toUpperCase() : email.toUpperCase());
+          setSellerName(
+            beforeAt ? beforeAt.toUpperCase() : email.toUpperCase(),
+          );
         }
       } catch {
         setLoggedUser(null);
@@ -583,29 +660,50 @@ export default function FiatBuilderPage() {
   }, []);
 
   useEffect(() => {
+    let mounted = true;
+
     async function loadVehicle() {
-      const { data, error } = await supabase
-        .from("vehicles")
-        .select(
-          "id, slug, model_name, title, description, image_url, catalog_cover_url, price_start, versions, colors, kits, accessories"
-        )
-        .eq("brand", "fiat")
-        .eq("slug", vehicleSlug)
-        .eq("is_visible", true)
-        .maybeSingle();
+      setLoadingVehicle(true);
+      setEditMessage("");
 
-      if (error || !data) {
-        setDbId(null);
-        setCurrentVehicle(fallbackVehicle);
-        return;
+      try {
+        const { data, error } = await supabase
+          .from("vehicles")
+          .select(
+            "id, slug, model_name, title, description, image_url, catalog_cover_url, price_start, versions, colors, kits, accessories",
+          )
+          .eq("brand", "fiat")
+          .eq("slug", vehicleSlug)
+          .eq("is_visible", true)
+          .maybeSingle();
+
+        if (!mounted) return;
+
+        let nextVehicle = fallbackVehicle;
+
+        if (error || !data) {
+          setDbId(null);
+        } else {
+          const row = data as VehicleDbRow;
+          setDbId(row.id || null);
+          nextVehicle = normalizeVehicleFromDb(row);
+        }
+
+        setCurrentVehicle(nextVehicle);
+
+        await preloadBuilderImages(nextVehicle, 2400);
+
+        if (!mounted) return;
+      } finally {
+        if (mounted) setLoadingVehicle(false);
       }
-
-      const row = data as VehicleDbRow;
-      setDbId(row.id || null);
-      setCurrentVehicle(normalizeVehicleFromDb(row));
     }
 
     loadVehicle();
+
+    return () => {
+      mounted = false;
+    };
   }, [vehicleSlug]);
 
   useEffect(() => {
@@ -613,7 +711,9 @@ export default function FiatBuilderPage() {
 
     if (firstVersion) {
       setSelectedVersion(firstVersion);
-      setSelectedColor(getFirstColorForVersion(currentVehicle.colors || [], firstVersion.id));
+      setSelectedColor(
+        getFirstColorForVersion(currentVehicle.colors || [], firstVersion.id),
+      );
     }
 
     setSelectedKits([]);
@@ -624,7 +724,10 @@ export default function FiatBuilderPage() {
   useEffect(() => {
     if (!selectedVersion?.id) return;
 
-    const versionColors = getColorsForVersion(currentVehicle.colors || [], selectedVersion.id);
+    const versionColors = getColorsForVersion(
+      currentVehicle.colors || [],
+      selectedVersion.id,
+    );
     const selectedColorStillBelongsToVersion =
       selectedColor?.versionId === selectedVersion.id &&
       versionColors.some((color) => color.id === selectedColor.id);
@@ -632,7 +735,64 @@ export default function FiatBuilderPage() {
     if (!selectedColorStillBelongsToVersion) {
       setSelectedColor(versionColors[0] || null);
     }
-  }, [selectedVersion.id, currentVehicle.colors, selectedColor?.id, selectedColor?.versionId]);
+  }, [
+    selectedVersion.id,
+    currentVehicle.colors,
+    selectedColor?.id,
+    selectedColor?.versionId,
+  ]);
+
+  if (loadingVehicle) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#f1f0e8] p-6 text-center text-black">
+        <div className="w-full max-w-[430px]">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-black shadow-lg">
+            {isValidImageUrl(FIAT_IMAGES.logo) ? (
+              <img
+                src={FIAT_IMAGES.logo}
+                alt="Fiat"
+                className="h-8 w-auto object-contain"
+                loading="eager"
+                decoding="async"
+              />
+            ) : (
+              <Loader2 className="h-8 w-8 animate-spin text-white" />
+            )}
+          </div>
+
+          <h1 className="mt-6 text-[28px] font-black uppercase tracking-tight">
+            Preparando seu Fiat
+          </h1>
+
+          <p className="mt-3 text-[14px] font-semibold leading-6 text-black/65">
+          </p>
+
+          <div className="mt-7 h-2 overflow-hidden rounded-full bg-black/10">
+            <div className="fiat-builder-loading-bar h-full rounded-full bg-[#ff1435]" />
+          </div>
+        </div>
+
+        <style jsx global>{`
+          .fiat-builder-loading-bar {
+            width: 45%;
+            animation: fiatBuilderLoadingBar 1.1s ease-in-out infinite;
+          }
+
+          @keyframes fiatBuilderLoadingBar {
+            0% {
+              transform: translateX(-120%);
+            }
+            50% {
+              transform: translateX(60%);
+            }
+            100% {
+              transform: translateX(235%);
+            }
+          }
+        `}</style>
+      </main>
+    );
+  }
 
   if (
     !currentVehicle ||
@@ -644,7 +804,8 @@ export default function FiatBuilderPage() {
         <div>
           <h1 className="text-2xl font-black uppercase">Veículo incompleto</h1>
           <p className="mt-2 text-sm">
-            Cadastre pelo menos uma versão e uma cor para esse veículo aparecer no builder.
+            Cadastre pelo menos uma versão e uma cor para esse veículo aparecer
+            no builder.
           </p>
         </div>
       </main>
@@ -653,23 +814,31 @@ export default function FiatBuilderPage() {
 
   const versions = currentVehicle.versions;
   const colors = currentVehicle.colors;
-  const colorsForSelectedVersion = getColorsForVersion(colors, selectedVersion?.id);
+  const colorsForSelectedVersion = getColorsForVersion(
+    colors,
+    selectedVersion?.id,
+  );
   const kits = currentVehicle.kits || [];
   const accessories = currentVehicle.accessories || [];
 
-  const selectedKitItems = kits.filter((item) => selectedKits.includes(item.id));
+  const selectedKitItems = kits.filter((item) =>
+    selectedKits.includes(item.id),
+  );
   const selectedAccessoryItems = accessories.filter((item) =>
-    selectedAccessories.includes(item.id)
+    selectedAccessories.includes(item.id),
   );
 
   const kitsTotal = selectedKitItems.reduce((sum, item) => sum + item.price, 0);
   const accessoriesTotal = selectedAccessoryItems.reduce(
     (sum, item) => sum + item.price,
-    0
+    0,
   );
 
   const total =
-    selectedVersion.price + (selectedColor?.price || 0) + kitsTotal + accessoriesTotal;
+    selectedVersion.price +
+    (selectedColor?.price || 0) +
+    kitsTotal +
+    accessoriesTotal;
 
   const monthly = total / 108;
 
@@ -684,7 +853,7 @@ export default function FiatBuilderPage() {
     setCurrentVehicle((prev) => ({
       ...prev,
       versions: prev.versions.map((item) =>
-        item.id === id ? { ...item, ...patch } : item
+        item.id === id ? { ...item, ...patch } : item,
       ),
     }));
 
@@ -697,7 +866,7 @@ export default function FiatBuilderPage() {
     setCurrentVehicle((prev) => ({
       ...prev,
       colors: prev.colors.map((item) =>
-        item.id === id ? { ...item, ...patch } : item
+        item.id === id ? { ...item, ...patch } : item,
       ),
     }));
 
@@ -709,12 +878,12 @@ export default function FiatBuilderPage() {
   const updateOption = (
     list: "kits" | "accessories",
     id: string,
-    patch: Partial<OptionItem>
+    patch: Partial<OptionItem>,
   ) => {
     setCurrentVehicle((prev) => ({
       ...prev,
       [list]: prev[list].map((item) =>
-        item.id === id ? { ...item, ...patch } : item
+        item.id === id ? { ...item, ...patch } : item,
       ),
     }));
   };
@@ -722,7 +891,7 @@ export default function FiatBuilderPage() {
   async function handleEditUpload(
     file: File | null,
     target: string,
-    callback: (url: string) => void
+    callback: (url: string) => void,
   ) {
     if (!file) return;
 
@@ -732,7 +901,7 @@ export default function FiatBuilderPage() {
     try {
       const url = await uploadImageToSupabase(
         file,
-        `fiat/${currentVehicle.slug || "sem-slug"}/${target}`
+        `fiat/${currentVehicle.slug || "sem-slug"}/${target}`,
       );
       callback(url);
     } catch (e: any) {
@@ -820,7 +989,10 @@ export default function FiatBuilderPage() {
       seller: {
         name: normalizeSellerName(sellerName),
         id: loggedUser?.id || null,
-        email: String(loggedUser?.email || "").trim().toLowerCase() || null,
+        email:
+          String(loggedUser?.email || "")
+            .trim()
+            .toLowerCase() || null,
       },
       version: {
         id: selectedVersion.id,
@@ -888,7 +1060,9 @@ export default function FiatBuilderPage() {
     setCustomerErrors(nextErrors);
 
     if (hasError) {
-      setEditMessage("Preencha os dados do cliente antes de enviar para análise.");
+      setEditMessage(
+        "Preencha os dados do cliente antes de enviar para análise.",
+      );
       setStep(5);
       return false;
     }
@@ -920,15 +1094,24 @@ export default function FiatBuilderPage() {
 
       localStorage.setItem("wb_builder_order", JSON.stringify(orderPayload));
       localStorage.setItem("wb_analysis_order", JSON.stringify(orderPayload));
-      localStorage.setItem("wb_builder_order_updated_at", new Date().toISOString());
-      localStorage.setItem("wb_analysis_order_updated_at", new Date().toISOString());
-      localStorage.setItem("wb_builder_customer", JSON.stringify({
-        nome: clientName.trim(),
-        cpf: clientCpf.trim(),
-        email: clientEmail.trim().toLowerCase(),
-        telefone: toE164Digits(clientPhone) || "",
-        vendedor: normalizeSellerName(sellerName),
-      }));
+      localStorage.setItem(
+        "wb_builder_order_updated_at",
+        new Date().toISOString(),
+      );
+      localStorage.setItem(
+        "wb_analysis_order_updated_at",
+        new Date().toISOString(),
+      );
+      localStorage.setItem(
+        "wb_builder_customer",
+        JSON.stringify({
+          nome: clientName.trim(),
+          cpf: clientCpf.trim(),
+          email: clientEmail.trim().toLowerCase(),
+          telefone: toE164Digits(clientPhone) || "",
+          vendedor: normalizeSellerName(sellerName),
+        }),
+      );
 
       const { data, error } = await supabase
         .from(ORDER_TABLE_NAME)
@@ -954,9 +1137,21 @@ export default function FiatBuilderPage() {
 
       const analysisParams = new URLSearchParams();
       analysisParams.set("origem", "builder");
-      analysisParams.set("modelo", orderPayload.version.name || orderPayload.vehicle_name);
-      analysisParams.set("valor", String(orderPayload.totals.total || orderPayload.version.price || 0));
-      analysisParams.set("imagem", orderPayload.vehicle_image || orderPayload.color?.image || orderPayload.version.image || "");
+      analysisParams.set(
+        "modelo",
+        orderPayload.version.name || orderPayload.vehicle_name,
+      );
+      analysisParams.set(
+        "valor",
+        String(orderPayload.totals.total || orderPayload.version.price || 0),
+      );
+      analysisParams.set(
+        "imagem",
+        orderPayload.vehicle_image ||
+          orderPayload.color?.image ||
+          orderPayload.version.image ||
+          "",
+      );
       analysisParams.set("vehicle_slug", orderPayload.vehicle_slug);
       analysisParams.set("vehicle_name", orderPayload.vehicle_name);
       analysisParams.set("versao", orderPayload.version.name);
@@ -981,7 +1176,7 @@ export default function FiatBuilderPage() {
       console.error("Erro ao salvar pedido do builder:", e);
       setEditMessage(
         e?.message ||
-          "Erro ao salvar o pedido. Verifique se a tabela de pedidos existe no Supabase."
+          "Erro ao salvar o pedido. Verifique se a tabela de pedidos existe no Supabase.",
       );
     } finally {
       setSavingOrder(false);
@@ -990,19 +1185,23 @@ export default function FiatBuilderPage() {
 
   const toggleKit = (id: string) => {
     setSelectedKits((current) =>
-      current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
+      current.includes(id)
+        ? current.filter((item) => item !== id)
+        : [...current, id],
     );
   };
 
   const toggleAccessory = (id: string) => {
     setSelectedAccessories((current) =>
-      current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
+      current.includes(id)
+        ? current.filter((item) => item !== id)
+        : [...current, id],
     );
   };
 
   const goNext = async () => {
     if (step < 5) {
-      setStep((current) => ((current + 1) as BuilderStep));
+      setStep((current) => (current + 1) as BuilderStep);
       return;
     }
 
@@ -1013,25 +1212,32 @@ export default function FiatBuilderPage() {
     step === 1
       ? "Versão"
       : step === 2
-      ? "Cor"
-      : step === 3
-      ? "Acessórios"
-      : "Resumo";
+        ? "Cor"
+        : step === 3
+          ? "Acessórios"
+          : "Resumo";
 
   const stepSubtitle =
     step === 1
       ? "1. Escolha uma"
       : step === 2
-      ? "2. Escolha uma"
-      : step === 3
-      ? "3. Escolha os"
-      : step === 4
-      ? "4. Escolha os"
-      : "5. Confira o";  return (
+        ? "2. Escolha uma"
+        : step === 3
+          ? "3. Escolha os"
+          : step === 4
+            ? "4. Escolha os"
+            : "5. Confira o";
+  return (
     <main className="min-h-screen bg-[#f1f0e8] text-black">
       <header className="sticky top-0 z-50 h-[48px] bg-black text-white">
         <div className="flex h-full items-center justify-between px-5">
-          <img src={FIAT_IMAGES.logo} alt="Fiat" className="h-[26px] w-auto" />
+          <img
+            src={FIAT_IMAGES.logo}
+            alt="Fiat"
+            className="h-[26px] w-auto"
+            loading="eager"
+            decoding="async"
+          />
 
           <div className="flex h-full items-center">
             {editMode && (
@@ -1086,12 +1292,12 @@ export default function FiatBuilderPage() {
                 {item === 1
                   ? "Versão"
                   : item === 2
-                  ? "Cor"
-                  : item === 3
-                  ? "Kit Opcionais"
-                  : item === 4
-                  ? "Acessórios"
-                  : "Resumo"}
+                    ? "Cor"
+                    : item === 3
+                      ? "Kit Opcionais"
+                      : item === 4
+                        ? "Acessórios"
+                        : "Resumo"}
               </button>
             ))}
           </nav>
@@ -1119,18 +1325,22 @@ export default function FiatBuilderPage() {
                 loading={uploadingKey === "main-image"}
                 onFile={(file) =>
                   handleEditUpload(file, "main-image", (url) =>
-                    updateVehicle({ mainImage: url })
+                    updateVehicle({ mainImage: url }),
                   )
                 }
               />
             </div>
           )}
 
-          <img
-            src={FIAT_IMAGES.footerLogo}
-            alt="Fiat"
-            className="absolute bottom-8 h-[48px] w-auto"
-          />
+          {isValidImageUrl(FIAT_IMAGES.footerLogo) ? (
+            <img
+              src={FIAT_IMAGES.footerLogo}
+              alt="Fiat"
+              className="absolute bottom-8 h-[48px] w-auto"
+              loading="lazy"
+              decoding="async"
+            />
+          ) : null}
         </aside>
 
         <aside className="border-r border-black/10 bg-[#f1f0e8] px-5 py-6">
@@ -1159,11 +1369,21 @@ export default function FiatBuilderPage() {
                       <Radio active={active} />
                     </button>
 
-                    <img
-                      src={version.image || currentVehicle.mainImage}
-                      alt={version.name}
-                      className="h-[70px] w-[105px] object-contain"
-                    />
+                    {isValidImageUrl(
+                      version.image || currentVehicle.mainImage,
+                    ) ? (
+                      <img
+                        src={version.image || currentVehicle.mainImage}
+                        alt={version.name}
+                        className="h-[70px] w-[105px] object-contain opacity-0 fiat-builder-thumb"
+                        loading="eager"
+                        decoding="async"
+                      />
+                    ) : (
+                      <div className="flex h-[70px] w-[105px] items-center justify-center rounded-lg bg-white/55 text-[9px] font-black uppercase text-black/35">
+                        Sem imagem
+                      </div>
+                    )}
 
                     <div className="flex-1">
                       {editMode ? (
@@ -1201,7 +1421,7 @@ export default function FiatBuilderPage() {
                                 file,
                                 `version-${version.id}`,
                                 (url) =>
-                                  updateVersion(version.id, { image: url })
+                                  updateVersion(version.id, { image: url }),
                               )
                             }
                           />
@@ -1211,7 +1431,9 @@ export default function FiatBuilderPage() {
                           <h3 className="text-[14px] font-black uppercase leading-tight">
                             {version.name}
                           </h3>
-                          <p className="mt-1 text-[13px]">{money(version.price)}</p>
+                          <p className="mt-1 text-[13px]">
+                            {money(version.price)}
+                          </p>
                           <p className="mt-1 line-clamp-2 text-[11px] leading-tight">
                             {version.description}
                           </p>
@@ -1250,7 +1472,11 @@ export default function FiatBuilderPage() {
                         <div className="grid grid-cols-[44px_1fr] items-center gap-2">
                           <input
                             type="color"
-                            value={selectedColor.hex || selectedColor.swatch || "#111111"}
+                            value={
+                              selectedColor.hex ||
+                              selectedColor.swatch ||
+                              "#111111"
+                            }
                             onChange={(e) =>
                               updateColor(selectedColor.id, {
                                 hex: e.target.value,
@@ -1260,9 +1486,16 @@ export default function FiatBuilderPage() {
                             className="h-10 w-11 cursor-pointer rounded-md border border-black/20 bg-white p-1"
                           />
                           <InlineTextInput
-                            value={selectedColor.hex || selectedColor.swatch || "#111111"}
+                            value={
+                              selectedColor.hex ||
+                              selectedColor.swatch ||
+                              "#111111"
+                            }
                             onChange={(value) =>
-                              updateColor(selectedColor.id, { hex: value, swatch: value })
+                              updateColor(selectedColor.id, {
+                                hex: value,
+                                swatch: value,
+                              })
                             }
                             placeholder="#111111"
                           />
@@ -1281,7 +1514,9 @@ export default function FiatBuilderPage() {
                         <InlineTextarea
                           value={selectedColor.description}
                           onChange={(value) =>
-                            updateColor(selectedColor.id, { description: value })
+                            updateColor(selectedColor.id, {
+                              description: value,
+                            })
                           }
                         />
 
@@ -1292,7 +1527,8 @@ export default function FiatBuilderPage() {
                             handleEditUpload(
                               file,
                               `color-${selectedVersion.id}-${selectedColor.id}`,
-                              (url) => updateColor(selectedColor.id, { image: url })
+                              (url) =>
+                                updateColor(selectedColor.id, { image: url }),
                             )
                           }
                         />
@@ -1322,7 +1558,8 @@ export default function FiatBuilderPage() {
                       Nenhuma cor cadastrada para esta versão
                     </h3>
                     <p className="mt-2 text-[12px] leading-tight text-black/70">
-                      No painel de cadastro, adicione cores vinculadas à versão selecionada: {selectedVersion.name}.
+                      No painel de cadastro, adicione cores vinculadas à versão
+                      selecionada: {selectedVersion.name}.
                     </p>
                   </div>
                 )}
@@ -1376,11 +1613,19 @@ export default function FiatBuilderPage() {
                   >
                     <button onClick={() => toggleKit(kit.id)}>
                       <div className="relative w-[135px] shrink-0">
-                        <img
-                          src={kit.image}
-                          alt={kit.name}
-                          className="h-full min-h-[110px] w-full object-cover"
-                        />
+                        {isValidImageUrl(kit.image) ? (
+                          <img
+                            src={kit.image}
+                            alt={kit.name}
+                            className="h-full min-h-[110px] w-full object-cover opacity-0 fiat-builder-thumb"
+                            loading="lazy"
+                            decoding="async"
+                          />
+                        ) : (
+                          <div className="flex min-h-[110px] w-full items-center justify-center bg-white/50 px-2 text-center text-[9px] font-black uppercase text-black/35">
+                            Sem imagem
+                          </div>
+                        )}
                         <div className="absolute left-2 top-2">
                           <Radio active={active} />
                         </div>
@@ -1422,7 +1667,7 @@ export default function FiatBuilderPage() {
                             loading={uploadingKey === `kit-${kit.id}`}
                             onFile={(file) =>
                               handleEditUpload(file, `kit-${kit.id}`, (url) =>
-                                updateOption("kits", kit.id, { image: url })
+                                updateOption("kits", kit.id, { image: url }),
                               )
                             }
                           />
@@ -1459,11 +1704,19 @@ export default function FiatBuilderPage() {
                   >
                     <button onClick={() => toggleAccessory(accessory.id)}>
                       <div className="relative w-[135px] shrink-0">
-                        <img
-                          src={accessory.image}
-                          alt={accessory.name}
-                          className="h-full min-h-[110px] w-full object-cover"
-                        />
+                        {isValidImageUrl(accessory.image) ? (
+                          <img
+                            src={accessory.image}
+                            alt={accessory.name}
+                            className="h-full min-h-[110px] w-full object-cover opacity-0 fiat-builder-thumb"
+                            loading="lazy"
+                            decoding="async"
+                          />
+                        ) : (
+                          <div className="flex min-h-[110px] w-full items-center justify-center bg-white/50 px-2 text-center text-[9px] font-black uppercase text-black/35">
+                            Sem imagem
+                          </div>
+                        )}
                         <div className="absolute left-2 top-2">
                           <Radio active={active} />
                         </div>
@@ -1504,7 +1757,9 @@ export default function FiatBuilderPage() {
 
                           <InlineUploadButton
                             label="Imagem acessório"
-                            loading={uploadingKey === `accessory-${accessory.id}`}
+                            loading={
+                              uploadingKey === `accessory-${accessory.id}`
+                            }
                             onFile={(file) =>
                               handleEditUpload(
                                 file,
@@ -1512,7 +1767,7 @@ export default function FiatBuilderPage() {
                                 (url) =>
                                   updateOption("accessories", accessory.id, {
                                     image: url,
-                                  })
+                                  }),
                               )
                             }
                           />
@@ -1545,10 +1800,22 @@ export default function FiatBuilderPage() {
                     Total
                   </h3>
 
-                  <SummaryLine label="Valor do carro" value={money(selectedVersion.price)} />
-                  <SummaryLine label="Cor" value={`+ ${money(selectedColor?.price || 0)}`} />
-                  <SummaryLine label="Kit opcionais" value={`+ ${money(kitsTotal)}`} />
-                  <SummaryLine label="Acessórios" value={`+ ${money(accessoriesTotal)}`} />
+                  <SummaryLine
+                    label="Valor do carro"
+                    value={money(selectedVersion.price)}
+                  />
+                  <SummaryLine
+                    label="Cor"
+                    value={`+ ${money(selectedColor?.price || 0)}`}
+                  />
+                  <SummaryLine
+                    label="Kit opcionais"
+                    value={`+ ${money(kitsTotal)}`}
+                  />
+                  <SummaryLine
+                    label="Acessórios"
+                    value={`+ ${money(accessoriesTotal)}`}
+                  />
 
                   <div className="mt-2 flex justify-between border-t border-black pt-2 text-[15px] font-black uppercase">
                     <span>Valor total</span>
@@ -1558,9 +1825,12 @@ export default function FiatBuilderPage() {
 
                 <div className="rounded-[3px] bg-white p-4 shadow-sm">
                   <div className="mb-4">
-                    <h3 className="text-[15px] font-black uppercase">Dados do cliente</h3>
+                    <h3 className="text-[15px] font-black uppercase">
+                      Dados do cliente
+                    </h3>
                     <p className="mt-1 text-[11px] leading-tight text-black/60">
-                      Esses dados seguem para a análise, consulta de CPF e contrato junto com o veículo configurado.
+                      Esses dados seguem para a análise, consulta de CPF e
+                      contrato junto com o veículo configurado.
                     </p>
                   </div>
 
@@ -1572,7 +1842,10 @@ export default function FiatBuilderPage() {
                     onChange={(value) => {
                       setClientName(value);
                       if (customerErrors.clientName) {
-                        setCustomerErrors((prev) => ({ ...prev, clientName: "" }));
+                        setCustomerErrors((prev) => ({
+                          ...prev,
+                          clientName: "",
+                        }));
                       }
                     }}
                   />
@@ -1586,7 +1859,10 @@ export default function FiatBuilderPage() {
                     onChange={(value) => {
                       setClientCpf(maskCPF(value));
                       if (customerErrors.clientCpf) {
-                        setCustomerErrors((prev) => ({ ...prev, clientCpf: "" }));
+                        setCustomerErrors((prev) => ({
+                          ...prev,
+                          clientCpf: "",
+                        }));
                       }
                     }}
                   />
@@ -1599,7 +1875,10 @@ export default function FiatBuilderPage() {
                     onChange={(value) => {
                       setClientEmail(value);
                       if (customerErrors.clientEmail) {
-                        setCustomerErrors((prev) => ({ ...prev, clientEmail: "" }));
+                        setCustomerErrors((prev) => ({
+                          ...prev,
+                          clientEmail: "",
+                        }));
                       }
                     }}
                   />
@@ -1613,7 +1892,10 @@ export default function FiatBuilderPage() {
                     onChange={(value) => {
                       setClientPhone(formatPhoneInput(value));
                       if (customerErrors.clientPhone) {
-                        setCustomerErrors((prev) => ({ ...prev, clientPhone: "" }));
+                        setCustomerErrors((prev) => ({
+                          ...prev,
+                          clientPhone: "",
+                        }));
                       }
                     }}
                   />
@@ -1627,13 +1909,18 @@ export default function FiatBuilderPage() {
                     onChange={(value) => {
                       setSellerName(value);
                       if (customerErrors.sellerName) {
-                        setCustomerErrors((prev) => ({ ...prev, sellerName: "" }));
+                        setCustomerErrors((prev) => ({
+                          ...prev,
+                          sellerName: "",
+                        }));
                       }
                     }}
                   />
 
                   <div className="mt-3 rounded-xl border border-black/10 bg-[#f1f0e8] p-3 text-[11px] leading-tight text-black/70">
-                    <strong>Prévia:</strong> {clientName || "Cliente"} será enviado para análise com CPF {clientCpf || "---"}, veículo {selectedVersion.name} e valor {money(total)}.
+                    <strong>Prévia:</strong> {clientName || "Cliente"} será
+                    enviado para análise com CPF {clientCpf || "---"}, veículo{" "}
+                    {selectedVersion.name} e valor {money(total)}.
                   </div>
                 </div>
               </div>
@@ -1648,14 +1935,14 @@ export default function FiatBuilderPage() {
             {step === 1
               ? "Próximo: Cor"
               : step === 2
-              ? "Próximo: Kit Opcionais"
-              : step === 3
-              ? "Próximo: Acessórios"
-              : step === 4
-              ? "Próximo: Resumo"
-              : savingOrder
-              ? "Salvando pedido..."
-              : "Concluir e ir para análise"}
+                ? "Próximo: Kit Opcionais"
+                : step === 3
+                  ? "Próximo: Acessórios"
+                  : step === 4
+                    ? "Próximo: Resumo"
+                    : savingOrder
+                      ? "Salvando pedido..."
+                      : "Concluir e ir para análise"}
             <ChevronRight className="h-5 w-5" />
           </button>
         </aside>
@@ -1693,8 +1980,6 @@ export default function FiatBuilderPage() {
             </div>
           </div>
 
-
-
           <div className="mt-10 flex min-h-[520px] items-center justify-center">
             <div className="relative w-full max-w-[1320px]">
               <div className="absolute left-[5%] top-[13%] z-0 text-[110px] font-light text-black/80">
@@ -1710,12 +1995,20 @@ export default function FiatBuilderPage() {
 
               <div className="absolute bottom-[8%] left-0 right-0 h-[330px] bg-[#ffbc16]" />
 
-              <img
-                key={`${selectedVersion.id}-${selectedColor?.id || "sem-cor"}-${step}`}
-                src={mainCarImage}
-                alt={selectedVersion.name}
-                className="builder-car-enter relative z-10 mx-auto w-full max-w-[1180px] object-contain"
-              />
+              {isValidImageUrl(mainCarImage) ? (
+                <img
+                  key={`${selectedVersion.id}-${selectedColor?.id || "sem-cor"}-${step}`}
+                  src={mainCarImage}
+                  alt={selectedVersion.name}
+                  className="builder-car-enter relative z-10 mx-auto w-full max-w-[1180px] object-contain"
+                  loading="eager"
+                  decoding="async"
+                />
+              ) : (
+                <div className="relative z-10 mx-auto flex h-[360px] w-full max-w-[900px] items-center justify-center rounded-[28px] bg-white/45 text-sm font-black uppercase text-black/35 shadow-sm">
+                  Imagem do veículo não cadastrada
+                </div>
+              )}
             </div>
           </div>
 
@@ -1726,7 +2019,7 @@ export default function FiatBuilderPage() {
                 loading={uploadingKey === "big-car"}
                 onFile={(file) =>
                   handleEditUpload(file, "big-car", (url) =>
-                    updateVehicle({ mainImage: url })
+                    updateVehicle({ mainImage: url }),
                   )
                 }
               />
@@ -1753,7 +2046,8 @@ export default function FiatBuilderPage() {
                 <span
                   className="h-7 w-7 rounded-full border border-black/15"
                   style={{
-                    background: selectedColor.hex || selectedColor.swatch || "#111111",
+                    background:
+                      selectedColor.hex || selectedColor.swatch || "#111111",
                   }}
                 />
                 <div className="text-left">
@@ -1777,6 +2071,22 @@ export default function FiatBuilderPage() {
 
         .builder-panel-enter {
           animation: builderPanelEnter 0.35s ease-out;
+        }
+
+        .fiat-builder-thumb {
+          animation: fiatBuilderThumbIn 0.35s cubic-bezier(0.22, 1, 0.36, 1)
+            forwards;
+        }
+
+        @keyframes fiatBuilderThumbIn {
+          from {
+            opacity: 0;
+            transform: translateY(8px) scale(0.98);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
         }
 
         @keyframes builderCarEnter {
@@ -1804,7 +2114,6 @@ export default function FiatBuilderPage() {
     </main>
   );
 }
-
 
 function splitVehicleDescription(description?: string) {
   const raw = String(description || "").trim();
@@ -1874,7 +2183,9 @@ function Radio({ active }: { active: boolean }) {
   return (
     <div
       className={`flex h-7 w-7 items-center justify-center rounded-full border-2 ${
-        active ? "border-[#269f6b] bg-[#269f6b] text-white" : "border-black bg-white"
+        active
+          ? "border-[#269f6b] bg-[#269f6b] text-white"
+          : "border-black bg-white"
       }`}
     >
       {active && <Check className="h-5 w-5" />}
