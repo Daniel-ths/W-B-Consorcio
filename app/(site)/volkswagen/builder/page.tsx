@@ -1492,10 +1492,10 @@ export default function VolkswagenBuilderPage() {
   }
 
   return (
-    <main className="min-h-screen bg-white text-[#001e50]">
-      <header className="fixed left-0 top-0 z-[80] h-[46px] w-full border-b border-black/10 bg-white text-[#001e50]">
-        <div className="flex h-full items-center justify-between px-4 md:px-[76px]">
-          <div className="flex h-full items-center gap-6">
+    <main className="min-h-screen overflow-x-hidden bg-white pb-[88px] text-[#001e50] lg:pb-0">
+      <header className="fixed left-0 top-0 z-[80] h-[54px] w-full border-b border-black/10 bg-white text-[#001e50] md:h-[46px]">
+        <div className="mx-auto flex h-full w-full max-w-[1600px] items-center justify-between px-4 sm:px-6 md:px-[76px]">
+          <div className="flex h-full min-w-0 items-center gap-3 sm:gap-6">
             <img
               src={VW_IMAGES.logo}
               alt="Volkswagen"
@@ -1535,8 +1535,8 @@ export default function VolkswagenBuilderPage() {
         </div>
       </header>
 
-      <nav className="fixed left-0 top-[46px] z-[75] h-[42px] w-full overflow-x-auto border-b border-black/10 bg-white">
-        <div className="flex h-full min-w-max items-center gap-3 px-4 text-[13px] md:gap-8 md:px-[76px]">
+      <nav className="fixed left-0 top-[54px] z-[75] h-[48px] w-full overflow-x-auto border-b border-black/10 bg-white md:top-[46px] md:h-[42px]">
+        <div className="flex h-full min-w-max items-center gap-2 px-4 text-[12px] sm:gap-3 sm:px-6 sm:text-[13px] md:gap-8 md:px-[76px]">
           <Link href="/volkswagen">Ver modelos</Link>
 
           {[
@@ -1552,7 +1552,7 @@ export default function VolkswagenBuilderPage() {
                 setStep(key as Step);
                 if (key !== "interior") setView("front");
               }}
-              className={`rounded-full px-4 py-2 font-semibold transition ${
+              className={`rounded-full px-3 py-2 font-semibold transition sm:px-4 ${
                 step === key ? "bg-[#001e50] text-white" : "text-[#001e50]"
               }`}
               type="button"
@@ -1564,17 +1564,17 @@ export default function VolkswagenBuilderPage() {
       </nav>
 
       {editMessage && (
-        <div className="fixed left-0 top-[88px] z-[120] w-full bg-[#001e50] px-4 py-2 text-center text-[12px] font-bold text-white">
+        <div className="fixed left-0 top-[102px] z-[120] w-full bg-[#001e50] px-4 py-2 text-center text-[12px] font-bold text-white md:top-[88px]">
           {editMessage}
         </div>
       )}
 
-      <section className="grid min-h-screen grid-cols-1 pb-[78px] pt-[88px] lg:grid-cols-[minmax(0,1fr)_minmax(480px,560px)] lg:pb-[70px]">
-        <div className="builder-vw-stage relative min-h-[58vh] overflow-hidden bg-white lg:min-h-[calc(100vh-158px)]">
+      <section className="grid min-h-screen grid-cols-1 pb-[92px] pt-[102px] lg:grid-cols-[minmax(0,1fr)_minmax(440px,560px)] lg:pb-[70px] lg:pt-[88px]">
+        <div className="builder-vw-stage relative min-h-[42vh] overflow-hidden bg-white sm:min-h-[50vh] lg:min-h-[calc(100vh-158px)]">
           {step !== "resumo" ? (
             <>
               {currentImage ? (
-                <div className="flex h-[58vh] w-full items-center justify-center overflow-visible bg-white px-2 py-3 md:px-4 lg:h-[calc(100vh-158px)] lg:px-5">
+                <div className="flex h-[42vh] w-full items-center justify-center overflow-visible bg-white px-2 py-3 sm:h-[50vh] md:h-[56vh] md:px-4 lg:h-[calc(100vh-158px)] lg:px-5">
                   <img
                     key={`${step}-${
                       step === "interior" ? interiorView : view
@@ -1586,12 +1586,12 @@ export default function VolkswagenBuilderPage() {
                   />
                 </div>
               ) : (
-                <div className="flex h-[58vh] items-center justify-center bg-white text-sm font-black uppercase text-[#001e50]/40 lg:h-[calc(100vh-138px)]">
+                <div className="flex h-[42vh] items-center justify-center bg-white text-sm font-black uppercase text-[#001e50]/40 sm:h-[50vh] md:h-[56vh] lg:h-[calc(100vh-138px)]">
                   Sem imagem cadastrada
                 </div>
               )}
 
-              <div className="absolute bottom-5 left-1/2 flex max-w-[calc(100%-24px)] -translate-x-1/2 flex-wrap justify-center gap-2 rounded-2xl bg-white/95 px-4 py-2 shadow lg:bottom-8 lg:rounded-full lg:px-5">
+              <div className="absolute bottom-3 left-1/2 flex max-w-[calc(100%-24px)] -translate-x-1/2 flex-wrap justify-center gap-2 rounded-2xl bg-white/95 px-3 py-2 shadow sm:bottom-5 sm:px-4 lg:bottom-8 lg:rounded-full lg:px-5">
                 {step === "interior"
                   ? ([
                       ["steeringWheel", "Volante"],
@@ -1640,10 +1640,10 @@ export default function VolkswagenBuilderPage() {
               </div>
             </>
           ) : (
-            <div className="mx-auto grid max-w-[1420px] grid-cols-1 gap-8 px-5 py-8 lg:grid-cols-[minmax(0,1fr)_430px] lg:px-10 xl:px-14">
+            <div className="mx-auto grid max-w-[1420px] grid-cols-1 gap-5 px-4 py-5 sm:gap-8 sm:px-5 sm:py-8 lg:grid-cols-[minmax(0,1fr)_430px] lg:px-10 xl:px-14">
               <div className="space-y-6">
                 <div className="overflow-hidden rounded-[28px] border border-black/10 bg-white shadow-[0_18px_55px_rgba(0,30,80,0.08)]">
-                  <div className="relative flex min-h-[420px] items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_center,rgba(0,85,216,0.08),transparent_48%),#ffffff] p-6">
+                  <div className="relative flex min-h-[260px] items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_center,rgba(0,85,216,0.08),transparent_48%),#ffffff] p-4 sm:min-h-[360px] sm:p-6 lg:min-h-[420px]">
                     {currentImage ? (
                       <img
                         src={currentImage}
@@ -1657,18 +1657,18 @@ export default function VolkswagenBuilderPage() {
                       </div>
                     )}
 
-                    <div className="absolute left-6 top-6 rounded-full bg-[#001e50] px-4 py-2 text-[12px] font-bold text-white">
+                    <div className="absolute left-4 top-4 rounded-full bg-[#001e50] px-3 py-2 text-[11px] font-bold text-white sm:left-6 sm:top-6 sm:px-4 sm:text-[12px]">
                       Configuração selecionada
                     </div>
                   </div>
 
-                  <div className="grid gap-6 border-t border-black/10 p-6 md:grid-cols-[1fr_auto] md:items-end">
+                  <div className="grid gap-5 border-t border-black/10 p-4 sm:p-6 md:grid-cols-[1fr_auto] md:items-end">
                     <div>
                       <p className="text-[13px] font-bold text-[#0055d8]">
                         {vehicle.name}
                       </p>
 
-                      <h1 className="mt-1 text-[34px] font-bold leading-tight tracking-[-0.04em] md:text-[42px]">
+                      <h1 className="mt-1 text-[28px] font-bold leading-tight tracking-[-0.04em] sm:text-[34px] md:text-[42px]">
                         {selectedVersion.name}
                       </h1>
 
@@ -1681,7 +1681,7 @@ export default function VolkswagenBuilderPage() {
                       <p className="text-[12px] font-bold uppercase text-[#001e50]/55">
                         Preço total
                       </p>
-                      <strong className="mt-1 block text-[28px] leading-none">
+                      <strong className="mt-1 block text-[24px] leading-none sm:text-[28px]">
                         {money(total)}
                       </strong>
                       <p className="mt-3 text-[13px] text-[#001e50]/65">
@@ -1739,13 +1739,13 @@ export default function VolkswagenBuilderPage() {
                 </div>
               </div>
 
-              <aside className="h-fit rounded-[28px] border border-black/10 bg-[#f7f9fc] p-5 shadow-[0_18px_55px_rgba(0,30,80,0.08)] lg:sticky lg:top-[112px] lg:p-6">
+              <aside className="h-fit rounded-[24px] border border-black/10 bg-[#f7f9fc] p-4 shadow-[0_18px_55px_rgba(0,30,80,0.08)] sm:rounded-[28px] sm:p-5 lg:sticky lg:top-[112px] lg:p-6">
                 <div className="rounded-3xl bg-white p-5 shadow-sm">
                   <p className="text-center text-[13px] font-bold text-[#0055d8]">
                     {vehicle.name}. {selectedVersion.name}
                   </p>
 
-                  <h2 className="mt-2 text-center text-[30px] font-bold tracking-[-0.04em]">
+                  <h2 className="mt-2 text-center text-[25px] font-bold tracking-[-0.04em] sm:text-[30px]">
                     Finalizar configuração
                   </h2>
 
@@ -1891,19 +1891,19 @@ export default function VolkswagenBuilderPage() {
         </div>
 
         {step !== "resumo" && (
-          <aside className="border-l border-black/10 bg-white px-5 py-7 lg:max-h-[calc(100vh-158px)] lg:overflow-y-auto lg:px-8 xl:px-10">
+          <aside className="border-t border-black/10 bg-white px-4 py-6 sm:px-5 sm:py-7 lg:max-h-[calc(100vh-158px)] lg:overflow-y-auto lg:border-l lg:border-t-0 lg:px-8 xl:px-10">
             {step === "versoes" && (
               <>
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-[14px] font-bold">{vehicle.name}</p>
-                    <h1 className="text-[30px] font-bold leading-tight lg:text-[34px]">
+                    <h1 className="text-[26px] font-bold leading-tight sm:text-[30px] lg:text-[34px]">
                       {vehicle.versions.length} versões
                     </h1>
                   </div>
 
                   <button
-                    className="rounded-full border border-[#001e50] px-4 py-2 text-[13px]"
+                    className="hidden rounded-full border border-[#001e50] px-4 py-2 text-[13px] sm:block"
                     type="button"
                   >
                     ≡ Filtros
@@ -1933,7 +1933,7 @@ export default function VolkswagenBuilderPage() {
                           if (nextColor) setSelectedColor(nextColor);
                           setView("front");
                         }}
-                        className={`w-full rounded-2xl border bg-white p-5 text-left shadow-sm transition hover:shadow-md ${
+                        className={`w-full rounded-2xl border bg-white p-4 text-left shadow-sm transition hover:shadow-md sm:p-5 ${
                           active ? "border-[#159447]" : "border-black/15"
                         }`}
                         type="button"
@@ -1988,7 +1988,7 @@ export default function VolkswagenBuilderPage() {
                   {vehicle.name}. {selectedVersion.name}
                 </p>
 
-                <h1 className="text-[34px] font-bold">
+                <h1 className="text-[28px] font-bold sm:text-[34px]">
                   {availableMotors.length} Motor
                 </h1>
 
@@ -2003,7 +2003,7 @@ export default function VolkswagenBuilderPage() {
                           setSelectedMotor(motor);
                           setView("front");
                         }}
-                        className={`w-full rounded-2xl border bg-white p-5 text-left shadow-sm transition hover:shadow-md ${
+                        className={`w-full rounded-2xl border bg-white p-4 text-left shadow-sm transition hover:shadow-md sm:p-5 ${
                           active ? "border-[#159447]" : "border-black/15"
                         }`}
                         type="button"
@@ -2068,7 +2068,7 @@ export default function VolkswagenBuilderPage() {
                   {vehicle.name}. {selectedVersion.name}
                 </p>
 
-                <h1 className="text-[34px] font-bold">
+                <h1 className="text-[28px] font-bold sm:text-[34px]">
                   {availableColors.length} Exterior
                 </h1>
 
@@ -2078,7 +2078,7 @@ export default function VolkswagenBuilderPage() {
                   <div key={type} className="mt-8">
                     <p className="mb-3 text-[14px]">{type}</p>
 
-                    <div className="flex flex-wrap gap-3">
+                    <div className="flex flex-wrap gap-2 sm:gap-3">
                       {availableColors
                         .filter((color) => (color.type || "Cores") === type)
                         .map((color) => (
@@ -2114,7 +2114,7 @@ export default function VolkswagenBuilderPage() {
                   {vehicle.name}. {selectedVersion.name}
                 </p>
 
-                <h1 className="text-[34px] font-bold">
+                <h1 className="text-[28px] font-bold sm:text-[34px]">
                   {vehicle.interiors.length} Interior
                 </h1>
 
@@ -2227,7 +2227,7 @@ export default function VolkswagenBuilderPage() {
       </section>
 
       {step !== "resumo" && (
-        <div className="fixed bottom-0 left-0 z-[90] flex min-h-[64px] w-full items-center justify-between gap-4 border-t border-black/10 bg-white px-4 py-2 shadow-[0_-8px_24px_rgba(0,0,0,0.06)] md:px-[76px]">
+        <div className="fixed bottom-0 left-0 z-[90] flex min-h-[76px] w-full items-center justify-between gap-3 border-t border-black/10 bg-white px-4 py-2 shadow-[0_-8px_24px_rgba(0,0,0,0.06)] sm:min-h-[64px] md:px-[76px]">
           <div>
             <p className="text-[12px]">Preço Total</p>
             <strong>{money(total)}</strong>
@@ -2236,7 +2236,7 @@ export default function VolkswagenBuilderPage() {
           <button
             onClick={goNext}
             disabled={savingOrder}
-            className="flex h-[44px] shrink-0 items-center gap-2 rounded-full bg-[#0055d8] px-5 text-[14px] font-bold text-white shadow-lg transition hover:bg-[#0044ad] disabled:cursor-not-allowed disabled:opacity-70 md:px-8"
+            className="flex h-[46px] min-w-0 flex-1 shrink-0 items-center justify-center gap-2 rounded-full bg-[#0055d8] px-4 text-center text-[12px] font-bold leading-tight text-white shadow-lg transition hover:bg-[#0044ad] disabled:cursor-not-allowed disabled:opacity-70 sm:flex-none sm:text-[14px] md:px-8"
             type="button"
           >
             {nextLabel}
@@ -2247,7 +2247,7 @@ export default function VolkswagenBuilderPage() {
 
       <a
         href="#"
-        className="fixed bottom-[78px] left-3 z-[100] flex h-[52px] w-[52px] items-center justify-center rounded-full bg-[#22d366] text-white shadow-xl lg:bottom-[82px]"
+        className="fixed bottom-[90px] left-3 z-[100] flex h-[50px] w-[50px] items-center justify-center rounded-full bg-[#22d366] text-white shadow-xl sm:bottom-[78px] sm:h-[52px] sm:w-[52px] lg:bottom-[82px]"
       >
         <MessageCircle className="h-7 w-7" />
       </a>
@@ -2277,6 +2277,30 @@ export default function VolkswagenBuilderPage() {
           filter: contrast(1.035) saturate(1.035);
         }
 
+
+        @media (max-width: 767px) {
+          body {
+            overflow-x: hidden;
+          }
+
+          .builder-vw-image {
+            max-width: 100%;
+            max-height: 100%;
+            transform: scale(1.02);
+          }
+
+          .builder-vw-summary-car {
+            max-height: 260px;
+            transform: scale(1.02);
+          }
+        }
+
+        @media (max-width: 420px) {
+          .builder-vw-image {
+            transform: scale(0.98);
+          }
+        }
+
         @media (min-width: 1024px) {
           .builder-vw-image {
             max-width: 112%;
@@ -2296,6 +2320,33 @@ export default function VolkswagenBuilderPage() {
             transform: translateY(0) scale(1.1);
           }
         }
+
+        @media (max-width: 767px) {
+          @keyframes builderVwImage {
+            from {
+              opacity: 0;
+              transform: translateY(8px) scale(0.98);
+            }
+
+            to {
+              opacity: 1;
+              transform: translateY(0) scale(1.02);
+            }
+          }
+
+          @keyframes builderSummaryCar {
+            from {
+              opacity: 0;
+              transform: translateY(14px) scale(0.98);
+            }
+
+            to {
+              opacity: 1;
+              transform: translateY(0) scale(1.02);
+            }
+          }
+        }
+
 
         @media (min-width: 1024px) {
           @keyframes builderVwImage {
@@ -2339,14 +2390,14 @@ function ColorButton({
   return (
     <button
       onClick={onClick}
-      className={`relative flex h-[64px] w-[64px] items-center justify-center rounded-full border-2 transition hover:scale-105 ${
+      className={`relative flex h-[56px] w-[56px] items-center justify-center rounded-full border-2 transition hover:scale-105 sm:h-[64px] sm:w-[64px] ${
         active ? "border-[#159447]" : "border-black/20"
       }`}
       title={color.name}
       type="button"
     >
       <span
-        className="h-[52px] w-[52px] rounded-full border border-black/10"
+        className="h-[44px] w-[44px] rounded-full border border-black/10 sm:h-[52px] sm:w-[52px]"
         style={{ background: color.hex }}
       />
 
@@ -2383,7 +2434,7 @@ function PaymentChoiceBox({
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 rounded-2xl bg-[#eef2f7] p-1">
+      <div className="grid grid-cols-1 gap-2 rounded-2xl bg-[#eef2f7] p-1 sm:grid-cols-2">
         <button
           type="button"
           onClick={() => setPaymentType("consorcio")}
@@ -2411,7 +2462,7 @@ function PaymentChoiceBox({
 
       {paymentType === "consorcio" ? (
         <div className="mt-4 rounded-2xl border border-[#0055d8]/20 bg-[#f4f7fb] p-4">
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex flex-col items-start justify-between gap-3 sm:flex-row">
             <div>
               <p className="text-[11px] font-black uppercase text-[#0055d8]">
                 Plano sugerido
@@ -2428,7 +2479,7 @@ function PaymentChoiceBox({
             </span>
           </div>
 
-          <div className="mt-4 grid grid-cols-3 gap-2">
+          <div className="mt-4 grid grid-cols-1 gap-2 min-[420px]:grid-cols-3">
             {consortiumPlan.installments.map((item) => {
               const active = selectedMonths === item.months;
 
@@ -2485,7 +2536,7 @@ function SummaryBox({
   color?: string;
 }) {
   return (
-    <div className="h-full rounded-3xl border border-black/10 bg-white p-5 shadow-[0_12px_35px_rgba(0,30,80,0.06)]">
+    <div className="h-full rounded-3xl border border-black/10 bg-white p-4 shadow-[0_12px_35px_rgba(0,30,80,0.06)] sm:p-5">
       <h3 className="text-[13px] font-bold uppercase text-[#0055d8]">
         {title}
       </h3>
@@ -2541,7 +2592,7 @@ function CustomerField({
         maxLength={maxLength}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
-        className={`h-10 w-full rounded-xl border bg-white px-3 text-[12px] font-bold outline-none transition focus:border-[#0055d8] ${
+        className={`h-11 w-full rounded-xl border bg-white px-3 text-[16px] font-bold outline-none transition focus:border-[#0055d8] sm:h-10 sm:text-[12px] ${
           error ? "border-red-400 bg-red-50" : "border-black/15"
         }`}
       />
