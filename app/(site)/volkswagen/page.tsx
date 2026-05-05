@@ -152,7 +152,6 @@ function mapVehicleFromDb(row: VehicleRow): Vehicle {
     slug: row.slug,
     name: row.model_name,
     image: row.catalog_cover_url || row.image_url || "",
-    hoverImage: row.hover_image_url || undefined,
   };
 }
 
@@ -169,9 +168,7 @@ export default function VolkswagenPage() {
     async function loadVolkswagenVehicles() {
       const { data, error } = await supabase
         .from("vehicles")
-        .select(
-          "model_name, slug, catalog_cover_url, image_url, hover_image_url, is_visible"
-        )
+        .select("model_name, slug, catalog_cover_url, image_url, is_visible")
         .eq("brand", "volkswagen")
         .eq("is_visible", true)
         .order("id", { ascending: false });
@@ -227,30 +224,30 @@ export default function VolkswagenPage() {
   };
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-white pb-[78px] text-[#001e50] md:pb-[62px]">
-      <header className="fixed left-0 top-0 z-[80] h-[58px] w-full bg-black/95 text-white md:h-[46px]">
-        <div className="mx-auto flex h-full w-full max-w-[1600px] items-center justify-between px-4 sm:px-6 md:px-10 lg:px-[76px]">
-          <div className="flex h-full min-w-0 items-center gap-3 sm:gap-5 md:gap-7">
+    <main className="min-h-screen overflow-x-hidden bg-white text-[#001e50]">
+      <header className="fixed left-0 top-0 z-[80] h-[46px] w-full bg-black/95 text-white max-md:h-[58px]">
+        <div className="flex h-full items-center justify-between px-[76px] max-xl:px-10 max-lg:px-6 max-md:px-4">
+          <div className="flex h-full min-w-0 items-center gap-7 max-lg:gap-5 max-md:w-full max-md:gap-4 max-md:overflow-x-auto max-md:whitespace-nowrap">
             <img
               src={VW_IMAGES.logo}
               alt="Volkswagen"
-              className="h-[26px] w-auto shrink-0 md:h-[24px]"
+              className="h-[24px] w-auto shrink-0 max-md:h-[22px]"
             />
 
-            <button className="hidden text-[13px] font-bold transition-all duration-300 hover:scale-[1.04] hover:text-[#7fd8ff] sm:block">
+            <button className="shrink-0 text-[13px] font-bold transition-all duration-300 hover:scale-[1.04] hover:text-[#7fd8ff]">
               Menu
             </button>
 
             <a
               href="#modelos"
-              className="hidden text-[14px] font-bold transition-all duration-300 hover:scale-[1.04] hover:text-[#7fd8ff] lg:block"
+              className="shrink-0 text-[14px] font-bold transition-all duration-300 hover:scale-[1.04] hover:text-[#7fd8ff] max-md:text-[13px]"
             >
               Configure seu novo Volkswagen
             </a>
 
             <a
               href="#modelos"
-              className="max-w-[190px] truncate text-[13px] font-bold transition-all duration-300 hover:scale-[1.04] hover:text-[#7fd8ff] sm:max-w-none sm:text-[14px]"
+              className="shrink-0 text-[14px] font-bold transition-all duration-300 hover:scale-[1.04] hover:text-[#7fd8ff] max-md:text-[13px]"
             >
               Monte seu Volkswagen
             </a>
@@ -258,7 +255,7 @@ export default function VolkswagenPage() {
         </div>
       </header>
 
-      <section className="relative h-[calc(100svh-58px)] min-h-[560px] overflow-hidden bg-black pt-[58px] md:h-[calc(100vh-46px)] md:min-h-[720px] md:pt-[46px]">
+      <section className="relative h-[calc(100vh-46px)] min-h-[720px] overflow-hidden bg-black pt-[46px] max-lg:min-h-[640px] max-md:h-[680px] max-md:min-h-0 max-md:pt-[58px]">
         <button
           type="button"
           onClick={nextHero}
@@ -270,39 +267,37 @@ export default function VolkswagenPage() {
           key={currentHero.id}
           src={currentHero.image}
           alt={currentHero.title}
-          className="vw-hero-enter absolute inset-0 h-full w-full object-cover object-center"
+          className="vw-hero-enter absolute inset-0 h-full w-full object-cover max-md:object-center"
         />
 
-        <div className="absolute inset-0 z-[2] bg-black/55 md:bg-black/48" />
-        <div className="absolute inset-0 z-[3] bg-[linear-gradient(to_right,rgba(0,0,0,0.40),rgba(0,0,0,0.15),rgba(0,0,0,0.25))]" />
-        <div className="absolute inset-x-0 bottom-0 z-[4] h-[360px] bg-gradient-to-t from-black via-black/75 to-transparent" />
+        <div className="absolute inset-0 z-[2] bg-black/48 max-md:bg-black/55" />
+        <div className="absolute inset-0 z-[3] bg-[linear-gradient(to_right,rgba(0,0,0,0.35),rgba(0,0,0,0.10),rgba(0,0,0,0.20))]" />
+        <div className="absolute inset-x-0 bottom-0 z-[4] h-[320px] bg-gradient-to-t from-black via-black/75 to-transparent" />
 
         <div
           key={`${currentHero.id}-text`}
-          className="vw-hero-text absolute bottom-[115px] left-4 right-4 z-10 text-white sm:left-6 sm:right-auto md:bottom-[110px] md:left-[76px]"
+          className="vw-hero-text absolute bottom-[110px] left-[76px] z-10 max-w-[560px] text-white max-xl:left-10 max-lg:left-6 max-md:bottom-[118px] max-md:left-4 max-md:right-4 max-md:max-w-none"
         >
-          <h1 className="max-w-[92vw] text-[34px] font-light leading-[0.98] tracking-[-0.04em] sm:text-[40px] md:text-[42px]">
+          <h1 className="text-[42px] font-light leading-none max-lg:text-[36px] max-md:text-[34px] max-[380px]:text-[30px]">
             {currentHero.title}
           </h1>
-
-          <p className="mt-4 max-w-[330px] text-[14px] font-semibold leading-5 sm:max-w-[520px] md:mt-5 md:text-[15px]">
+          <p className="mt-5 text-[15px] font-semibold leading-6 max-md:max-w-[310px] max-md:text-[14px]">
             {currentHero.subtitle}
           </p>
 
           <a
             href="#modelos"
-            className="mt-7 inline-flex rounded-full bg-white px-8 py-3 text-[14px] font-semibold text-[#001e50] transition-all duration-300 hover:translate-y-[-2px] hover:scale-[1.03] hover:bg-[#e8f7ff] md:mt-8 md:px-9"
+            className="mt-8 inline-flex rounded-full bg-white px-9 py-3 text-[14px] font-semibold text-[#001e50] transition-all duration-300 hover:translate-y-[-2px] hover:scale-[1.03] hover:bg-[#e8f7ff] max-md:px-7 max-md:py-3"
           >
             Conheça
           </a>
         </div>
 
-        <div className="absolute bottom-[28px] left-4 right-4 z-10 flex items-center justify-between gap-3 sm:left-auto sm:right-6 sm:justify-end md:bottom-[52px] md:right-[90px]">
+        <div className="absolute bottom-[52px] right-[90px] z-10 flex items-center gap-4 max-xl:right-10 max-lg:right-6 max-md:bottom-[44px] max-md:left-4 max-md:right-4 max-md:justify-between">
           <button
             type="button"
             onClick={() => setHeroPaused(!heroPaused)}
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-black/55 text-white transition-all duration-300 hover:scale-105"
-            aria-label={heroPaused ? "Continuar banner" : "Pausar banner"}
           >
             {heroPaused ? "▶" : "Ⅱ"}
           </button>
@@ -314,7 +309,7 @@ export default function VolkswagenPage() {
                 type="button"
                 onClick={() => setActiveHero(index)}
                 className={`h-3 rounded-full transition-all duration-300 ${
-                  activeHero === index ? "w-10 bg-white md:w-11" : "w-3 bg-white/60"
+                  activeHero === index ? "w-11 bg-white" : "w-3 bg-white/60"
                 }`}
                 aria-label={`Ir para ${slide.title}`}
               />
@@ -323,10 +318,10 @@ export default function VolkswagenPage() {
         </div>
       </section>
 
-      <div className="fixed bottom-0 left-0 z-[90] flex h-[78px] w-full items-center justify-center border-t border-black/10 bg-white px-4 text-[#001e50] md:h-[62px] md:justify-end md:px-[82px]">
+      <div className="fixed bottom-0 left-0 z-[90] flex h-[62px] w-full items-center justify-end gap-8 border-t border-black/10 bg-white px-[82px] text-[#001e50] max-xl:px-10 max-lg:px-6 max-md:h-[68px] max-md:justify-center max-md:px-4">
         <a
           href="#modelos"
-          className="vw-float-build flex h-[48px] w-full max-w-[360px] items-center justify-center gap-3 rounded-full bg-[#48c7ef] px-5 text-center text-[13px] font-bold text-[#001e50] shadow-[0_10px_28px_rgba(72,199,239,0.35)] transition-all duration-300 hover:translate-y-[-2px] hover:scale-[1.02] hover:bg-[#67d8ff] sm:text-[14px] md:w-auto md:px-8"
+          className="vw-float-build flex h-[46px] items-center gap-3 rounded-full bg-[#48c7ef] px-8 text-[14px] font-bold text-[#001e50] shadow-[0_10px_28px_rgba(72,199,239,0.35)] transition-all duration-300 hover:translate-y-[-2px] hover:scale-[1.04] hover:bg-[#67d8ff] max-md:w-full max-md:max-w-[360px] max-md:justify-center max-md:px-4"
         >
           <Car className="h-5 w-5 shrink-0" />
           Monte o seu Volkswagen
@@ -335,39 +330,34 @@ export default function VolkswagenPage() {
 
       <a
         href="#"
-        aria-label="WhatsApp"
-        className="fixed bottom-[92px] left-3 z-[100] flex h-[50px] w-[50px] items-center justify-center rounded-full bg-[#22d366] text-white shadow-xl transition-all duration-300 hover:scale-110 md:bottom-[22px] md:h-[52px] md:w-[52px]"
+        className="fixed bottom-[22px] left-3 z-[100] flex h-[52px] w-[52px] items-center justify-center rounded-full bg-[#22d366] text-white shadow-xl transition-all duration-300 hover:scale-110 max-md:bottom-[84px] max-md:h-[48px] max-md:w-[48px]"
       >
-        <MessageCircle className="h-7 w-7" />
+        <MessageCircle className="h-7 w-7 max-md:h-6 max-md:w-6" />
       </a>
 
-      <section
-        id="modelos"
-        className="bg-white px-4 pb-16 pt-16 sm:px-6 md:px-10 md:pb-24 md:pt-24 lg:px-[76px]"
-      >
+      <section id="modelos" className="bg-white px-[76px] pb-24 pt-24 max-xl:px-10 max-lg:px-6 max-md:px-4 max-md:pb-16 max-md:pt-16">
         <div className="mx-auto max-w-[1500px] text-center">
-          <h2 className="vw-section-title text-[34px] font-bold leading-[1.05] tracking-[-0.04em] sm:text-[42px] md:text-[50px]">
+          <h2 className="vw-section-title text-[50px] font-bold tracking-[-0.03em] max-lg:text-[42px] max-md:text-[34px] max-[380px]:text-[30px]">
             Encontre o seu Volkswagen
           </h2>
 
-          <p className="mx-auto mt-6 max-w-[980px] text-[14px] leading-6 text-[#001e50]/80 md:mt-10">
-            Conheça os modelos recomendados, modelos em destaque, veículos
-            elétricos ou explore todos os modelos para escolher o Volkswagen 0 km
-            que mais combina com você.
+          <p className="mx-auto mt-10 max-w-[980px] text-[14px] leading-6 text-[#001e50]/80 max-md:mt-6 max-md:text-[13px]">
+            Conheça os modelos recomendados, modelos em destaque, veículos elétricos ou
+            explore todos os modelos para escolher o Volkswagen 0 km que mais combina com você.
           </p>
 
-          <h3 className="mt-10 text-[30px] font-bold leading-[1.05] tracking-[-0.04em] sm:text-[38px] md:mt-14 md:text-[48px]">
+          <h3 className="mt-14 text-[48px] font-bold tracking-[-0.03em] max-lg:text-[38px] max-md:mt-10 max-md:text-[30px]">
             Modelos Recomendados
           </h3>
 
-          <button className="mt-4 text-[14px] underline transition-all duration-300 hover:text-[#0057c2]">
+          <button className="mt-4 text-[14px] underline transition-all duration-300 hover:text-[#0057c2] max-md:text-[13px]">
             Selecione um dos modelos para configurar
           </button>
 
-          <div className="relative mt-10 overflow-hidden md:mt-14">
+          <div className="relative mt-14 overflow-hidden max-md:mt-10">
             <div
               key={`catalog-${catalogPage}-${dbVehicles.length}`}
-              className={`vw-catalog-enter grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6 ${
+              className={`vw-catalog-enter grid grid-cols-4 gap-6 max-xl:grid-cols-4 max-lg:grid-cols-2 max-md:grid-cols-1 ${
                 catalogDirection === "next"
                   ? "vw-catalog-next"
                   : "vw-catalog-prev"
@@ -377,15 +367,15 @@ export default function VolkswagenPage() {
                 <Link
                   key={vehicle.slug}
                   href={`/volkswagen/builder?vehicle=${vehicle.slug}`}
-                  className="group block rounded-2xl text-center transition-all duration-300 hover:bg-white"
+                  className="group block text-center"
                   style={{ animationDelay: `${index * 90}ms` }}
                 >
-                  <div className="flex h-[210px] items-end justify-center overflow-hidden rounded-2xl bg-gradient-to-b from-[#eef2f5] to-white transition-all duration-500 group-hover:shadow-[0_18px_45px_rgba(0,30,80,0.12)] sm:h-[220px]">
+                  <div className="flex h-[220px] items-end justify-center overflow-hidden bg-gradient-to-b from-[#eef2f5] to-white transition-all duration-500 group-hover:shadow-[0_18px_45px_rgba(0,30,80,0.12)] max-md:h-[210px]">
                     {vehicle.image ? (
                       <img
                         src={vehicle.image}
                         alt={vehicle.name}
-                        className="max-h-[200px] w-full object-contain px-3 transition-all duration-500 group-hover:scale-[1.06] group-hover:opacity-95 sm:max-h-[210px]"
+                        className="max-h-[210px] w-full object-contain transition-all duration-500 group-hover:scale-[1.06] group-hover:opacity-95 max-md:max-h-[195px]"
                       />
                     ) : (
                       <div className="flex h-full w-full items-center justify-center rounded-xl bg-[#eef2f5] text-xs font-bold uppercase text-[#001e50]/40">
@@ -394,7 +384,7 @@ export default function VolkswagenPage() {
                     )}
                   </div>
 
-                  <h4 className="mt-6 text-[22px] font-bold transition-all duration-300 group-hover:translate-y-[-2px] md:mt-8 md:text-[24px]">
+                  <h4 className="mt-8 text-[24px] font-bold transition-all duration-300 group-hover:translate-y-[-2px] max-md:mt-5 max-md:text-[22px]">
                     {vehicle.name}
                   </h4>
 
@@ -404,8 +394,8 @@ export default function VolkswagenPage() {
                     </div>
                   )}
 
-                  <div className="mt-5 flex translate-y-0 flex-col items-center gap-4 opacity-100 transition-all duration-300 md:translate-y-3 md:opacity-0 md:group-hover:translate-y-0 md:group-hover:opacity-100">
-                    <span className="rounded-full bg-[#001e50] px-8 py-3 text-[15px] font-semibold text-white md:px-10 md:text-[16px]">
+                  <div className="mt-6 flex translate-y-3 flex-col items-center gap-4 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100 max-md:translate-y-0 max-md:opacity-100">
+                    <span className="rounded-full bg-[#001e50] px-10 py-3 text-[16px] font-semibold text-white max-md:px-8 max-md:text-[14px]">
                       Monte o seu
                     </span>
                   </div>
@@ -418,19 +408,19 @@ export default function VolkswagenPage() {
                 <button
                   type="button"
                   onClick={prevCatalogPage}
-                  className="absolute left-0 top-[86px] flex h-[44px] w-[44px] items-center justify-center rounded-full bg-[#001e50] text-white shadow-lg transition-all duration-300 hover:scale-110 hover:bg-[#003b8f] md:left-2 md:top-[105px] md:h-[52px] md:w-[52px]"
+                  className="absolute left-2 top-[105px] flex h-[52px] w-[52px] items-center justify-center rounded-full bg-[#001e50] text-white transition-all duration-300 hover:scale-110 hover:bg-[#003b8f] max-md:left-0 max-md:top-[82px] max-md:h-[44px] max-md:w-[44px]"
                   aria-label="Carros anteriores"
                 >
-                  <ChevronLeft className="h-6 w-6 md:h-7 md:w-7" />
+                  <ChevronLeft className="h-7 w-7 max-md:h-6 max-md:w-6" />
                 </button>
 
                 <button
                   type="button"
                   onClick={nextCatalogPage}
-                  className="absolute right-0 top-[86px] flex h-[44px] w-[44px] items-center justify-center rounded-full bg-[#001e50] text-white shadow-lg transition-all duration-300 hover:scale-110 hover:bg-[#003b8f] md:right-2 md:top-[105px] md:h-[52px] md:w-[52px]"
+                  className="absolute right-2 top-[105px] flex h-[52px] w-[52px] items-center justify-center rounded-full bg-[#001e50] text-white transition-all duration-300 hover:scale-110 hover:bg-[#003b8f] max-md:right-0 max-md:top-[82px] max-md:h-[44px] max-md:w-[44px]"
                   aria-label="Próximos carros"
                 >
-                  <ChevronRight className="h-6 w-6 md:h-7 md:w-7" />
+                  <ChevronRight className="h-7 w-7 max-md:h-6 max-md:w-6" />
                 </button>
               </>
             )}
@@ -457,41 +447,37 @@ export default function VolkswagenPage() {
         </div>
       </section>
 
-      <div className="sticky top-[58px] z-[70] h-[45px] overflow-x-auto border-b border-black/20 bg-white md:top-[46px]">
-        <div className="mx-auto flex h-full max-w-[1500px] items-center gap-10 px-4 text-[13px] font-semibold sm:px-6 md:px-[76px]">
-          <a
-            href="#modelos"
-            className="whitespace-nowrap border-b-2 border-[#001e50] py-[15px]"
-          >
+      <div className="sticky top-[46px] z-[70] h-[45px] border-b border-black/20 bg-white max-md:top-[58px]">
+        <div className="mx-auto flex h-full max-w-[1500px] items-center gap-10 px-[76px] text-[13px] font-semibold max-xl:px-10 max-lg:px-6 max-md:px-4">
+          <a href="#modelos" className="border-b-2 border-[#001e50] py-[15px]">
             Modelos
           </a>
         </div>
       </div>
 
-      <section className="bg-white px-4 py-16 sm:px-6 md:px-10 md:py-24 lg:px-[76px]">
+      <section className="bg-white px-[76px] py-24 max-xl:px-10 max-lg:px-6 max-md:px-4 max-md:py-16">
         <div className="mx-auto max-w-[1500px]">
-          <h2 className="mb-12 text-center text-[28px] font-bold md:mb-28 md:text-[34px]">
+          <h2 className="mb-28 text-center text-[34px] font-bold max-md:mb-12 max-md:text-[28px]">
             Modelos em Destaque
           </h2>
 
-          <div className="grid grid-cols-1 items-center gap-8 lg:grid-cols-[390px_1fr] lg:gap-16">
-            <div className="order-2 lg:order-1">
-              <h3 className="text-[30px] font-light md:text-[34px]">
+          <div className="grid grid-cols-[390px_1fr] items-center gap-16 max-lg:grid-cols-1 max-lg:gap-10">
+            <div>
+              <h3 className="text-[34px] font-light max-md:text-[28px]">
                 Novo Tiguan R-Line
               </h3>
-
-              <p className="mt-3 text-[17px] text-[#001e50]/70 md:text-[18px]">
+              <p className="mt-3 text-[18px] text-[#001e50]/70 max-md:text-[16px]">
                 O SUV à altura da sua história
               </p>
 
-              <p className="mt-8 max-w-[650px] text-[15px] leading-7 text-[#001e50]/80 lg:mt-16 lg:max-w-[430px]">
+              <p className="mt-16 max-w-[430px] text-[15px] leading-7 text-[#001e50]/80 max-lg:max-w-none max-md:mt-8 max-md:text-[14px]">
                 O Novo Tiguan R-Line traduz o encontro entre sofisticação,
                 performance e tecnologia de ponta. Com design marcante,
                 motorização potente e soluções inteligentes de condução e
                 segurança, ele eleva cada trajeto a uma experiência premium.
               </p>
 
-              <button className="mt-8 rounded-full bg-[#001e50] px-7 py-3 text-[14px] font-semibold text-white transition-all duration-300 hover:translate-y-[-2px] hover:scale-[1.03] lg:mt-28">
+              <button className="mt-28 rounded-full bg-[#001e50] px-8 py-3 text-[14px] font-semibold text-white transition-all duration-300 hover:translate-y-[-2px] hover:scale-[1.03] max-md:mt-8 max-md:w-full max-md:px-5">
                 Conheça o Novo Tiguan R-Line
               </button>
             </div>
@@ -499,22 +485,23 @@ export default function VolkswagenPage() {
             <img
               src={VW_IMAGES.tiguanBanner}
               alt="Novo Tiguan R-Line"
-              className="order-1 h-[280px] w-full rounded-2xl object-cover sm:h-[380px] md:h-[520px] lg:order-2 lg:h-[630px] lg:rounded-none"
+              className="h-[630px] w-full object-cover max-lg:h-[460px] max-md:h-[280px]"
             />
           </div>
         </div>
       </section>
 
-      <section className="bg-white px-4 py-16 sm:px-6 md:px-10 md:py-20 lg:px-[76px]">
+      <section className="bg-white px-[76px] py-20 max-xl:px-10 max-lg:px-6 max-md:px-4 max-md:py-14">
         <div className="mx-auto max-w-[1500px]">
           <div className="mx-auto max-w-[980px]">
-            <h3 className="text-[30px] font-light md:text-[34px]">VW Tera</h3>
-
-            <p className="mt-3 text-[17px] text-[#001e50]/70 md:text-[18px]">
+            <h3 className="text-[34px] font-light max-md:text-[28px]">
+              VW Tera
+            </h3>
+            <p className="mt-3 text-[18px] text-[#001e50]/70 max-md:text-[16px]">
               Você reconhece um ícone só pela chegada
             </p>
 
-            <p className="mt-8 text-[15px] leading-7 text-[#001e50]/85 md:mt-10">
+            <p className="mt-10 text-[15px] leading-7 text-[#001e50]/85 max-md:mt-6 max-md:text-[14px]">
               Mais que um SUV, o Volkswagen Tera nasceu para se destacar.
               Produzido no Brasil, o veículo reúne design sofisticado, tecnologia
               inteligente e performance equilibrada para transformar cada trajeto
@@ -525,24 +512,23 @@ export default function VolkswagenPage() {
           <img
             src={VW_IMAGES.teraBanner}
             alt="VW Tera"
-            className="mx-auto mt-10 h-[260px] w-full max-w-[1180px] rounded-2xl object-cover sm:h-[380px] md:mt-16 md:h-[520px] lg:h-[620px] lg:rounded-none"
+            className="mx-auto mt-16 h-[620px] w-[1180px] max-w-full object-cover max-lg:h-[460px] max-md:mt-8 max-md:h-[260px]"
           />
         </div>
       </section>
 
-      <section className="bg-white px-4 py-16 sm:px-6 md:px-10 md:py-20 lg:px-[76px]">
+      <section className="bg-white px-[76px] py-20 max-xl:px-10 max-lg:px-6 max-md:px-4 max-md:py-14">
         <div className="mx-auto max-w-[1500px]">
-          <div className="relative overflow-hidden rounded-2xl bg-[#002b66] lg:min-h-[650px] lg:rounded-none">
-            <div className="relative z-10 max-w-[620px] p-6 text-white sm:p-10 lg:absolute lg:left-[78px] lg:top-[80px] lg:max-w-[430px] lg:p-0">
-              <h3 className="text-[32px] font-light md:text-[36px]">
+          <div className="relative min-h-[650px] overflow-hidden bg-[#002b66] max-lg:min-h-0 max-lg:p-8 max-md:p-5">
+            <div className="absolute left-[78px] top-[80px] z-10 max-w-[430px] text-white max-lg:relative max-lg:left-auto max-lg:top-auto max-lg:max-w-none">
+              <h3 className="text-[36px] font-light max-md:text-[28px]">
                 Golf GTI
               </h3>
-
-              <p className="mt-3 text-[17px] text-white/80 md:text-[18px]">
+              <p className="mt-3 text-[18px] text-white/80 max-md:text-[16px]">
                 A lenda voltou
               </p>
 
-              <p className="mt-8 text-[15px] leading-7 text-white/90 lg:mt-14">
+              <p className="mt-14 text-[15px] leading-7 text-white/90 max-md:mt-8 max-md:text-[14px]">
                 Com 245 cv de pura adrenalina, o ícone das ruas volta ao Brasil
                 mais potente, tecnológico e exclusivo do que nunca. Mas o Golf
                 GTI não conquista apenas pelo que entrega na pista. Seu design
@@ -550,7 +536,7 @@ export default function VolkswagenPage() {
                 inconfundível.
               </p>
 
-              <button className="mt-8 rounded-full bg-white px-7 py-3 text-[14px] font-semibold text-[#001e50] transition-all duration-300 hover:translate-y-[-2px] hover:scale-[1.03] lg:mt-40">
+              <button className="mt-40 rounded-full bg-white px-8 py-3 text-[14px] font-semibold text-[#001e50] transition-all duration-300 hover:translate-y-[-2px] hover:scale-[1.03] max-lg:mt-8 max-md:w-full max-md:px-5">
                 Conheça os detalhes do Golf GTI
               </button>
             </div>
@@ -558,27 +544,27 @@ export default function VolkswagenPage() {
             <img
               src={VW_IMAGES.golfBanner}
               alt="Golf GTI"
-              className="relative z-0 h-[260px] w-full object-cover object-center sm:h-[380px] md:h-[500px] lg:absolute lg:right-[-64px] lg:top-[72px] lg:h-[520px] lg:w-[900px]"
+              className="absolute right-[-64px] top-[72px] h-[520px] w-[900px] object-cover max-xl:right-[-160px] max-lg:relative max-lg:right-auto max-lg:top-auto max-lg:mt-10 max-lg:h-[420px] max-lg:w-full max-md:h-[260px]"
             />
           </div>
         </div>
       </section>
 
-      <footer className="border-t-2 border-[#001e50] bg-white px-4 pb-[120px] pt-14 text-[#001e50] sm:px-6 md:px-10 md:pt-20 lg:px-[76px]">
+      <footer className="border-t-2 border-[#001e50] bg-white px-[76px] pb-[120px] pt-20 text-[#001e50] max-xl:px-10 max-lg:px-6 max-md:px-4 max-md:pb-[110px] max-md:pt-14">
         <div className="mx-auto max-w-[1500px]">
-          <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-4 lg:gap-20">
+          <div className="grid grid-cols-4 gap-20 max-xl:gap-10 max-lg:grid-cols-2 max-md:grid-cols-1 max-md:gap-10">
             {footerColumns.map((column) => (
               <div key={column.title}>
-                <h3 className="mb-5 text-[14px] font-bold md:mb-8">
+                <h3 className="mb-8 text-[14px] font-bold max-md:mb-5">
                   {column.title}
                 </h3>
 
-                <div className="space-y-3 md:space-y-4">
+                <div className="space-y-4">
                   {column.links.map((link) => (
                     <a
                       key={link}
                       href="#"
-                      className="block text-[14px] leading-snug text-[#001e50]/90 hover:underline"
+                      className="block text-[14px] leading-none text-[#001e50]/90 hover:underline"
                     >
                       {link}
                     </a>
@@ -588,7 +574,7 @@ export default function VolkswagenPage() {
             ))}
           </div>
 
-          <div className="mt-12 flex flex-wrap gap-3 text-[13px] leading-6 text-[#001e50] md:mt-16 md:gap-4">
+          <div className="mt-16 flex flex-wrap gap-4 text-[13px] text-[#001e50] max-md:mt-10 max-md:gap-3 max-md:leading-6">
             <a href="#">Informações Legais</a>
             <span>|</span>
             <a href="#">Aviso de Privacidade</a>
@@ -603,6 +589,10 @@ export default function VolkswagenPage() {
       <style jsx global>{`
         html {
           scroll-behavior: smooth;
+        }
+
+        body {
+          overflow-x: hidden;
         }
 
         .vw-hero-enter {
@@ -635,10 +625,9 @@ export default function VolkswagenPage() {
           animation: vwCatalogPrev 0.5s cubic-bezier(0.22, 1, 0.36, 1);
         }
 
-        @media (max-width: 767px) {
-          .vw-catalog-next,
-          .vw-catalog-prev {
-            animation-duration: 0.35s;
+        @media (max-width: 768px) {
+          .vw-catalog-enter > a {
+            animation-delay: 0ms !important;
           }
         }
 
