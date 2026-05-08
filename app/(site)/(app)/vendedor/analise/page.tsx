@@ -18,17 +18,342 @@ import {
 } from "lucide-react";
 
 // =========================
-// REGRAS DO CONSÓRCIO (pedido do cliente)
+// REGRAS DO CONSÓRCIO VOLKSWAGEN
+// Tabela Normal / Essencial - Automóveis
+// Grupo 1130 / 1131 / 1132
 // =========================
 const CONSORCIO_MAX_MESES = 80;
-const TAXA_ADM_TOTAL = 0.4346; // 43,46%
-const REDUZIDA_PERCENT_CATEGORIA = 0.7665; // 76,65% do valor de categoria (até contemplar)
 
-// ✅ prazos disponíveis no consórcio
-const CONSORCIO_PRAZOS = [12, 24, 36, 48, 60, 72, 80];
+// Taxas da tabela Volkswagen
+const TAXA_ADM_TOTAL = 0.21; // 21%
+const TAXA_ANTECIPACAO = 0; // 0%
+const TAXA_SEGURO_VIDA = 0.000616; // 0,0616%
+const FUNDO_RESERVA = 0.03; // 3%
+const RATEIO_GRUPO = 110; // R$ 110,00
+const PARTICIPANTES_GRUPO = 900;
+
+// ✅ prazos disponíveis no consórcio conforme tabela Volkswagen
+const CONSORCIO_PRAZOS = [24, 36, 50, 60, 70, 80];
+
+type ConsorcioPrazo = 24 | 36 | 50 | 60 | 70 | 80;
+
+type VolkswagenInstallmentPlan = {
+  code: string;
+  credit: number;
+  plans: {
+    months: ConsorcioPrazo;
+    firstInstallment: number; // Convencional 100%
+    reducedInstallment: number; // Essencial 75%
+  }[];
+};
+
+const VOLKSWAGEN_CONSORCIO_TABLE: VolkswagenInstallmentPlan[] = [
+  {
+    code: "WV003",
+    credit: 45000,
+    plans: [
+      { months: 80, firstInstallment: 731.54, reducedInstallment: 586.69 },
+      { months: 70, firstInstallment: 831.18, reducedInstallment: 668.65 },
+      { months: 60, firstInstallment: 954.04, reducedInstallment: 792.03 },
+      { months: 50, firstInstallment: 1150.84, reducedInstallment: 913.29 },
+      { months: 36, firstInstallment: 1584.04, reducedInstallment: 1242.16 },
+      { months: 24, firstInstallment: 2353.04, reducedInstallment: 1857.23 },
+    ],
+  },
+  {
+    code: "WV004",
+    credit: 50000,
+    plans: [
+      { months: 80, firstInstallment: 812.82, reducedInstallment: 651.88 },
+      { months: 70, firstInstallment: 923.53, reducedInstallment: 742.94 },
+      { months: 60, firstInstallment: 1060.04, reducedInstallment: 868.03 },
+      { months: 50, firstInstallment: 1278.71, reducedInstallment: 1014.71 },
+      { months: 36, firstInstallment: 1760.04, reducedInstallment: 1380.18 },
+      { months: 24, firstInstallment: 2614.49, reducedInstallment: 2063.58 },
+    ],
+  },
+  {
+    code: "WV005",
+    credit: 55000,
+    plans: [
+      { months: 80, firstInstallment: 894.1, reducedInstallment: 717.07 },
+      { months: 70, firstInstallment: 1015.89, reducedInstallment: 813.57 },
+      { months: 60, firstInstallment: 1178.27, reducedInstallment: 942.23 },
+      { months: 50, firstInstallment: 1406.6, reducedInstallment: 1122.35 },
+      { months: 36, firstInstallment: 1936.05, reducedInstallment: 1522.2 },
+      { months: 24, firstInstallment: 2883.27, reducedInstallment: 2293.16 },
+    ],
+  },
+  {
+    code: "WV006",
+    credit: 60000,
+    plans: [
+      { months: 80, firstInstallment: 975.38, reducedInstallment: 782.25 },
+      { months: 70, firstInstallment: 1108.24, reducedInstallment: 887.31 },
+      { months: 60, firstInstallment: 1272.5, reducedInstallment: 1046.19 },
+      { months: 50, firstInstallment: 1534.47, reducedInstallment: 1217.44 },
+      { months: 36, firstInstallment: 2112.05, reducedInstallment: 1656.22 },
+      { months: 24, firstInstallment: 3136.04, reducedInstallment: 2495.5 },
+    ],
+  },
+  {
+    code: "WV007",
+    credit: 65000,
+    plans: [
+      { months: 80, firstInstallment: 1056.67, reducedInstallment: 847.45 },
+      { months: 70, firstInstallment: 1200.59, reducedInstallment: 961.49 },
+      { months: 60, firstInstallment: 1392.5, reducedInstallment: 1113.54 },
+      { months: 50, firstInstallment: 1661.17, reducedInstallment: 1326.42 },
+      { months: 36, firstInstallment: 2288.05, reducedInstallment: 1823.12 },
+      { months: 24, firstInstallment: 3407.5, reducedInstallment: 2710.1 },
+    ],
+  },
+  {
+    code: "WV008",
+    credit: 70000,
+    plans: [
+      { months: 80, firstInstallment: 1137.95, reducedInstallment: 912.64 },
+      { months: 70, firstInstallment: 1292.94, reducedInstallment: 1042.22 },
+      { months: 60, firstInstallment: 1484.74, reducedInstallment: 1187.65 },
+      { months: 50, firstInstallment: 1789.05, reducedInstallment: 1420.48 },
+      { months: 36, firstInstallment: 2464.05, reducedInstallment: 1961.84 },
+      { months: 24, firstInstallment: 3668.95, reducedInstallment: 2906.33 },
+    ],
+  },
+  {
+    code: "WV009",
+    credit: 75000,
+    plans: [
+      { months: 80, firstInstallment: 1219.23, reducedInstallment: 977.82 },
+      { months: 70, firstInstallment: 1385.3, reducedInstallment: 1109.41 },
+      { months: 60, firstInstallment: 1606.73, reducedInstallment: 1298.46 },
+      { months: 50, firstInstallment: 1916.73, reducedInstallment: 1530.48 },
+      { months: 36, firstInstallment: 2640.05, reducedInstallment: 2103.13 },
+      { months: 24, firstInstallment: 3931.73, reducedInstallment: 3127.04 },
+    ],
+  },
+  {
+    code: "WV010",
+    credit: 80000,
+    plans: [
+      { months: 80, firstInstallment: 1300.51, reducedInstallment: 1043.01 },
+      { months: 70, firstInstallment: 1477.65, reducedInstallment: 1182.56 },
+      { months: 60, firstInstallment: 1697.55, reducedInstallment: 1373.12 },
+      { months: 50, firstInstallment: 2044.6, reducedInstallment: 1643.77 },
+      { months: 36, firstInstallment: 2816.05, reducedInstallment: 2218.96 },
+      { months: 24, firstInstallment: 4190.5, reducedInstallment: 3313.98 },
+    ],
+  },
+  {
+    code: "WV011",
+    credit: 85000,
+    plans: [
+      { months: 80, firstInstallment: 1381.79, reducedInstallment: 1108.2 },
+      { months: 70, firstInstallment: 1570.01, reducedInstallment: 1257.33 },
+      { months: 60, firstInstallment: 1820.56, reducedInstallment: 1465.51 },
+      { months: 50, firstInstallment: 2172.29, reducedInstallment: 1734.54 },
+      { months: 36, firstInstallment: 2992.07, reducedInstallment: 2384.99 },
+      { months: 24, firstInstallment: 4455.96, reducedInstallment: 3543.98 },
+    ],
+  },
+  {
+    code: "WV012",
+    credit: 90000,
+    plans: [
+      { months: 80, firstInstallment: 1463.07, reducedInstallment: 1173.39 },
+      { months: 70, firstInstallment: 1662.36, reducedInstallment: 1331.29 },
+      { months: 60, firstInstallment: 1924.42, reducedInstallment: 1541.79 },
+      { months: 50, firstInstallment: 2300.16, reducedInstallment: 1838.98 },
+      { months: 36, firstInstallment: 3168.05, reducedInstallment: 2527.03 },
+      { months: 24, firstInstallment: 4723.46, reducedInstallment: 3753.1 },
+    ],
+  },
+  {
+    code: "WV013",
+    credit: 100000,
+    plans: [
+      { months: 80, firstInstallment: 1625.64, reducedInstallment: 1303.76 },
+      { months: 70, firstInstallment: 1847.06, reducedInstallment: 1478.18 },
+      { months: 60, firstInstallment: 2120.08, reducedInstallment: 1713.38 },
+      { months: 50, firstInstallment: 2555.9, reducedInstallment: 2038.9 },
+      { months: 36, firstInstallment: 3520.1, reducedInstallment: 2789.05 },
+      { months: 24, firstInstallment: 5230.2, reducedInstallment: 4161.5 },
+    ],
+  },
+  {
+    code: "WV014",
+    credit: 110000,
+    plans: [
+      { months: 80, firstInstallment: 1788.2, reducedInstallment: 1434.13 },
+      { months: 70, firstInstallment: 2031.78, reducedInstallment: 1626.25 },
+      { months: 60, firstInstallment: 2346.72, reducedInstallment: 1875.98 },
+      { months: 50, firstInstallment: 2811.62, reducedInstallment: 2246.77 },
+      { months: 36, firstInstallment: 3872.1, reducedInstallment: 3063.52 },
+      { months: 24, firstInstallment: 5783.52, reducedInstallment: 4597.21 },
+    ],
+  },
+  {
+    code: "WV015",
+    credit: 120000,
+    plans: [
+      { months: 80, firstInstallment: 1950.77, reducedInstallment: 1564.52 },
+      { months: 70, firstInstallment: 2216.48, reducedInstallment: 1775.05 },
+      { months: 60, firstInstallment: 2570.77, reducedInstallment: 2055.77 },
+      { months: 50, firstInstallment: 3066.77, reducedInstallment: 2448.77 },
+      { months: 36, firstInstallment: 4224.1, reducedInstallment: 3355.77 },
+      { months: 24, firstInstallment: 6290.77, reducedInstallment: 5003.27 },
+    ],
+  },
+  {
+    code: "WV016",
+    credit: 130000,
+    plans: [
+      { months: 80, firstInstallment: 2113.33, reducedInstallment: 1694.89 },
+      { months: 70, firstInstallment: 2401.19, reducedInstallment: 1924.61 },
+      { months: 60, firstInstallment: 2776.77, reducedInstallment: 2241.1 },
+      { months: 50, firstInstallment: 3322.57, reducedInstallment: 2656.9 },
+      { months: 36, firstInstallment: 4576.13, reducedInstallment: 3573.77 },
+      { months: 24, firstInstallment: 6813.23, reducedInstallment: 5324.8 },
+    ],
+  },
+  {
+    code: "WV017",
+    credit: 140000,
+    plans: [
+      { months: 80, firstInstallment: 2275.9, reducedInstallment: 1825.27 },
+      { months: 70, firstInstallment: 2585.9, reducedInstallment: 2070.9 },
+      { months: 60, firstInstallment: 2994.32, reducedInstallment: 2399.32 },
+      { months: 50, firstInstallment: 3577.9, reducedInstallment: 2856.9 },
+      { months: 36, firstInstallment: 4928.21, reducedInstallment: 3962.11 },
+      { months: 24, firstInstallment: 7330.23, reducedInstallment: 5802.15 },
+    ],
+  },
+  {
+    code: "WV018",
+    credit: 150000,
+    plans: [
+      { months: 80, firstInstallment: 2438.46, reducedInstallment: 1955.65 },
+      { months: 70, firstInstallment: 2770.6, reducedInstallment: 2218.82 },
+      { months: 60, firstInstallment: 3212.46, reducedInstallment: 2569.72 },
+      { months: 50, firstInstallment: 3833.54, reducedInstallment: 3060.96 },
+      { months: 36, firstInstallment: 5280.11, reducedInstallment: 4270.21 },
+      { months: 24, firstInstallment: 7866.46, reducedInstallment: 6243.99 },
+    ],
+  },
+  {
+    code: "WV019",
+    credit: 160000,
+    plans: [
+      { months: 80, firstInstallment: 2601.03, reducedInstallment: 2086.03 },
+      { months: 70, firstInstallment: 2955.31, reducedInstallment: 2367.44 },
+      { months: 60, firstInstallment: 3412.46, reducedInstallment: 2745.16 },
+      { months: 50, firstInstallment: 4089.46, reducedInstallment: 3260.96 },
+      { months: 36, firstInstallment: 5632.13, reducedInstallment: 4407.21 },
+      { months: 24, firstInstallment: 8396.46, reducedInstallment: 6545.09 },
+    ],
+  },
+  {
+    code: "WV020",
+    credit: 170000,
+    plans: [
+      { months: 80, firstInstallment: 2763.59, reducedInstallment: 2216.4 },
+      { months: 70, firstInstallment: 3140.02, reducedInstallment: 2514.66 },
+      { months: 60, firstInstallment: 3641.92, reducedInstallment: 2921.46 },
+      { months: 50, firstInstallment: 4345.59, reducedInstallment: 3459.09 },
+      { months: 36, firstInstallment: 5984.14, reducedInstallment: 4786.17 },
+      { months: 24, firstInstallment: 8911.92, reducedInstallment: 7087.96 },
+    ],
+  },
+  {
+    code: "WV021",
+    credit: 180000,
+    plans: [
+      { months: 80, firstInstallment: 2926.15, reducedInstallment: 2346.78 },
+      { months: 70, firstInstallment: 3324.72, reducedInstallment: 2662.77 },
+      { months: 60, firstInstallment: 3857.3, reducedInstallment: 3087.5 },
+      { months: 50, firstInstallment: 4601.59, reducedInstallment: 3690.09 },
+      { months: 36, firstInstallment: 6336.17, reducedInstallment: 5094.14 },
+      { months: 24, firstInstallment: 9432.74, reducedInstallment: 7366.79 },
+    ],
+  },
+  {
+    code: "WV022",
+    credit: 190000,
+    plans: [
+      { months: 80, firstInstallment: 3088.72, reducedInstallment: 2477.15 },
+      { months: 70, firstInstallment: 3509.43, reducedInstallment: 2810.5 },
+      { months: 60, firstInstallment: 4070.38, reducedInstallment: 3254.9 },
+      { months: 50, firstInstallment: 4855.72, reducedInstallment: 3877.22 },
+      { months: 36, firstInstallment: 6688.16, reducedInstallment: 5323.15 },
+      { months: 24, firstInstallment: 9960.38, reducedInstallment: 7921.84 },
+    ],
+  },
+  {
+    code: "WV023",
+    credit: 200000,
+    plans: [
+      { months: 80, firstInstallment: 3251.28, reducedInstallment: 2607.53 },
+      { months: 70, firstInstallment: 3694.13, reducedInstallment: 2955.9 },
+      { months: 60, firstInstallment: 4278.38, reducedInstallment: 3420.57 },
+      { months: 50, firstInstallment: 5111.9, reducedInstallment: 4083.38 },
+      { months: 36, firstInstallment: 7040.16, reducedInstallment: 5628.17 },
+      { months: 24, firstInstallment: 10465.38, reducedInstallment: 8248.63 },
+    ],
+  },
+  {
+    code: "WV024",
+    credit: 210000,
+    plans: [
+      { months: 80, firstInstallment: 3413.84, reducedInstallment: 2737.91 },
+      { months: 70, firstInstallment: 3878.84, reducedInstallment: 3106.34 },
+      { months: 60, firstInstallment: 4498.84, reducedInstallment: 3579.59 },
+      { months: 50, firstInstallment: 5366.84, reducedInstallment: 4235.34 },
+      { months: 36, firstInstallment: 7392.18, reducedInstallment: 5809.09 },
+      { months: 24, firstInstallment: 11008.84, reducedInstallment: 8755.72 },
+    ],
+  },
+  {
+    code: "WV025",
+    credit: 220000,
+    plans: [
+      { months: 80, firstInstallment: 3576.41, reducedInstallment: 2868.28 },
+      { months: 70, firstInstallment: 4063.54, reducedInstallment: 3253.92 },
+      { months: 60, firstInstallment: 4700.84, reducedInstallment: 3774.83 },
+      { months: 50, firstInstallment: 5622.84, reducedInstallment: 4483.84 },
+      { months: 36, firstInstallment: 7744.2, reducedInstallment: 6086.14 },
+      { months: 24, firstInstallment: 11468.84, reducedInstallment: 8755.72 },
+    ],
+  },
+  {
+    code: "WV026",
+    credit: 230000,
+    plans: [
+      { months: 80, firstInstallment: 3738.97, reducedInstallment: 2998.66 },
+      { months: 70, firstInstallment: 4248.26, reducedInstallment: 3402.19 },
+      { months: 60, firstInstallment: 4927.31, reducedInstallment: 3917.33 },
+      { months: 50, firstInstallment: 5877.97, reducedInstallment: 4693.47 },
+      { months: 36, firstInstallment: 8096.19, reducedInstallment: 6451.06 },
+      { months: 24, firstInstallment: 12057.31, reducedInstallment: 9598.6 },
+    ],
+  },
+  {
+    code: "WV028",
+    credit: 240000,
+    plans: [
+      { months: 80, firstInstallment: 3901.54, reducedInstallment: 3129.04 },
+      { months: 70, firstInstallment: 4432.96, reducedInstallment: 3550.46 },
+      { months: 60, firstInstallment: 5141.54, reducedInstallment: 4108.61 },
+      { months: 50, firstInstallment: 6133.54, reducedInstallment: 4897.54 },
+      { months: 36, firstInstallment: 8448.19, reducedInstallment: 6796.08 },
+      { months: 24, firstInstallment: 12513.54, reducedInstallment: 10056.58 },
+    ],
+  },
+];
 
 // FINANCIAMENTO
 const TAXA_FINANCIAMENTO_MERCADO = 0.022; // 2.2% a.m
+const SANTANDER_FINANCIAMENTOS_URL =
+  "https://www.cliente.santanderfinanciamentos.com.br/originacaocliente/?mathts=nonpaid#/dados-pessoais";
 
 type LanceMode = "reduzir_parcela" | "reduzir_meses";
 
@@ -100,6 +425,27 @@ const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 const safeNumber = (v: any) => {
   const n = typeof v === "number" ? v : parseFloat(String(v || "0"));
   return Number.isFinite(n) ? n : 0;
+};
+
+const findClosestVolkswagenPlan = (credit: number) => {
+  if (!credit || credit <= 0) return VOLKSWAGEN_CONSORCIO_TABLE[0];
+
+  return VOLKSWAGEN_CONSORCIO_TABLE.reduce((closest, current) => {
+    const closestDiff = Math.abs(closest.credit - credit);
+    const currentDiff = Math.abs(current.credit - credit);
+    return currentDiff < closestDiff ? current : closest;
+  }, VOLKSWAGEN_CONSORCIO_TABLE[0]);
+};
+
+const getVolkswagenInstallmentByPrazo = (
+  tablePlan: VolkswagenInstallmentPlan,
+  prazo: number
+) => {
+  return (
+    tablePlan.plans.find((p) => p.months === prazo) ||
+    tablePlan.plans.find((p) => p.months === 80) ||
+    tablePlan.plans[0]
+  );
 };
 
 type BuilderOrderPayload = {
@@ -356,26 +702,53 @@ function AnaliseContent() {
 
       const credito = Math.max(0, valorCarro - valorEntrada);
 
-      // CONSÓRCIO
-      const valorCategoria = credito * (1 + TAXA_ADM_TOTAL);
+      // CONSÓRCIO - TABELA VOLKSWAGEN
+      const tabelaSelecionada = findClosestVolkswagenPlan(credito);
       const prazoSeguro = Math.min(prazoConsorcio, CONSORCIO_MAX_MESES);
+      const parcelaTabela = getVolkswagenInstallmentByPrazo(tabelaSelecionada, prazoSeguro);
+
+      const primeiraParcelaIntegral = parcelaTabela.firstInstallment;
+      const demaisParcelasReduzidas = parcelaTabela.reducedInstallment;
+      const quantidadeReduzidas = Math.max(0, parcelaTabela.months - 1);
 
       const consorcioOpcoes = [
         {
           key: "integral",
-          label: "Opção 1 (Integral)",
-          prazo: prazoSeguro,
+          label: "Opção 1",
+          prazo: parcelaTabela.months,
           percentualCategoria: 1,
-          parcela: prazoSeguro > 0 ? valorCategoria / prazoSeguro : 0,
-          detalhe: "Parcela integral (100%) no prazo selecionado.",
+          parcela: primeiraParcelaIntegral,
+          detalhe: "1ª parcela integral.",
+          codigoTabela: tabelaSelecionada.code,
+          creditoTabela: tabelaSelecionada.credit,
+          primeiraParcelaIntegral,
+          demaisParcelasReduzidas,
+          quantidadeReduzidas,
+          taxaAdmTotal: TAXA_ADM_TOTAL,
+          taxaAntecipacao: TAXA_ANTECIPACAO,
+          taxaSeguroVida: TAXA_SEGURO_VIDA,
+          fundoReserva: FUNDO_RESERVA,
+          rateioGrupo: RATEIO_GRUPO,
+          participantesGrupo: PARTICIPANTES_GRUPO,
         },
         {
           key: "reduzida",
-          label: "Opção 2 (Reduzida até contemplar)",
-          prazo: prazoSeguro,
-          percentualCategoria: REDUZIDA_PERCENT_CATEGORIA,
-          parcela: prazoSeguro > 0 ? (valorCategoria * REDUZIDA_PERCENT_CATEGORIA) / prazoSeguro : 0,
-          detalhe: "Parcela reduzida até contemplação (76,65%).",
+          label: "Opção 2",
+          prazo: parcelaTabela.months,
+          percentualCategoria: 0.75,
+          parcela: demaisParcelasReduzidas,
+          detalhe: `${quantidadeReduzidas} parcelas reduzidas (Essencial 75%).`,
+          codigoTabela: tabelaSelecionada.code,
+          creditoTabela: tabelaSelecionada.credit,
+          primeiraParcelaIntegral,
+          demaisParcelasReduzidas,
+          quantidadeReduzidas,
+          taxaAdmTotal: TAXA_ADM_TOTAL,
+          taxaAntecipacao: TAXA_ANTECIPACAO,
+          taxaSeguroVida: TAXA_SEGURO_VIDA,
+          fundoReserva: FUNDO_RESERVA,
+          rateioGrupo: RATEIO_GRUPO,
+          participantesGrupo: PARTICIPANTES_GRUPO,
         },
       ];
 
@@ -390,7 +763,11 @@ function AnaliseContent() {
 
       setResultado({
         credito,
-        consorcio: { opcoes: consorcioOpcoes, prazoSelecionado: prazoSeguro },
+        consorcio: {
+          opcoes: consorcioOpcoes,
+          prazoSelecionado: parcelaTabela.months,
+          tabelaSelecionada,
+        },
         financiamento: { planos: planosFinanc },
       });
 
@@ -407,11 +784,37 @@ function AnaliseContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entradaManual, dadosIniciais.valor, prazoConsorcio]);
 
-  const irParaSantander = () => {
-    window.open(
-      "https://www.cliente.santanderfinanciamentos.com.br/originacaocliente/?mathts=nonpaid#/dados-pessoais",
-      "_blank"
-    );
+  const irParaSantander = (planoFinanciamento?: any) => {
+    try {
+      const params = new URLSearchParams(searchParams.toString());
+
+      params.set("tipo", "FINANCIAMENTO");
+      params.set("modelo", dadosIniciais.modelo);
+      params.set("valor", String(dadosIniciais.valor || 0));
+      params.set("entrada", String(entradaManual || 0));
+      params.set("imagem", dadosIniciais.imagem || "");
+      params.set("pedido", dadosIniciais.pedidoId || "");
+      params.set("origem", dadosIniciais.origem || "builder");
+      params.set("vehicle_slug", dadosIniciais.vehicleSlug || "");
+      params.set("vehicle_name", dadosIniciais.vehicleName || "");
+      params.set("versao", dadosIniciais.versionName || dadosIniciais.modelo || "");
+      params.set("cor", dadosIniciais.colorName || "");
+
+      if (planoFinanciamento) {
+        params.set("prazo_escolhido", String(planoFinanciamento.prazo));
+        params.set("parcela_escolhida", String(planoFinanciamento.parcela));
+        params.set("total_final", String(round2((planoFinanciamento.total || 0) + (entradaManual || 0))));
+      }
+
+      if (builderOrder) {
+        localStorage.setItem("wb_contract_order", JSON.stringify(builderOrder));
+      }
+
+      localStorage.setItem("wb_financiamento_params", params.toString());
+      localStorage.setItem("wb_financiamento_redirect", SANTANDER_FINANCIAMENTOS_URL);
+    } catch {}
+
+    window.open(SANTANDER_FINANCIAMENTOS_URL, "_blank");
   };
 
   const lanceCalc = useMemo(() => {
@@ -427,14 +830,23 @@ function AnaliseContent() {
     const lance = Math.max(0, Math.min(lanceValor || 0, credito));
 
     const creditoAposLance = Math.max(0, credito - lance);
-    const valorCategoriaAposLance = creditoAposLance * (1 + TAXA_ADM_TOTAL);
+
+    const tabelaAposLance = findClosestVolkswagenPlan(creditoAposLance);
+    const parcelaTabelaAposLance = getVolkswagenInstallmentByPrazo(tabelaAposLance, prazo);
 
     const parcelaAposLance_mesmoPrazo =
-      prazo > 0 ? (valorCategoriaAposLance * percentualCategoria) / prazo : 0;
+      planoSelecionado?.key === "integral"
+        ? parcelaTabelaAposLance.firstInstallment
+        : parcelaTabelaAposLance.reducedInstallment;
+
+    const totalTabelaAposLance =
+      parcelaTabelaAposLance.firstInstallment +
+      parcelaTabelaAposLance.reducedInstallment *
+        Math.max(0, parcelaTabelaAposLance.months - 1);
 
     const mesesAposLance_mantendoParcela =
       parcelaBase > 0
-        ? Math.max(1, Math.ceil((valorCategoriaAposLance * percentualCategoria) / parcelaBase))
+        ? Math.max(1, Math.ceil(totalTabelaAposLance / parcelaBase))
         : prazo;
 
     const resultadoFinal =
@@ -451,7 +863,6 @@ function AnaliseContent() {
       prazo,
       percentualCategoria,
       parcelaBase,
-      valorCategoriaAposLance,
       parcelaAposLance_mesmoPrazo,
       mesesAposLance_mantendoParcela,
       ...resultadoFinal,
@@ -476,8 +887,17 @@ function AnaliseContent() {
 
     const valorCarro = dadosIniciais.valor || 0;
     const credito = Math.max(0, valorCarro - (entradaManual || 0));
-    const valorCategoria = credito * (1 + TAXA_ADM_TOTAL);
-    const totalBase = round2((valorCategoria || 0) + (entradaManual || 0));
+
+    const primeiraParcelaIntegral = planoSelecionado.primeiraParcelaIntegral || 0;
+    const demaisParcelasReduzidas = planoSelecionado.demaisParcelasReduzidas || 0;
+    const quantidadeReduzidas =
+      planoSelecionado.quantidadeReduzidas || Math.max(0, planoSelecionado.prazo - 1);
+
+    const totalConsorcioTabela = round2(
+      primeiraParcelaIntegral + demaisParcelasReduzidas * quantidadeReduzidas
+    );
+
+    const totalBase = round2(totalConsorcioTabela + (entradaManual || 0));
 
     params.set("prazo_escolhido", String(planoSelecionado.prazo));
     params.set("parcela_escolhida", String(planoSelecionado.parcela));
@@ -485,6 +905,19 @@ function AnaliseContent() {
     params.set("modo_parcela", String(planoSelecionado.key));
     params.set("percentual_categoria", String(planoSelecionado.percentualCategoria));
     params.set("total_final_base", String(totalBase));
+
+    params.set("codigo_tabela", String(planoSelecionado.codigoTabela || ""));
+    params.set("credito_tabela", String(planoSelecionado.creditoTabela || credito));
+    params.set("primeira_parcela_integral", String(primeiraParcelaIntegral));
+    params.set("demais_parcelas_reduzidas", String(demaisParcelasReduzidas));
+    params.set("quantidade_reduzidas", String(quantidadeReduzidas));
+
+    params.set("taxa_antecipacao", String(TAXA_ANTECIPACAO));
+    params.set("taxa_seguro_vida", String(TAXA_SEGURO_VIDA));
+    params.set("fundo_reserva", String(FUNDO_RESERVA));
+    params.set("rateio_grupo", String(RATEIO_GRUPO));
+    params.set("participantes_grupo", String(PARTICIPANTES_GRUPO));
+    params.set("modo_tabela", "vw_primeira_integral_demais_reduzidas");
 
     let totalComPromo = totalBase;
     let descontoTotalValor = 0;
@@ -941,32 +1374,7 @@ function AnaliseContent() {
                   <button
                     key={p.prazo}
                     type="button"
-                    onClick={() => {
-                      const params = new URLSearchParams(searchParams.toString());
-                      params.set("tipo", "FINANCIAMENTO");
-                      params.set("modelo", dadosIniciais.modelo);
-                      params.set("valor", String(dadosIniciais.valor || 0));
-                      params.set("entrada", String(entradaManual || 0));
-                      params.set("imagem", dadosIniciais.imagem || "");
-                      params.set("pedido", dadosIniciais.pedidoId || "");
-                      params.set("origem", dadosIniciais.origem || "builder");
-                      params.set("prazo_escolhido", String(p.prazo));
-                      params.set("parcela_escolhida", String(p.parcela));
-                      params.set("total_final", String(round2((p.total || 0) + (entradaManual || 0))));
-                      params.set("vehicle_slug", dadosIniciais.vehicleSlug || "");
-                      params.set("vehicle_name", dadosIniciais.vehicleName || "");
-                      params.set("versao", dadosIniciais.versionName || dadosIniciais.modelo || "");
-                      params.set("cor", dadosIniciais.colorName || "");
-
-                      try {
-                        if (builderOrder) {
-                          localStorage.setItem("wb_contract_order", JSON.stringify(builderOrder));
-                        }
-                        localStorage.setItem("wb_contract_params", params.toString());
-                      } catch {}
-
-                      router.push(`/vendedor/contrato?${params.toString()}`);
-                    }}
+                    onClick={() => irParaSantander(p)}
                     className="flex w-full justify-between items-center py-3 px-2 rounded-xl hover:bg-slate-50 transition-all border border-transparent hover:border-slate-200 text-left"
                   >
                     <span className="inline-flex items-center gap-2">
@@ -981,7 +1389,7 @@ function AnaliseContent() {
               </div>
 
               <button
-                onClick={irParaSantander}
+                onClick={() => irParaSantander()}
                 className="mt-6 w-full bg-white border-2 border-slate-200 hover:border-black text-black font-black py-4 rounded-2xl uppercase text-xs tracking-widest transition-all flex items-center justify-center gap-2"
               >
                 Simular no Santander <ExternalLink size={14} />

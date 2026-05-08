@@ -20,23 +20,15 @@ import {
 // =====================================================
 // VOLKSWAGEN AUTO - SEM TABELA DE CRÉDITOS NA TELA
 // =====================================================
-// Esta versão NÃO usa lista de créditos nem pesados.
-// Ela mantém o layout antigo e calcula a parcela pela proporção oficial
-// da Tabela Normal Auto, usando apenas o valor configurado do veículo.
-//
-// Prazos da tabela normal auto: 80, 70, 60, 50, 36 e 24 meses.
-// Planos: Convencional e Essencial.
-// Taxa administrativa informada na tabela: 21%.
-//
-// Os percentuais abaixo foram derivados da tabela oficial:
-// parcela / crédito. Ex.: crédito 130.000 no Essencial 80x = 1.694,89.
-// 1.694,89 / 130.000 = 0,013037615.
-// =====================================================
 
 const SANTANDER_URL =
   "https://www.cliente.santanderfinanciamentos.com.br/originacaocliente/?mathts=nonpaid#/dados-pessoais";
 
 const CONTRACT_ROUTE = "/vendedor/contrato";
+
+// FINANCIAMENTO
+const TAXA_FINANCIAMENTO_MERCADO = 0.022; // 2.2% a.m
+const FINANCIAMENTO_PRAZOS = [12, 24, 36, 48, 60];
 
 const VW_ADMIN_TAX_PERCENT = 21;
 const VW_FUNDO_RESERVA_PERCENT = 3;
@@ -242,14 +234,8 @@ function getPlanLabel(mode: PlanMode) {
   return mode === "essencial" ? "Plano Essencial" : "Plano Convencional";
 }
 
-function getPlanPercentLabel(mode: PlanMode) {
-  return mode === "essencial" ? "75%" : "100%";
-}
-
 function getPlanDescription(mode: PlanMode) {
-  return mode === "essencial"
-    ? ""
-    : "";
+  return mode === "essencial" ? "" : "";
 }
 
 function builderOrderToInitialData(order: BuilderOrderPayload | null) {
@@ -265,7 +251,8 @@ function builderOrderToInitialData(order: BuilderOrderPayload | null) {
     safeNumber(order.version?.price) + safeNumber(order.color?.price) ||
     0;
 
-  const imagem = order.vehicle_image || order.color?.image || order.version?.image || "";
+  const imagem =
+    order.vehicle_image || order.color?.image || order.version?.image || "";
 
   return {
     modelo,
@@ -463,6 +450,7 @@ function AnaliseContent() {
   }, [dadosIniciais.entradaUrl]);
 
   const valorCarro = dadosIniciais.valor || 0;
+
   const entradaSegura = useMemo(() => {
     let entrada = entradaManual || 0;
     if (Number.isNaN(entrada) || entrada < 0) entrada = 0;
@@ -512,6 +500,7 @@ function AnaliseContent() {
   const financiamentoDisplay = useMemo(() => {
     const saldo = credito;
     const entrada = entradaSegura;
+
     return {
       saldo,
       entrada,
@@ -519,6 +508,20 @@ function AnaliseContent() {
         "Para financiamento, a simulação oficial será continuada no Santander Financiamentos.",
     };
   }, [credito, entradaSegura]);
+
+  const planosFinanciamento = useMemo(() => {
+    return FINANCIAMENTO_PRAZOS.map((prazo) => {
+      const i = TAXA_FINANCIAMENTO_MERCADO;
+      const divisor = 1 - Math.pow(1 + i, -prazo);
+      const parcela = divisor !== 0 ? (credito * i) / divisor : 0;
+
+      return {
+        prazo,
+        parcela: round2(parcela),
+        total: round2(parcela * prazo),
+      };
+    });
+  }, [credito]);
 
   const applyCoupon = () => {
     const res = findCoupon(couponInput, dadosIniciais.vendedorId);
@@ -637,7 +640,10 @@ function AnaliseContent() {
     const parcelaFinal = usarLance ? lanceCalc.parcelaFinal : planoSelecionado.parcela;
     const creditoFinal = usarLance ? lanceCalc.creditoAposLance : credito;
 
-    const totalBase = round2(parcelaFinal * prazoFinal + entradaSegura + (usarLance ? lanceCalc.lance : 0));
+    const totalBase = round2(
+      parcelaFinal * prazoFinal + entradaSegura + (usarLance ? lanceCalc.lance : 0)
+    );
+
     const { totalComPromo, descontoTotalValor } = applyCouponToTotal(totalBase);
 
     const params = buildBaseParams(
@@ -733,7 +739,7 @@ function AnaliseContent() {
     router.push(`${CONTRACT_ROUTE}?${params.toString()}`);
   };
 
-  const irParaSantander = () => {
+  const irParaSantander = (planoFinanciamento?: any) => {
     const params = buildBaseParams(
       {
         tipo: "FINANCIAMENTO",
@@ -755,6 +761,15 @@ function AnaliseContent() {
     params.set("financeira", "Santander Financiamentos");
     params.set("status_financiamento", "continuar_no_santander");
 
+    if (planoFinanciamento) {
+      params.set("prazo_escolhido", String(planoFinanciamento.prazo));
+      params.set("parcela_escolhida", String(planoFinanciamento.parcela));
+      params.set(
+        "total_final",
+        String(round2((planoFinanciamento.total || 0) + entradaSegura))
+      );
+    }
+
     try {
       if (builderOrder) {
         const enrichedOrder = {
@@ -765,13 +780,24 @@ function AnaliseContent() {
             vehicleValue: dadosIniciais.valor,
             entryValue: entradaSegura,
             financedValue: financiamentoDisplay.saldo,
+            selectedPlan: planoFinanciamento
+              ? {
+                  months: planoFinanciamento.prazo,
+                  installment: planoFinanciamento.parcela,
+                  total: planoFinanciamento.total,
+                }
+              : null,
             status: "continuar_no_santander",
           },
         };
+
         localStorage.setItem("wb_contract_order", JSON.stringify(enrichedOrder));
       }
 
       localStorage.setItem("wb_financing_params", params.toString());
+      localStorage.setItem("wb_financiamento_params", params.toString());
+      localStorage.setItem("wb_financing_redirect", SANTANDER_URL);
+      localStorage.setItem("wb_financiamento_redirect", SANTANDER_URL);
     } catch {}
 
     window.open(SANTANDER_URL, "_blank", "noopener,noreferrer");
@@ -904,7 +930,10 @@ function AnaliseContent() {
                   />
                 </div>
                 <p className="text-[11px] text-slate-500 mt-2">
-                  Máximo: <span className="font-black">{formatMoney(lanceCalc.credito)}</span>
+                  Máximo:{" "}
+                  <span className="font-black">
+                    {formatMoney(lanceCalc.credito)}
+                  </span>
                 </p>
               </div>
 
@@ -1068,7 +1097,7 @@ function AnaliseContent() {
           <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
             <div>
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                análise Volkswagen
+                análise
               </p>
             </div>
 
@@ -1077,17 +1106,25 @@ function AnaliseContent() {
                 <p className="text-[10px] font-black uppercase text-slate-400">
                   Valor do veículo
                 </p>
-                <p className="text-lg font-black text-black">{formatMoney(valorCarro)}</p>
+                <p className="text-lg font-black text-black">
+                  {formatMoney(valorCarro)}
+                </p>
               </div>
               <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
-                <p className="text-[10px] font-black uppercase text-slate-400">Entrada</p>
+                <p className="text-[10px] font-black uppercase text-slate-400">
+                  Entrada
+                </p>
                 <p className="text-lg font-black text-black">
                   {formatMoney(entradaSegura || 0)}
                 </p>
               </div>
               <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
-                <p className="text-[10px] font-black uppercase text-slate-400">Crédito</p>
-                <p className="text-lg font-black text-black">{formatMoney(credito)}</p>
+                <p className="text-[10px] font-black uppercase text-slate-400">
+                  Crédito
+                </p>
+                <p className="text-lg font-black text-black">
+                  {formatMoney(credito)}
+                </p>
               </div>
             </div>
           </div>
@@ -1156,7 +1193,9 @@ function AnaliseContent() {
                   <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                     CDC • simulação oficial
                   </p>
-                  <h3 className="text-lg font-black text-black uppercase">Financiamento</h3>
+                  <h3 className="text-lg font-black text-black uppercase">
+                    Financiamento
+                  </h3>
                 </div>
               </div>
 
@@ -1175,39 +1214,39 @@ function AnaliseContent() {
             </div>
 
             <CardBody className="pt-5 flex-1 flex flex-col">
-              <div className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                <p className="text-sm font-black text-slate-900 uppercase">
-                  Financiamento Santander
-                </p>
-                <p className="mt-2 text-sm leading-6 text-slate-600">
-                  A entrada e o saldo ficam registrados nesta análise. Ao continuar, a simulação oficial é feita diretamente no ambiente do Santander Financiamentos.
-                </p>
+              <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase mb-3 px-1">
+                <span>Prazo</span>
+                <span>Parcela</span>
+              </div>
 
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                  <div className="rounded-xl bg-white border border-slate-200 p-3">
-                    <p className="text-[10px] font-black uppercase text-slate-400">
-                      Entrada
-                    </p>
-                    <p className="font-black text-slate-900">
-                      {formatMoney(financiamentoDisplay.entrada)}
-                    </p>
-                  </div>
-                  <div className="rounded-xl bg-white border border-slate-200 p-3">
-                    <p className="text-[10px] font-black uppercase text-slate-400">
-                      Saldo
-                    </p>
-                    <p className="font-black text-slate-900">
-                      {formatMoney(financiamentoDisplay.saldo)}
-                    </p>
-                  </div>
-                </div>
+              <div className="flex-1">
+                {planosFinanciamento.map((p: any) => (
+                  <button
+                    key={p.prazo}
+                    type="button"
+                    onClick={() => irParaSantander(p)}
+                    className="flex w-full justify-between items-center py-3 px-2 rounded-xl hover:bg-slate-50 transition-all border border-transparent hover:border-slate-200 text-left"
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      <span className="px-2 py-1 rounded-lg bg-slate-100 text-slate-700 text-[11px] font-black">
+                        {p.prazo}x
+                      </span>
+                      <span className="text-sm font-bold text-slate-500">
+                        clique para usar no Santander
+                      </span>
+                    </span>
+                    <span className="font-black text-slate-900">
+                      {formatMoney(p.parcela)}
+                    </span>
+                  </button>
+                ))}
               </div>
 
               <button
-                onClick={irParaSantander}
+                onClick={() => irParaSantander()}
                 className="mt-6 w-full bg-white border-2 border-slate-200 hover:border-black text-black font-black py-4 rounded-2xl uppercase text-xs tracking-widest transition-all flex items-center justify-center gap-2"
               >
-                Ir para Santander <ExternalLink size={14} />
+                Simular no Santander <ExternalLink size={14} />
               </button>
             </CardBody>
           </Card>
@@ -1220,9 +1259,11 @@ function AnaliseContent() {
                 </div>
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                    Tabela Normal Auto • Volkswagen
+                    Tabela Normal Auto
                   </p>
-                  <h3 className="text-lg font-black text-black uppercase">Consórcio</h3>
+                  <h3 className="text-lg font-black text-black uppercase">
+                    Consórcio
+                  </h3>
                 </div>
               </div>
 
@@ -1294,12 +1335,13 @@ function AnaliseContent() {
                     </div>
 
                     <div>
-                      <p className="font-black text-sm text-black">{selectedPlan.label}</p>
+                      <p className="font-black text-sm text-black">
+                        {selectedPlan.label}
+                      </p>
                       <p className="text-[11px] text-slate-600 mt-1">
                         {selectedPlan.detalhe}
                       </p>
-                      <p className="text-[10px] uppercase font-black text-slate-500 mt-2">
-                      </p>
+                      <p className="text-[10px] uppercase font-black text-slate-500 mt-2"></p>
                     </div>
                   </div>
 
@@ -1308,7 +1350,8 @@ function AnaliseContent() {
                       {formatMoney(selectedPlan.parcela)}
                     </p>
                     <p className="text-[10px] uppercase font-black text-slate-500 mt-1">
-                      {selectedPlan.prazo}x • {planMode === "essencial" ? "Essencial" : "Convencional"}
+                      {selectedPlan.prazo}x •{" "}
+                      {planMode === "essencial" ? "Essencial" : "Convencional"}
                     </p>
                   </div>
                 </div>
@@ -1317,9 +1360,11 @@ function AnaliseContent() {
               <div className="mt-4 grid grid-cols-2 gap-3">
                 <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4">
                   <p className="text-[10px] font-black uppercase text-slate-400">
-Saldo considerado
+                    Saldo considerado
                   </p>
-                  <p className="text-lg font-black text-slate-900">{formatMoney(credito)}</p>
+                  <p className="text-lg font-black text-slate-900">
+                    {formatMoney(credito)}
+                  </p>
                 </div>
                 <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4">
                   <p className="text-[10px] font-black uppercase text-slate-400">
@@ -1335,12 +1380,12 @@ Saldo considerado
                 onClick={() => setIsLanceOpen(true)}
                 className="mt-6 w-full font-black py-4 rounded-2xl uppercase text-xs tracking-widest transition-all flex items-center justify-center gap-2 bg-black text-white hover:bg-slate-800 shadow-lg"
               >
-                Continuar ({selectedPlan.prazo}x • {planMode === "essencial" ? "Essencial" : "Convencional"})
+                Continuar ({selectedPlan.prazo}x •{" "}
+                {planMode === "essencial" ? "Essencial" : "Convencional"})
                 <ChevronRight size={14} />
               </button>
 
-              <p className="text-[11px] text-slate-500 mt-3">
-              </p>
+              <p className="text-[11px] text-slate-500 mt-3"></p>
             </CardBody>
           </Card>
         </div>
