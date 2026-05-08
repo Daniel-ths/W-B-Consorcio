@@ -430,11 +430,17 @@ const safeNumber = (v: any) => {
 const findClosestVolkswagenPlan = (credit: number) => {
   if (!credit || credit <= 0) return VOLKSWAGEN_CONSORCIO_TABLE[0];
 
-  return VOLKSWAGEN_CONSORCIO_TABLE.reduce((closest, current) => {
-    const closestDiff = Math.abs(closest.credit - credit);
-    const currentDiff = Math.abs(current.credit - credit);
-    return currentDiff < closestDiff ? current : closest;
-  }, VOLKSWAGEN_CONSORCIO_TABLE[0]);
+  const sortedTable = [...VOLKSWAGEN_CONSORCIO_TABLE].sort(
+    (a, b) => a.credit - b.credit
+  );
+
+  // ✅ Regra do cliente:
+  // se o crédito/valor ficar entre duas faixas da tabela,
+  // sempre usa a faixa de crédito ACIMA.
+  // Exemplo: 143.000 usa 150.000, não 140.000.
+  const nextPlan = sortedTable.find((plan) => plan.credit >= credit);
+
+  return nextPlan || sortedTable[sortedTable.length - 1];
 };
 
 const getVolkswagenInstallmentByPrazo = (

@@ -36,6 +36,37 @@ const VW_SEGURO_PERCENT_LABEL = "0,061% a.m";
 const VW_GRUPO_LABEL = "Grupo 1130/1131/1132";
 const VW_AUTO_PRAZOS = [80, 70, 60, 50, 36, 24] as const;
 
+// Faixas de crédito da Tabela Normal Auto.
+// Regra: sempre arredondar para CIMA quando o valor ficar entre duas faixas.
+// Exemplo: 143.000 usa 150.000; 140.000 usa 140.000.
+const VW_AUTO_CREDIT_BUCKETS = [
+  45000,
+  50000,
+  55000,
+  60000,
+  65000,
+  70000,
+  75000,
+  80000,
+  85000,
+  90000,
+  100000,
+  110000,
+  120000,
+  130000,
+  140000,
+  150000,
+  160000,
+  170000,
+  180000,
+  190000,
+  200000,
+  210000,
+  220000,
+  230000,
+  240000,
+] as const;
+
 type VwPrazo = (typeof VW_AUTO_PRAZOS)[number];
 type PlanMode = "essencial" | "convencional";
 type LanceMode = "reduzir_parcela" | "reduzir_meses";
@@ -221,9 +252,22 @@ function parseDigitsToBRLNumber(raw: string) {
   return cents / 100;
 }
 
+function roundUpVwAutoCredit(credit: number) {
+  const safeCredit = Math.max(0, safeNumber(credit));
+
+  if (safeCredit <= 0) return VW_AUTO_CREDIT_BUCKETS[0];
+
+  const bucket = VW_AUTO_CREDIT_BUCKETS.find((value) => value >= safeCredit);
+
+  // Se passar do último crédito da tabela, usa a última faixa disponível.
+  return bucket || VW_AUTO_CREDIT_BUCKETS[VW_AUTO_CREDIT_BUCKETS.length - 1];
+}
+
 function calcVwAutoInstallment(credit: number, months: VwPrazo, mode: PlanMode) {
   const factor = VW_AUTO_PERCENTUAL_PARCELA[mode][months];
-  return round2(Math.max(0, credit || 0) * factor);
+  const tableCredit = roundUpVwAutoCredit(credit);
+
+  return round2(tableCredit * factor);
 }
 
 function getFactor(months: VwPrazo, mode: PlanMode) {
@@ -463,6 +507,11 @@ function AnaliseContent() {
     [valorCarro, entradaSegura]
   );
 
+  const creditoTabelaConsorcio = useMemo(
+    () => roundUpVwAutoCredit(credito),
+    [credito]
+  );
+
   const parcelaConsorcio = useMemo(
     () => calcVwAutoInstallment(credito, prazoConsorcio, planMode),
     [credito, prazoConsorcio, planMode]
@@ -485,9 +534,12 @@ function AnaliseContent() {
       insurancePercentLabel: VW_SEGURO_PERCENT_LABEL,
       planCode: VW_PLANO_CODES[planMode],
       factor: getFactor(prazoConsorcio, planMode),
+      originalCredit: credito,
+      tableCredit: creditoTabelaConsorcio,
+      roundRule: "credito_arredondado_para_cima",
       detalhe: getPlanDescription(planMode),
     }),
-    [planMode, prazoConsorcio, parcelaConsorcio]
+    [planMode, prazoConsorcio, parcelaConsorcio, credito, creditoTabelaConsorcio]
   );
 
   useEffect(() => {
@@ -666,6 +718,9 @@ function AnaliseContent() {
     params.set("prazo_escolhido", String(prazoFinal));
     params.set("parcela_escolhida", String(parcelaFinal));
     params.set("credito_utilizado", String(creditoFinal));
+    params.set("credito_original", String(creditoFinal));
+    params.set("credito_tabela", String(roundUpVwAutoCredit(creditoFinal)));
+    params.set("regra_arredondamento_credito", "sempre_para_cima");
     params.set("taxa_adm_percentual", String(VW_ADMIN_TAX_PERCENT));
     params.set("fundo_reserva_percentual", String(VW_FUNDO_RESERVA_PERCENT));
     params.set("seguro_percentual", VW_SEGURO_PERCENT_LABEL);
@@ -716,6 +771,8 @@ function AnaliseContent() {
             vehicleValue: dadosIniciais.valor,
             entryValue: entradaSegura,
             credit: creditoFinal,
+            tableCredit: roundUpVwAutoCredit(creditoFinal),
+            creditRoundingRule: "sempre_para_cima",
             months: prazoFinal,
             installment: parcelaFinal,
             lance: usarLance
@@ -1363,7 +1420,7 @@ function AnaliseContent() {
                     Saldo considerado
                   </p>
                   <p className="text-lg font-black text-slate-900">
-                    {formatMoney(credito)}
+                    {formatMoney(creditoTabelaConsorcio)}
                   </p>
                 </div>
                 <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4">
