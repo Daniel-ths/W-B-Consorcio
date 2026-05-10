@@ -922,6 +922,13 @@ useEffect(() => {
               description="Visualizar relatórios e análises"
               tone="slate"
             />
+                        <ActionCard
+              href="/admin/financeiro"
+              icon={<FileText size={18} />}
+              title="Financeiro"
+              description="Controle"
+              tone="slate"
+            />
           </div>
         </div>
 
