@@ -427,6 +427,20 @@ const safeNumber = (v: any) => {
   return Number.isFinite(n) ? n : 0;
 };
 
+const roundVolkswagenCreditUp = (credit: number) => {
+  const value = safeNumber(credit);
+  if (!value || value <= 0) return 0;
+
+  // Regra comercial solicitada:
+  // 109.000 -> 120.000 | 110.000 -> 120.000
+  // 130.000 -> 140.000 | 131.000 -> 140.000
+  if (value >= 100000) {
+    return Math.ceil(value / 20000) * 20000;
+  }
+
+  return value;
+};
+
 const findClosestVolkswagenPlan = (credit: number) => {
   if (!credit || credit <= 0) return VOLKSWAGEN_CONSORCIO_TABLE[0];
 
@@ -434,11 +448,8 @@ const findClosestVolkswagenPlan = (credit: number) => {
     (a, b) => a.credit - b.credit
   );
 
-  // ✅ Regra do cliente:
-  // se o crédito/valor ficar entre duas faixas da tabela,
-  // sempre usa a faixa de crédito ACIMA.
-  // Exemplo: 143.000 usa 150.000, não 140.000.
-  const nextPlan = sortedTable.find((plan) => plan.credit >= credit);
+  const creditForTable = roundVolkswagenCreditUp(credit);
+  const nextPlan = sortedTable.find((plan) => plan.credit >= creditForTable);
 
   return nextPlan || sortedTable[sortedTable.length - 1];
 };
@@ -1520,11 +1531,6 @@ function AnaliseContent() {
                   : "Selecione uma opção acima"}
                 {planoSelecionado ? <ChevronRight size={14} /> : null}
               </button>
-
-              <p className="text-[11px] text-slate-500 mt-3">
-                Próximo passo: montar o <span className="font-black">lance</span> e (opcional) aplicar{" "}
-                <span className="font-black">promoção</span> no modal.
-              </p>
             </CardBody>
           </Card>
         </div>

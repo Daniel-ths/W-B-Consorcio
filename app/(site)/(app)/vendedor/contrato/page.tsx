@@ -12,7 +12,6 @@ import {
   QrCode,
   ShieldCheck,
   MessageSquare,
-  AlertTriangle,
 } from "lucide-react";
 
 const PHONE_PREFIX_DISPLAY = "+55 ";
@@ -73,6 +72,17 @@ function sanitizePhoneFromOtherPage(input: string): string | null {
 const safeNumber = (v: any) => {
   const n = typeof v === "number" ? v : parseFloat(String(v || "0"));
   return Number.isFinite(n) ? n : 0;
+};
+
+const roundVolkswagenCreditUp = (credit: number) => {
+  const value = safeNumber(credit);
+  if (!value || value <= 0) return 0;
+
+  if (value >= 100000) {
+    return Math.ceil(value / 20000) * 20000;
+  }
+
+  return value;
 };
 
 type BuilderOrderPayload = {
@@ -254,6 +264,16 @@ function PedidoContent() {
       parcela: safeNumber(searchParams.get("parcela_escolhida")),
       prazo: searchParams.get("prazo_escolhido") || "0",
       total: safeNumber(searchParams.get("total_final")),
+      totalFinalBase: safeNumber(searchParams.get("total_final_base")),
+      totalFinalComCupom: safeNumber(searchParams.get("total_final_com_cupom")),
+      descontoTotalValor: safeNumber(searchParams.get("desconto_total_valor")),
+      modoParcela: searchParams.get("modo_parcela") || "",
+      percentualCategoria: safeNumber(searchParams.get("percentual_categoria")),
+      codigoTabela: searchParams.get("codigo_tabela") || "",
+      creditoTabela: safeNumber(searchParams.get("credito_tabela")),
+      primeiraParcelaIntegral: safeNumber(searchParams.get("primeira_parcela_integral")),
+      demaisParcelasReduzidas: safeNumber(searchParams.get("demais_parcelas_reduzidas")),
+      quantidadeReduzidas: safeNumber(searchParams.get("quantidade_reduzidas")),
       imagem:
         searchParams.get("imagem") ||
         builderContractData?.imagem ||
@@ -301,6 +321,7 @@ function PedidoContent() {
 
     const accessoriesFree = searchParams.get("cupom_acessorios_gratis") === "1";
     const platingFree = searchParams.get("cupom_emplacamento_gratis") === "1";
+    const freteFree = searchParams.get("cupom_frete_gratis") === "1";
 
     const discountPercent = safeNumber(
       searchParams.get("cupom_desconto_percent")
@@ -312,6 +333,7 @@ function PedidoContent() {
       !!label ||
       accessoriesFree ||
       platingFree ||
+      freteFree ||
       (Number.isFinite(discountPercent) && discountPercent > 0) ||
       (Number.isFinite(discountValue) && discountValue > 0) ||
       !!obs;
@@ -323,6 +345,7 @@ function PedidoContent() {
       obs,
       accessoriesFree,
       platingFree,
+      freteFree,
       discountPercent: discountPercent > 0 ? discountPercent : 0,
       discountValue: discountValue > 0 ? discountValue : 0,
     };
@@ -337,35 +360,71 @@ function PedidoContent() {
         : prazoBase;
 
     const creditoBase = Math.max(0, dados.valor - dados.entrada);
-    const creditoUsado =
+    const creditoContrato =
+      dados.creditoTabela > 0
+        ? dados.creditoTabela
+        : roundVolkswagenCreditUp(creditoBase);
+
+    const creditoUsadoParaFallback =
       lanceInfo.hasLance && lanceInfo.creditoAposLance > 0
-        ? lanceInfo.creditoAposLance
-        : creditoBase;
+        ? roundVolkswagenCreditUp(lanceInfo.creditoAposLance)
+        : creditoContrato;
 
-    const valorCategoria = creditoUsado * (1 + dados.taxaAdmTotal);
+    const valorCategoria = creditoUsadoParaFallback * (1 + dados.taxaAdmTotal);
 
-    const parcelaIntegral = prazoUsado > 0 ? valorCategoria / prazoUsado : 0;
+    const parcelaIntegralFallback = prazoUsado > 0 ? valorCategoria / prazoUsado : 0;
 
-    const parcelaReduzida =
+    const parcelaReduzidaFallback =
       prazoUsado > 0
         ? (valorCategoria * REDUZIDA_PERCENT_CATEGORIA) / prazoUsado
         : 0;
 
+    const parcelaIntegral =
+      dados.primeiraParcelaIntegral > 0
+        ? dados.primeiraParcelaIntegral
+        : parcelaIntegralFallback;
+
+    const parcelaReduzida =
+      dados.demaisParcelasReduzidas > 0
+        ? dados.demaisParcelasReduzidas
+        : parcelaReduzidaFallback;
+
+    const parcelaEscolhida =
+      dados.parcela > 0
+        ? dados.parcela
+        : dados.modoParcela === "integral"
+        ? parcelaIntegral
+        : parcelaReduzida;
+
+    const parcelaContrato =
+      lanceInfo.hasLance && lanceInfo.parcelaFinal > 0
+        ? lanceInfo.parcelaFinal
+        : dados.modoParcela === "integral"
+        ? parcelaEscolhida
+        : parcelaReduzida || parcelaEscolhida;
+
     let desconto = 0;
     if (promo.hasPromo) {
-      const base = dados.valor || 0;
-      if (promo.discountPercent > 0) {
-        desconto = (base * promo.discountPercent) / 100;
-      } else if (promo.discountValue > 0) {
-        desconto = promo.discountValue;
+      if (dados.descontoTotalValor > 0) {
+        desconto = dados.descontoTotalValor;
+      } else {
+        const base = dados.totalFinalBase || dados.total || creditoContrato || dados.valor || 0;
+        if (promo.discountPercent > 0) {
+          desconto = (base * promo.discountPercent) / 100;
+        } else if (promo.discountValue > 0) {
+          desconto = promo.discountValue;
+        }
+        desconto = Math.max(0, Math.min(desconto, base));
       }
-      desconto = Math.max(0, Math.min(desconto, base));
     }
 
     return {
       prazoUsado,
+      creditoContrato,
       parcelaIntegral,
       parcelaReduzida,
+      parcelaEscolhida,
+      parcelaContrato,
       desconto,
     };
   }, [dados, lanceInfo, promo]);
@@ -375,8 +434,8 @@ function PedidoContent() {
   }, [calculoConsorcio.parcelaIntegral]);
 
   const parcelaReduzidaExibida = useMemo(() => {
-    return safeNumber(calculoConsorcio.parcelaReduzida);
-  }, [calculoConsorcio.parcelaReduzida]);
+    return safeNumber(calculoConsorcio.parcelaContrato);
+  }, [calculoConsorcio.parcelaContrato]);
 
   const [, setLoadingValidacao] = useState(false);
   const [, setVerificando] = useState(false);
@@ -599,7 +658,7 @@ async function enviarSms(nomeCliente: string) {
         client_name: nomeManual.toUpperCase(),
         client_cpf: dados.cpf,
         status: "Aprovado",
-        total_price: dados.valor,
+        total_price: calculoConsorcio.creditoContrato || dados.valor,
         interest_type: dados.tipo,
         client_phone: telefoneDigits,
         created_at: new Date().toISOString(),
@@ -1155,7 +1214,7 @@ async function enviarSms(nomeCliente: string) {
                       Crédito (com acessórios)
                     </p>
                     <p className="text-lg md:text-xl font-black text-zinc-900 mt-1">
-                      {formatMoney(dados.valor)}
+                      {formatMoney(calculoConsorcio.creditoContrato || dados.valor)}
                     </p>
                   </div>
                 </div>
@@ -1216,7 +1275,7 @@ async function enviarSms(nomeCliente: string) {
                       {formatMoney(parcelaReduzidaExibida)}
                     </span>
                     <span className="text-[9px] font-bold text-zinc-500 uppercase">
-                      Valor da Parcela Reduzida
+                      {dados.modoParcela === "integral" ? "Valor da Parcela Integral" : "Valor da Parcela Reduzida"}
                     </span>
                   </div>
                 </div>

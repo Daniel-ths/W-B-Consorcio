@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import {
   AlertTriangle,
   BarChart3,
+  CalendarDays,
   Check,
   ClipboardList,
   FileSpreadsheet,
@@ -18,6 +19,7 @@ import {
   Trash2,
   UserRound,
   Users,
+  WalletCards,
   X,
 } from "lucide-react";
 
@@ -71,7 +73,7 @@ type TableConfig = {
 };
 
 const tabs: { key: TabKey; label: string; icon: any }[] = [
-  { key: "visao", label: "Visão geral", icon: LayoutDashboard },
+  { key: "visao", label: "Nacional", icon: LayoutDashboard },
   { key: "producao", label: "Produção", icon: BarChart3 },
   { key: "clientes", label: "Clientes / Parcelas", icon: ClipboardList },
   { key: "antecipacoes", label: "Antecipações", icon: Check },
@@ -129,6 +131,36 @@ function groupSum(rows: AnyRow[], key: string, valueKey: string) {
 function monthOf(value?: string) {
   if (!value) return "";
   return String(value).slice(0, 7);
+}
+
+function percentBR(value: number) {
+  const n = Number(value || 0);
+  return `${new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 }).format(Number.isFinite(n) ? n : 0)}%`;
+}
+
+function getDaysInMonth(month: string) {
+  if (!month) return [];
+
+  const [yearText, monthText] = month.split("-");
+  const year = Number(yearText);
+  const monthIndex = Number(monthText) - 1;
+
+  if (!Number.isFinite(year) || !Number.isFinite(monthIndex)) return [];
+
+  const totalDays = new Date(year, monthIndex + 1, 0).getDate();
+
+  return Array.from({ length: totalDays }, (_, index) => {
+    const day = index + 1;
+    const iso = `${yearText}-${monthText}-${String(day).padStart(2, "0")}`;
+    const weekDay = new Date(year, monthIndex, day).toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "");
+
+    return { day, iso, weekDay };
+  });
+}
+
+function isPaidStatus(status?: string) {
+  const normalized = normalize(status || "");
+  return normalized === "pago" || normalized === "paga";
 }
 
 const staticOptions = {
@@ -573,11 +605,23 @@ export default function NacFinancialFullPage() {
   const salesTicket = salesQuotas ? salesCredit / salesQuotas : 0;
 
   const goalsThisMonth = rows.nac_goals.filter((row) => !monthFilter || monthOf(row.reference_month) === monthFilter);
-  const goalCredit = sum(goalsThisMonth, "target_credit");
-  const goalQuotas = sum(goalsThisMonth, "target_quotas");
+  const teamGoalRows = goalsThisMonth.filter((row) => row.team_id || row.scope === "EQUIPE");
+  const generalGoalRows = goalsThisMonth.filter((row) => !row.team_id && row.scope === "GERAL");
+  const effectiveGoalRows = teamGoalRows.length ? teamGoalRows : generalGoalRows.length ? generalGoalRows : goalsThisMonth;
+  const goalCredit = sum(effectiveGoalRows, "target_credit");
+  const goalQuotas = sum(effectiveGoalRows, "target_quotas");
+  const missingCredit = Math.max(goalCredit - salesCredit, 0);
+  const nationalGoalPercent = goalCredit > 0 ? (salesCredit / goalCredit) * 100 : goalQuotas > 0 ? (salesQuotas / goalQuotas) * 100 : 0;
 
-  const openCredit = sum(monthInstallments.filter((r) => r.status !== "PAGO"), "credit_value");
-  const paidCredit = sum(monthInstallments.filter((r) => r.status === "PAGO"), "credit_value");
+  const totalBillsMonth = monthInstallments.length;
+  const paidBillsMonth = monthInstallments.filter((row) => isPaidStatus(row.status)).length;
+  const openBillsMonth = Math.max(totalBillsMonth - paidBillsMonth, 0);
+  const receivableWallet = sum(monthInstallments, "credit_value");
+  const paidReceivableWallet = sum(monthInstallments.filter((row) => isPaidStatus(row.status)), "credit_value");
+  const openReceivableWallet = Math.max(receivableWallet - paidReceivableWallet, 0);
+
+  const openCredit = sum(monthInstallments.filter((r) => !isPaidStatus(r.status)), "credit_value");
+  const paidCredit = sum(monthInstallments.filter((r) => isPaidStatus(r.status)), "credit_value");
   const expensesTotal = sum(monthExpenses, "amount");
   const pclTotal = sum(monthPcl, "pcl_total");
   const pclPaid = sum(monthPcl, "pcl_paid");
@@ -608,6 +652,70 @@ export default function NacFinancialFullPage() {
       }))
       .sort((a, b) => b.value - a.value);
   }, [monthSales, lookupMaps.sellers]);
+
+  const salesCalendarDays = useMemo(() => {
+    const days = getDaysInMonth(monthFilter);
+
+    return days.map((day) => {
+      const daySales = monthSales.filter((row) => row.sale_date === day.iso);
+
+      return {
+        ...day,
+        quotas: daySales.length,
+        credit: sum(daySales, "credit_value"),
+      };
+    });
+  }, [monthFilter, monthSales]);
+
+  const teamGoalSummary = useMemo(() => {
+    const activeTeams = rows.nac_teams.filter((team) => team.active !== false);
+    const teamIdsWithSales = new Set(monthSales.map((sale) => sale.team_id).filter(Boolean));
+    const baseTeams = activeTeams.length ? activeTeams : rows.nac_teams;
+
+    const summaries = baseTeams
+      .filter((team) => team.id || teamIdsWithSales.has(team.id))
+      .map((team) => {
+        const teamSales = monthSales.filter((sale) => sale.team_id === team.id);
+        const teamGoals = goalsThisMonth.filter((goal) => goal.team_id === team.id);
+        const soldCredit = sum(teamSales, "credit_value");
+        const soldQuotas = teamSales.length;
+        const targetQuotas = sum(teamGoals, "target_quotas");
+        const targetCredit = sum(teamGoals, "target_credit");
+        const percent = targetCredit > 0 ? (soldCredit / targetCredit) * 100 : targetQuotas > 0 ? (soldQuotas / targetQuotas) * 100 : 0;
+
+        return {
+          id: team.id || team.name,
+          teamName: team.name || team.code || "Equipe sem nome",
+          code: team.code || "",
+          soldQuotas,
+          targetQuotas,
+          soldCredit,
+          targetCredit,
+          missingCredit: Math.max(targetCredit - soldCredit, 0),
+          percent,
+        };
+      });
+
+    const salesWithoutTeam = monthSales.filter((sale) => !sale.team_id);
+
+    if (salesWithoutTeam.length) {
+      const soldCredit = sum(salesWithoutTeam, "credit_value");
+
+      summaries.push({
+        id: "sem-equipe",
+        teamName: "Sem equipe informada",
+        code: "-",
+        soldQuotas: salesWithoutTeam.length,
+        targetQuotas: 0,
+        soldCredit,
+        targetCredit: 0,
+        missingCredit: 0,
+        percent: 0,
+      });
+    }
+
+    return summaries.sort((a, b) => b.soldCredit - a.soldCredit);
+  }, [rows.nac_teams, monthSales, goalsThisMonth]);
 
   const filteredTableRows = (table: TableKey, baseRows?: AnyRow[]) => {
     const search = normalize(query);
@@ -835,26 +943,51 @@ export default function NacFinancialFullPage() {
 
         {activeTab === "visao" && (
           <div className="space-y-6">
-            <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <MetricCard title="Crédito vendido" value={money(salesCredit)} subtitle={`${salesQuotas} cotas no período`} />
-              <MetricCard title="Meta de crédito" value={money(goalCredit)} subtitle={`Meta de ${numberBR(goalQuotas)} cotas`} />
-              <MetricCard title="Ticket médio" value={money(salesTicket)} subtitle="Crédito / cotas" />
-              <MetricCard title="Falta para meta" value={money(Math.max(goalCredit - salesCredit, 0))} subtitle="Considerando o mês filtrado" />
-            </section>
-
             <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">
               <Panel className="p-5 xl:col-span-2">
-                <h2 className="text-lg font-black text-slate-950">Produção por equipe</h2>
-                <p className="mt-1 text-sm text-slate-500">Equipes com crédito, cotas e ticket no período.</p>
-                <div className="mt-5 space-y-3">
-                  {salesByTeam.length ? salesByTeam.map((item) => (
-                    <ProgressRow key={item.label} label={`${item.label} • ${item.quotas} cotas`} value={item.value} max={Math.max(...salesByTeam.map((i) => i.value), 1)} />
-                  )) : <EmptyText text="Nenhuma produção cadastrada no período." />}
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-black uppercase tracking-wide text-slate-500">
+                      <LayoutDashboard size={14} />
+                      Nacional do mês
+                    </div>
+                    <h2 className="mt-3 text-2xl font-black tracking-tight text-slate-950">Resumo nacional</h2>
+                    <p className="mt-1 text-sm leading-6 text-slate-500">
+                      Quantidade de cotas, meta da equipe, crédito vendido, falta para bater a meta e ticket médio geral da empresa.
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-right">
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Meta vendida</p>
+                    <p className="text-2xl font-black text-slate-950">{percentBR(nationalGoalPercent)}</p>
+                  </div>
+                </div>
+
+                <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                  <MiniStat label="Qtd. de cotas" value={numberBR(salesQuotas)} helper="Cotas vendidas" />
+                  <MiniStat label="Meta da equipe" value={numberBR(goalQuotas)} helper={`${money(goalCredit)} em crédito`} />
+                  <MiniStat label="Vendido" value={money(salesCredit)} helper="Crédito vendido" />
+                  <MiniStat label="Quanto falta" value={money(missingCredit)} helper="Para bater a meta" />
+                  <MiniStat label="Ticket médio" value={money(salesTicket)} helper="Geral da empresa" />
                 </div>
               </Panel>
 
+              <BoletoWalletPanel
+                totalBills={totalBillsMonth}
+                paidBills={paidBillsMonth}
+                openBills={openBillsMonth}
+                wallet={receivableWallet}
+                paidWallet={paidReceivableWallet}
+                openWallet={openReceivableWallet}
+              />
+            </section>
+
+            <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+              <SalesCalendar days={salesCalendarDays} monthFilter={monthFilter} />
+
               <Panel className="p-5">
                 <h2 className="text-lg font-black text-slate-950">Resumo financeiro</h2>
+                <p className="mt-1 text-sm text-slate-500">Recebimentos, PCL e despesas do mês filtrado.</p>
                 <div className="mt-5 space-y-4">
                   <Line label="Crédito pago" value={money(paidCredit)} />
                   <Line label="Crédito em aberto" value={money(openCredit)} />
@@ -865,6 +998,8 @@ export default function NacFinancialFullPage() {
                 </div>
               </Panel>
             </section>
+
+            <TeamGoalTable rows={teamGoalSummary} />
           </div>
         )}
 
@@ -1044,6 +1179,189 @@ function RenderInput({ field, value, dynamicOptions, onChange }: { field: FieldC
   }
 
   return <input className={inputClass} type={field.type === "number" ? "text" : field.type} value={value || ""} placeholder={field.placeholder} onChange={(event) => onChange(event.target.value)} />;
+}
+
+function MiniStat({ label, value, helper }: { label: string; value: string; helper: string }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+      <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">{label}</p>
+      <p className="mt-2 truncate text-xl font-black text-slate-950">{value}</p>
+      <p className="mt-1 text-xs font-medium text-slate-400">{helper}</p>
+    </div>
+  );
+}
+
+function BoletoWalletPanel({
+  totalBills,
+  paidBills,
+  openBills,
+  wallet,
+  paidWallet,
+  openWallet,
+}: {
+  totalBills: number;
+  paidBills: number;
+  openBills: number;
+  wallet: number;
+  paidWallet: number;
+  openWallet: number;
+}) {
+  return (
+    <Panel className="p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-black uppercase tracking-wide text-slate-500">
+            <WalletCards size={14} />
+            Boletos e carteira
+          </div>
+          <h2 className="mt-3 text-xl font-black text-slate-950">Recebimentos do mês</h2>
+          <p className="mt-1 text-sm leading-6 text-slate-500">Total de boletos e carteira prevista para recebimento no mês filtrado.</p>
+        </div>
+      </div>
+
+      <div className="mt-5 grid grid-cols-2 gap-3">
+        <MiniStat label="Boletos do mês" value={numberBR(totalBills)} helper={`${paidBills} pagos / ${openBills} abertos`} />
+        <MiniStat label="Carteira do mês" value={money(wallet)} helper="Total previsto" />
+      </div>
+
+      <div className="mt-5 space-y-4">
+        <Line label="Recebido" value={money(paidWallet)} />
+        <Line label="A receber" value={money(openWallet)} strong />
+      </div>
+    </Panel>
+  );
+}
+
+function SalesCalendar({ days, monthFilter }: { days: { day: number; iso: string; weekDay: string; quotas: number; credit: number }[]; monthFilter: string }) {
+  const totalDaysWithSales = days.filter((day) => day.quotas > 0).length;
+  const monthName = monthFilter
+    ? new Date(Number(monthFilter.slice(0, 4)), Number(monthFilter.slice(5, 7)) - 1, 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" })
+    : "mês selecionado";
+
+  return (
+    <Panel className="p-5 xl:col-span-2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-black uppercase tracking-wide text-slate-500">
+            <CalendarDays size={14} />
+            Calendário de vendas
+          </div>
+          <h2 className="mt-3 text-lg font-black text-slate-950">Dias que tiveram venda</h2>
+          <p className="mt-1 text-sm text-slate-500">{totalDaysWithSales} dias com produção em {monthName}.</p>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-right">
+          <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Total no calendário</p>
+          <p className="text-xl font-black text-slate-950">{money(days.reduce((acc, day) => acc + day.credit, 0))}</p>
+        </div>
+      </div>
+
+      <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-7">
+        {days.length ? days.map((day) => {
+          const hasSales = day.quotas > 0;
+
+          return (
+            <div
+              key={day.iso}
+              className={[
+                "min-h-28 rounded-2xl border p-3 transition",
+                hasSales
+                  ? "border-slate-900 bg-slate-950 text-white shadow-sm"
+                  : "border-slate-200 bg-white text-slate-500",
+              ].join(" ")}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className={hasSales ? "text-xs font-bold text-slate-300" : "text-xs font-bold text-slate-400"}>{day.weekDay}</span>
+                <span className={hasSales ? "text-xl font-black text-white" : "text-xl font-black text-slate-800"}>{day.day}</span>
+              </div>
+
+              <div className="mt-4">
+                <p className={hasSales ? "text-xs font-bold text-slate-200" : "text-xs font-bold text-slate-400"}>
+                  {day.quotas ? `${day.quotas} cota${day.quotas > 1 ? "s" : ""}` : "Sem venda"}
+                </p>
+                <p className={hasSales ? "mt-1 truncate text-sm font-black text-white" : "mt-1 truncate text-sm font-black text-slate-400"}>
+                  {day.credit ? money(day.credit) : "R$ 0,00"}
+                </p>
+              </div>
+            </div>
+          );
+        }) : <EmptyText text="Selecione um mês para montar o calendário." />}
+      </div>
+    </Panel>
+  );
+}
+
+function TeamGoalTable({
+  rows,
+}: {
+  rows: {
+    id: string;
+    teamName: string;
+    code: string;
+    soldQuotas: number;
+    targetQuotas: number;
+    soldCredit: number;
+    targetCredit: number;
+    missingCredit: number;
+    percent: number;
+  }[];
+}) {
+  return (
+    <Panel>
+      <div className="border-b border-slate-200 p-5">
+        <h2 className="text-lg font-black text-slate-950">Equipes, metas e produção</h2>
+        <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">
+          Nome das equipes, quantidade de cotas, meta, valor de crédito vendido e porcentagem da meta vendida.
+        </p>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[980px] text-left">
+          <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-400">
+            <tr>
+              <th className="px-5 py-3">Equipe</th>
+              <th className="px-5 py-3 text-right">Qtd. cota</th>
+              <th className="px-5 py-3 text-right">Meta cota</th>
+              <th className="px-5 py-3 text-right">Crédito vendido</th>
+              <th className="px-5 py-3 text-right">Meta crédito</th>
+              <th className="px-5 py-3 text-right">% meta vendida</th>
+              <th className="px-5 py-3 text-right">Falta</th>
+            </tr>
+          </thead>
+
+          <tbody className="divide-y divide-slate-100">
+            {rows.length ? rows.map((row) => (
+              <tr key={row.id} className="hover:bg-slate-50">
+                <td className="px-5 py-4">
+                  <div className="font-black text-slate-900">{row.teamName}</div>
+                  <div className="mt-0.5 text-xs font-bold text-slate-400">{row.code || "Código não informado"}</div>
+                </td>
+                <td className="px-5 py-4 text-right text-sm font-black text-slate-900">{numberBR(row.soldQuotas)}</td>
+                <td className="px-5 py-4 text-right text-sm text-slate-600">{numberBR(row.targetQuotas)}</td>
+                <td className="px-5 py-4 text-right text-sm font-black text-slate-900">{money(row.soldCredit)}</td>
+                <td className="px-5 py-4 text-right text-sm text-slate-600">{money(row.targetCredit)}</td>
+                <td className="px-5 py-4 text-right">
+                  <div className="flex items-center justify-end gap-3">
+                    <div className="h-2 w-24 overflow-hidden rounded-full bg-slate-100">
+                      <div className="h-full rounded-full bg-slate-950" style={{ width: `${Math.max(0, Math.min(100, row.percent))}%` }} />
+                    </div>
+                    <span className="w-14 text-right text-sm font-black text-slate-900">{percentBR(row.percent)}</span>
+                  </div>
+                </td>
+                <td className="px-5 py-4 text-right text-sm font-black text-slate-900">{money(row.missingCredit)}</td>
+              </tr>
+            )) : (
+              <tr>
+                <td colSpan={7} className="px-5 py-12 text-center text-sm text-slate-400">
+                  Cadastre equipes, metas e vendas para visualizar este resumo.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </Panel>
+  );
 }
 
 function CrudSection({ table, rows, embedded, onCreate, onEdit, onDelete, formatCell }: { table: TableKey; rows: AnyRow[]; embedded?: boolean; onCreate: (table: TableKey) => void; onEdit: (table: TableKey, row: AnyRow) => void; onDelete: (table: TableKey, id: string) => void; formatCell: (row: AnyRow, column: TableConfig["columns"][number]) => any }) {
