@@ -12,6 +12,7 @@ import {
   QrCode,
   ShieldCheck,
   MessageSquare,
+  AlertTriangle,
 } from "lucide-react";
 
 const PHONE_PREFIX_DISPLAY = "+55 ";
@@ -73,6 +74,31 @@ const safeNumber = (v: any) => {
   const n = typeof v === "number" ? v : parseFloat(String(v || "0"));
   return Number.isFinite(n) ? n : 0;
 };
+
+const cleanCpf = (cpf: string) => String(cpf || "").replace(/\D/g, "");
+
+const isValidCpf = (cpf: string) => {
+  const digits = cleanCpf(cpf);
+
+  if (digits.length !== 11) return false;
+  if (/(\d)\1{10}/.test(digits)) return false;
+
+  let sum = 0;
+  for (let i = 0; i < 9; i++) sum += Number(digits[i]) * (10 - i);
+  let check = 11 - (sum % 11);
+  if (check >= 10) check = 0;
+  if (check !== Number(digits[9])) return false;
+
+  sum = 0;
+  for (let i = 0; i < 10; i++) sum += Number(digits[i]) * (11 - i);
+  check = 11 - (sum % 11);
+  if (check >= 10) check = 0;
+
+  return check === Number(digits[10]);
+};
+
+const CPF_INVALID_MESSAGE =
+  "CPF inválido. Confira os números informados e tente novamente.";
 
 const roundVolkswagenCreditUp = (credit: number) => {
   const value = safeNumber(credit);
@@ -447,6 +473,7 @@ function PedidoContent() {
   );
 
   const [apiData, setApiData] = useState<any>(null);
+  const [cpfErro, setCpfErro] = useState("");
   const [nomeManual, setNomeManual] = useState(dados.nome || "");
   const [dataAtual, setDataAtual] = useState("");
 
@@ -454,6 +481,22 @@ function PedidoContent() {
   const telefoneTela = telefoneDigits
     ? formatPhoneForDisplay(telefoneDigits)
     : "---";
+
+  const cpfFormatoValido = isValidCpf(dados.cpf);
+
+  useEffect(() => {
+    if (!dados.cpf) {
+      setCpfErro("");
+      return;
+    }
+
+    if (!cpfFormatoValido) {
+      setCpfErro(CPF_INVALID_MESSAGE);
+      return;
+    }
+
+    setCpfErro("");
+  }, [dados.cpf, cpfFormatoValido]);
 
   const formatMoney = (val: number) =>
     new Intl.NumberFormat("pt-BR", {
@@ -515,10 +558,19 @@ function PedidoContent() {
     const silent = !!options?.silent;
 
     if (!dados.cpf) {
-      if (!silent) alert("Informe/Envie um CPF para consultar.");
+      const msg = "Informe o CPF do cliente para continuar.";
+      setCpfErro(msg);
+      if (!silent) alert(msg);
       return { ok: false as const, data: null };
     }
 
+    if (!isValidCpf(dados.cpf)) {
+      setCpfErro(CPF_INVALID_MESSAGE);
+      if (!silent) alert(CPF_INVALID_MESSAGE);
+      return { ok: false as const, data: null };
+    }
+
+    setCpfErro("");
     setVerificando(true);
     setLoadingValidacao(true);
 
@@ -532,6 +584,7 @@ function PedidoContent() {
       const data = await response.json().catch(() => ({}));
 
       if (response.ok && data && !data.error) {
+        setCpfErro("");
         setApiData(data);
 
         const nomeApi =
@@ -547,12 +600,21 @@ function PedidoContent() {
         return { ok: true as const, data };
       }
 
+      const msg =
+        data?.error ||
+        data?.message ||
+        "Não foi possível validar esse CPF. Confira os dados e tente novamente.";
+
+      setCpfErro(String(msg));
+
       if (!silent) {
-        alert(`❌ ${data?.error || data?.message || "Erro ao buscar dados"}`);
+        alert(`❌ ${msg}`);
       }
       return { ok: false as const, data: null };
     } catch {
-      if (!silent) alert("Erro de conexão.");
+      const msg = "Não foi possível validar o CPF agora. Verifique sua conexão e tente novamente.";
+      setCpfErro(msg);
+      if (!silent) alert(msg);
       return { ok: false as const, data: null };
     } finally {
       setLoadingValidacao(false);
@@ -574,6 +636,7 @@ function PedidoContent() {
   const endereco = enderecoComplexo || enderecoSimples || {};
 
   const cpfIsRegular =
+    cpfFormatoValido &&
     String(situacaoReceita || "PENDENTE").toUpperCase() === "REGULAR";
 
 async function enviarSms(nomeCliente: string) {
@@ -692,6 +755,15 @@ async function enviarSms(nomeCliente: string) {
 
   setLoadingEnviar(true);
   setSmsStatus("idle");
+
+  if (!isValidCpf(dados.cpf)) {
+    setCpfErro(CPF_INVALID_MESSAGE);
+    alert(CPF_INVALID_MESSAGE);
+    setLoadingEnviar(false);
+    return;
+  }
+
+  setCpfErro("");
 
   try {
     const cpfConsultado = await consultarCpf({ silent: true });
@@ -944,9 +1016,6 @@ async function enviarSms(nomeCliente: string) {
                       >
                         {loadingEnviar ? "Status: analisando" : "Status: aprovado"}
                       </span>
-                      <span className="text-[11px] font-black uppercase px-3 py-1.5 rounded-full border border-zinc-200 bg-white text-zinc-700">
-                        Protocolo #{numeroPedido || "------"}
-                      </span>
                       {!loadingEnviar ? (
                         <span
                           className={`text-[11px] font-black uppercase px-3 py-1.5 rounded-full border ${
@@ -1026,7 +1095,7 @@ async function enviarSms(nomeCliente: string) {
                                 : "bg-red-50 text-red-700 border-red-200"
                             }`}
                           >
-                            CPF: {String(situacaoReceita).toUpperCase()}
+                            CPF: {cpfErro ? "INVÁLIDO" : String(situacaoReceita).toUpperCase()}
                           </span>
 
                           <span className="text-[10px] font-black uppercase px-2 py-1 rounded-full border bg-zinc-50 text-zinc-700 border-zinc-200 flex items-center gap-1">
@@ -1070,9 +1139,6 @@ async function enviarSms(nomeCliente: string) {
                     <div className="rounded-xl bg-white/80 border border-green-200 px-3 py-2 text-[11px] font-black uppercase text-green-700 text-center">
                       APROVADO
                     </div>
-                    <div className="rounded-xl bg-white/80 border border-zinc-200 px-3 py-2 text-[11px] font-black uppercase text-zinc-700 text-center">
-                      Protocolo #{numeroPedido || "------"}
-                    </div>
                     <div
                       className={`rounded-xl px-3 py-2 text-[11px] font-black uppercase text-center border ${
                         smsStatus === "failed"
@@ -1091,6 +1157,13 @@ async function enviarSms(nomeCliente: string) {
                   </div>
                 </div>
               )}
+
+              {cpfErro ? (
+                <div className="print:hidden rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-bold text-red-700 flex items-start gap-2">
+                  <AlertTriangle size={16} className="mt-0.5 flex-shrink-0" />
+                  <span>{cpfErro}</span>
+                </div>
+              ) : null}
 
               <div className="grid grid-cols-1 md:grid-cols-4 gap-x-6 gap-y-4 text-xs">
                 <div className="md:col-span-2">
@@ -1112,6 +1185,12 @@ async function enviarSms(nomeCliente: string) {
                       <ShieldCheck
                         size={14}
                         className="text-green-600 print:hidden flex-shrink-0"
+                      />
+                    )}
+                    {cpfErro && (
+                      <AlertTriangle
+                        size={14}
+                        className="text-red-600 print:hidden flex-shrink-0"
                       />
                     )}
                   </div>
@@ -1137,7 +1216,7 @@ async function enviarSms(nomeCliente: string) {
                   </div>
                   <div className="md:col-span-2">
                     <label className="block text-[9px] font-bold text-zinc-400 uppercase mb-1">
-                      Filiação (Mãe)
+                      Filiação
                     </label>
                     <div className="font-mono font-medium text-zinc-800 uppercase truncate">
                       {nomeMae}
@@ -1156,7 +1235,7 @@ async function enviarSms(nomeCliente: string) {
                         : "bg-red-100 text-red-700"
                     }`}
                   >
-                    {String(situacaoReceita).toUpperCase()}
+                    {cpfErro ? "CPF INVÁLIDO" : String(situacaoReceita).toUpperCase()}
                   </div>
                 </div>
 
@@ -1171,7 +1250,7 @@ async function enviarSms(nomeCliente: string) {
                         } - ${endereco.bairro} - ${endereco.cidade}/${
                           endereco.estado
                         }`
-                      : "Endereço não localizado na base de dados."}
+                      : "Endereço não localizado."}
                   </div>
                 </div>
               </div>
@@ -1418,10 +1497,6 @@ async function enviarSms(nomeCliente: string) {
 
               <div className="flex items-center gap-2 opacity-50 grayscale">
                 <div className="text-right hidden md:block">
-                  <p className="text-[8px] font-bold uppercase">Autenticação</p>
-                  <p className="text-[8px] font-mono">
-                    {numeroPedido || "------"}-X
-                  </p>
                 </div>
                 <div className="bg-white p-1 border border-zinc-200">
                   <QrCode size={32} />
