@@ -200,7 +200,7 @@ function makeSmsSafe(raw: string, maxLen = 150) {
 
 function buildSmsMessage(nomeCliente: string, protocolo: string) {
   return makeSmsSafe(
-    `Saudações ${nomeCliente}! Seu plano foi aceito e seu carro esta mais perto do que nunca! Agora e hora de avançar e garantir sua conquista.`,
+    `Saudações ${nomeCliente}! Seu pedido foi aceito e seu carro esta mais perto do que nunca! Seja bem-vindo! Agora e hora de avançar e garantir sua conquista.`,
     150
   );
 }
@@ -905,15 +905,6 @@ function PedidoContent() {
               </button>
             ) : (
               <div className="flex flex-col items-end gap-2 animate-in fade-in zoom-in">
-                <div className="bg-emerald-50 text-emerald-700 px-4 py-2.5 rounded-xl text-xs font-black uppercase flex items-center gap-2 border border-emerald-200">
-                  <CheckCircle2 size={16} /> Enviado
-                </div>
-
-                {smsStatus === "failed" ? (
-                  <div className="text-[10px] font-black uppercase px-3 py-1.5 rounded-lg border border-amber-200 bg-amber-50 text-amber-700">
-                    Aprovado sem SMS
-                  </div>
-                ) : null}
               </div>
             )}
           </div>
@@ -1295,19 +1286,6 @@ function PedidoContent() {
                     {cpfErro ? "CPF INVÁLIDO" : String(situacaoReceita).toUpperCase()}
                   </div>
                 </div>
-
-                <div className="md:col-span-4">
-                  <InfoLabel>Endereço Residencial</InfoLabel>
-                  <div className="font-mono text-[#566173] uppercase text-[10px] border border-[#d9e6f2] p-2 rounded-xl bg-[#f4f8fb] print:bg-white print:border-none print:p-0 leading-tight">
-                    {endereco.logradouro
-                      ? `${endereco.logradouro}, ${
-                          endereco.numero || "S/N"
-                        } - ${endereco.bairro} - ${endereco.cidade}/${
-                          endereco.estado
-                        }`
-                      : "Endereço não localizado."}
-                  </div>
-                </div>
               </div>
             </div>
 
@@ -1556,9 +1534,6 @@ function PedidoContent() {
 
             <div className="flex flex-col md:flex-row items-center justify-between gap-4 md:gap-0">
               <div className="text-[9px] text-[#8792a1] leading-tight max-w-md text-justify">
-                Este documento representa uma simulação comercial e não possui
-                valor de contrato definitivo até a aprovação de crédito e
-                assinatura digital.
               </div>
 
               <div className="flex items-center gap-2 opacity-60 grayscale">

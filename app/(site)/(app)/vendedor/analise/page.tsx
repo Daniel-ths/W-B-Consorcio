@@ -396,14 +396,11 @@ const safeNumber = (v: any) => {
   return Number.isFinite(n) ? n : 0;
 };
 
-const roundVolkswagenCreditUp = (credit: number) => {
+const normalizeVolkswagenCredit = (credit: number) => {
   const value = safeNumber(credit);
   if (!value || value <= 0) return 0;
 
-  if (value >= 100000) {
-    return Math.ceil(value / 20000) * 20000;
-  }
-
+  // Mantém o valor real informado/calculado, sem arredondar para cima
   return value;
 };
 
@@ -414,8 +411,8 @@ const findClosestVolkswagenPlan = (credit: number) => {
     (a, b) => a.credit - b.credit
   );
 
-  const creditForTable = roundVolkswagenCreditUp(credit);
-  const nextPlan = sortedTable.find((plan) => plan.credit >= creditForTable);
+  const exactCredit = normalizeVolkswagenCredit(credit);
+  const nextPlan = sortedTable.find((plan) => plan.credit >= exactCredit);
 
   return nextPlan || sortedTable[sortedTable.length - 1];
 };

@@ -1,5 +1,5 @@
-// app/api/sms/enviar/route.ts
 import { NextResponse } from "next/server";
+import { sendSmsViaInfobip } from "@/lib/infobip";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -162,15 +162,13 @@ export async function POST(request: Request) {
       purpose === "application_status" &&
       applicationId.length > 0;
 
-    const apiKey = process.env.VONAGE_API_KEY;
-    const apiSecret = process.env.VONAGE_API_SECRET;
-    const brandName = sanitizeSenderId(process.env.VONAGE_BRAND_NAME || "");
+    const brandName = sanitizeSenderId(process.env.INFOBIP_SENDER || "");
 
-    if (!apiKey || !apiSecret) {
+    if (!process.env.INFOBIP_BASE_URL || !process.env.INFOBIP_API_KEY) {
       return NextResponse.json(
         {
           error: true,
-          message: "Credenciais da Vonage não configuradas",
+          message: "Credenciais da Infobip não configuradas",
           reqId,
         },
         { status: 500 }
@@ -181,7 +179,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error: true,
-          message: "VONAGE_BRAND_NAME não configurado",
+          message: "INFOBIP_SENDER não configurado",
           reqId,
         },
         { status: 500 }
@@ -192,7 +190,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error: true,
-          message: "VONAGE_BRAND_NAME não pode ser genérico. Use o nome da sua marca.",
+          message: "INFOBIP_SENDER não pode ser genérico. Use o nome da sua marca.",
           reqId,
         },
         { status: 500 }
@@ -284,7 +282,8 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error: true,
-          message: "Envio bloqueado: a mensagem contém termos promocionais ou sensíveis demais para esta rota.",
+          message:
+            "Envio bloqueado: a mensagem contém termos promocionais ou sensíveis demais para esta rota.",
           reqId,
         },
         { status: 422 }
@@ -303,66 +302,26 @@ export async function POST(request: Request) {
     }
 
     const safeMessage = ensureBrandPrefix(brandName, rawMessage);
-    const auth = Buffer.from(`${apiKey}:${apiSecret}`).toString("base64");
 
-    const params = new URLSearchParams();
-    params.set("from", brandName);
-    params.set("to", number);
-    params.set("text", safeMessage);
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
-
-    let response: Response;
-    try {
-      response = await fetch("https://rest.nexmo.com/sms/json", {
-        method: "POST",
-        headers: {
-          Authorization: `Basic ${auth}`,
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: params.toString(),
-        cache: "no-store",
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timeout);
-    }
-
-    const data = await response.json().catch(() => null);
-    const result = data?.messages?.[0];
-    const resultStatus = result?.status ?? "unknown";
-
-    if (!response.ok || !result || resultStatus !== "0") {
-      return NextResponse.json(
-        {
-          error: true,
-          message:
-            result?.["error-text"] ||
-            data?.message ||
-            "Erro ao enviar SMS pela Vonage",
-          provider: "vonage",
-          status: response.status,
-          resultStatus,
-          purpose,
-          applicationId,
-          apiResponse: data,
-          reqId,
-        },
-        { status: response.status || 502 }
-      );
-    }
+    const result = await sendSmsViaInfobip({
+      to: number,
+      text: safeMessage,
+      sender: brandName,
+      timeoutMs: PROVIDER_TIMEOUT_MS,
+    });
 
     return NextResponse.json({
       error: false,
       message: "SMS enviado com segurança",
-      provider: "vonage",
-      resultStatus,
+      provider: "infobip",
       to: number,
       from: brandName,
       purpose,
       applicationId,
-      data,
+      messageId: result.messageId,
+      resultStatus: result.status?.name || "PENDING",
+      resultStatusDescription: result.status?.description || null,
+      data: result.response,
       reqId,
     });
   } catch (err: any) {
@@ -375,11 +334,13 @@ export async function POST(request: Request) {
         error: true,
         message: isAbortError
           ? "Tempo limite excedido ao tentar enviar SMS."
-          : "Erro interno",
-        details: err?.message || String(err),
+          : err?.message || "Erro interno",
+        provider: err?.provider || "infobip",
+        status: err?.status || 500,
+        apiResponse: err?.data || null,
         reqId,
       },
-      { status: isAbortError ? 504 : 500 }
+      { status: isAbortError ? 504 : err?.status || 500 }
     );
   }
 }
