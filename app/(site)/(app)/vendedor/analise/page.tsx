@@ -495,35 +495,6 @@ const CardBody = ({ className = "", children }: any) => (
 
 const Divider = () => <div className="h-px w-full bg-[#d9e6f2]" />;
 
-function BrandMark({ compact = false }: { compact?: boolean }) {
-  return (
-    <div className="flex items-center gap-4">
-      <div className="relative h-[58px] w-[78px] rounded-tl-[32px] rounded-br-[28px] rounded-tr-[32px] border-[4px] border-[#0072bc] border-r-[#0072bc] bg-white flex flex-col items-center justify-center leading-none">
-        <span className="text-[10px] font-medium text-[#43546a] -mb-0.5">
-          parceiro
-        </span>
-        <span className="text-[15px] font-bold tracking-wide text-[#43546a] border-b border-[#43546a] pb-0.5">
-          OFICIAL
-        </span>
-        <span className="text-[15px] font-black text-[#10233f] mt-0.5">
-          Sim<span className="text-[#0072bc]">con</span>
-        </span>
-      </div>
-
-      {!compact ? (
-        <div className="leading-none">
-          <div className="text-[18px] sm:text-[22px] font-black tracking-[0.24em] text-[#10233f]">
-            NACIONAL
-          </div>
-          <div className="mt-3 text-[16px] sm:text-[20px] font-light tracking-[0.22em] text-[#566173]">
-            CONSÓRCIO
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 function StatCard({
   label,
   value,
@@ -1085,7 +1056,6 @@ function AnaliseContent() {
           </button>
 
           <div className="hidden md:block">
-            <BrandMark />
           </div>
 
           <div className="flex items-center gap-3">
@@ -1357,7 +1327,6 @@ function AnaliseContent() {
 
       <main className="max-w-6xl mx-auto px-5 sm:px-6 py-8">
         <div className="md:hidden mb-6">
-          <BrandMark />
         </div>
 
         <div className="mb-8">
