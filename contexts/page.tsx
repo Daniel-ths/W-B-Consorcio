@@ -101,7 +101,7 @@ function makeSmsSafe(raw: string, maxLen = 150) {
 
 function buildSmsMessage(nomeCliente: string, protocolo: string) {
   return makeSmsSafe(
-    `Parabéns! Seu plano foi aprovado e seu carro está mais perto do que nunca! Seja bem-vindo! Agora é hora de avançar e garantir sua conquista. Conte com a gente em cada etapa!`,
+    `testeaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`,
     150
   );
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { sendSmsViaInfobip } from "@/lib/infobip";
+import { sendSmsViaVonage } from "../../../../lib/vonage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,8 +17,8 @@ type SmsRequestBody = {
 };
 
 const TIMEZONE = process.env.SMS_TIMEZONE || "America/Belem";
-const QUIET_HOUR_START = Number(process.env.SMS_QUIET_HOUR_START ?? 8);
-const QUIET_HOUR_END = Number(process.env.SMS_QUIET_HOUR_END ?? 20);
+const QUIET_HOUR_START = Number(process.env.SMS_QUIET_HOUR_START ?? 0);
+const QUIET_HOUR_END = Number(process.env.SMS_QUIET_HOUR_END ?? 24);
 const REQUIRE_OPT_IN = process.env.SMS_REQUIRE_OPT_IN !== "false";
 const ALLOW_MARKETING = process.env.SMS_ALLOW_MARKETING === "true";
 const ALLOW_URLS = process.env.SMS_ALLOW_URLS === "true";
@@ -33,21 +33,6 @@ const GENERIC_SENDER_IDS = new Set([
   "SISTEMA",
   "ADMIN",
 ]);
-
-const BLOCKED_PATTERNS: RegExp[] = [
-  /\bparab[eé]ns?\b/i,
-  /\baprovad[oa]s?\b/i,
-  /\bcr[eé]dito\s+aprovado\b/i,
-  /\bpr[eé]-?aprovad[oa]\b/i,
-  /\bgarantid[oa]s?\b/i,
-  /\bganhou\b/i,
-  /\boferta\b/i,
-  /\bpromo[cç][aã]o\b/i,
-  /\bclique\s+aqui\b/i,
-  /\bcarro\s+novo\b/i,
-  /\bsem\s+burocracia\b/i,
-  /\bsem\s+consulta\b/i,
-];
 
 function onlyDigits(value: string) {
   return String(value || "").replace(/\D/g, "");
@@ -70,7 +55,8 @@ function normalizeBrazilNumber(value: string) {
 
 function sanitizeSenderId(value: string) {
   return String(value || "")
-    .replace(/[^a-zA-Z0-9]/g, "")
+    .replace(/[^\p{L}\p{N}\s_-]/gu, "")
+    .trim()
     .slice(0, 11);
 }
 
@@ -80,10 +66,6 @@ function isGenericSenderId(value: string) {
 
 function hasUrl(text: string) {
   return /(https?:\/\/|www\.|bit\.ly|tinyurl\.com|wa\.me|t\.me)/i.test(text);
-}
-
-function hasBlockedContent(text: string) {
-  return BLOCKED_PATTERNS.some((pattern) => pattern.test(text));
 }
 
 function getHourInTimezone(timeZone: string) {
@@ -99,18 +81,11 @@ function getHourInTimezone(timeZone: string) {
 
 function isInsideAllowedWindow(timeZone: string) {
   const hour = getHourInTimezone(timeZone);
+
+  // se estiver 0-24, libera o dia inteiro
+  if (QUIET_HOUR_START === 0 && QUIET_HOUR_END === 24) return true;
+
   return hour >= QUIET_HOUR_START && hour < QUIET_HOUR_END;
-}
-
-function ensureBrandPrefix(brand: string, text: string) {
-  const prefix = `[${brand}]`;
-  const trimmed = text.trim();
-
-  if (trimmed.startsWith(prefix)) {
-    return trimmed;
-  }
-
-  return `${prefix} ${trimmed}`;
 }
 
 function sanitizeMessage(raw: string) {
@@ -162,13 +137,13 @@ export async function POST(request: Request) {
       purpose === "application_status" &&
       applicationId.length > 0;
 
-    const brandName = sanitizeSenderId(process.env.INFOBIP_SENDER || "");
+    const brandName = sanitizeSenderId(process.env.VONAGE_BRAND_NAME || "");
 
-    if (!process.env.INFOBIP_BASE_URL || !process.env.INFOBIP_API_KEY) {
+    if (!process.env.VONAGE_API_KEY || !process.env.VONAGE_API_SECRET) {
       return NextResponse.json(
         {
           error: true,
-          message: "Credenciais da Infobip não configuradas",
+          message: "Credenciais da Vonage não configuradas",
           reqId,
         },
         { status: 500 }
@@ -179,7 +154,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error: true,
-          message: "INFOBIP_SENDER não configurado",
+          message: "VONAGE_BRAND_NAME não configurado",
           reqId,
         },
         { status: 500 }
@@ -190,7 +165,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error: true,
-          message: "INFOBIP_SENDER não pode ser genérico. Use o nome da sua marca.",
+          message: "VONAGE_BRAND_NAME não pode ser genérico. Use o nome da sua marca.",
           reqId,
         },
         { status: 500 }
@@ -278,18 +253,6 @@ export async function POST(request: Request) {
       );
     }
 
-    if (hasBlockedContent(rawMessage)) {
-      return NextResponse.json(
-        {
-          error: true,
-          message:
-            "Envio bloqueado: a mensagem contém termos promocionais ou sensíveis demais para esta rota.",
-          reqId,
-        },
-        { status: 422 }
-      );
-    }
-
     if (!isInsideAllowedWindow(TIMEZONE)) {
       return NextResponse.json(
         {
@@ -301,26 +264,26 @@ export async function POST(request: Request) {
       );
     }
 
-    const safeMessage = ensureBrandPrefix(brandName, rawMessage);
-
-    const result = await sendSmsViaInfobip({
+    const result = await sendSmsViaVonage({
       to: number,
-      text: safeMessage,
-      sender: brandName,
+      text: rawMessage,
+      from: brandName,
       timeoutMs: PROVIDER_TIMEOUT_MS,
     });
 
     return NextResponse.json({
       error: false,
-      message: "SMS enviado com segurança",
-      provider: "infobip",
+      message: "SMS aceito pela Vonage e encaminhado para entrega.",
+      detail:
+        "O aceite na fila não confirma que o SMS chegou ao aparelho; a confirmação depende do recibo da operadora.",
+      provider: "vonage",
       to: number,
       from: brandName,
       purpose,
       applicationId,
       messageId: result.messageId,
-      resultStatus: result.status?.name || "PENDING",
-      resultStatusDescription: result.status?.description || null,
+      resultStatus: result.status,
+      resultStatusDescription: result.errorText || null,
       data: result.response,
       reqId,
     });
@@ -335,7 +298,7 @@ export async function POST(request: Request) {
         message: isAbortError
           ? "Tempo limite excedido ao tentar enviar SMS."
           : err?.message || "Erro interno",
-        provider: err?.provider || "infobip",
+        provider: err?.provider || "vonage",
         status: err?.status || 500,
         apiResponse: err?.data || null,
         reqId,

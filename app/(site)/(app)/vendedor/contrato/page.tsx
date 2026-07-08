@@ -200,7 +200,7 @@ function makeSmsSafe(raw: string, maxLen = 150) {
 
 function buildSmsMessage(nomeCliente: string, protocolo: string) {
   return makeSmsSafe(
-    `Saudações ${nomeCliente}! Seu pedido foi aceito e seu carro esta mais perto do que nunca! Seja bem-vindo!`,
+    `Parabéns! Crédito aprovado. Aguarde contato da nossa equipe.`,
     150
   );
 }
