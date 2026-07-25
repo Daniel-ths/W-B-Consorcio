@@ -5,7 +5,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 
-type BrandKey = "chevrolet" | "hyundai" | "fiat" | "volkswagen";
+type BrandKey =
+  | "chevrolet"
+  | "hyundai"
+  | "fiat"
+  | "volkswagen"
+  | "renault"
+  | "nissan";
+
 type Brand = { key: BrandKey; name: string; logo: string; disabled?: boolean };
 
 export default function ChooseBrandPage() {
@@ -36,6 +43,16 @@ export default function ChooseBrandPage() {
         key: "volkswagen",
         name: "Volkswagen",
         logo: "https://upload.wikimedia.org/wikipedia/commons/6/6d/Volkswagen_logo_2019.svg",
+      },
+      {
+        key: "renault",
+        name: "Renault",
+        logo: "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/images.jfif",
+      },
+      {
+        key: "nissan",
+        name: "Nissan",
+        logo: "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/hd-nissan-emblem-logo-transparent-png-701751694774302g4gilafdjp.png",
       },
     ],
     []
@@ -78,6 +95,8 @@ export default function ChooseBrandPage() {
       if (e.key === "2" && brands[1]) go(brands[1]);
       if (e.key === "3" && brands[2]) go(brands[2]);
       if (e.key === "4" && brands[3]) go(brands[3]);
+      if (e.key === "5" && brands[4]) go(brands[4]);
+      if (e.key === "6" && brands[5]) go(brands[5]);
       if (e.key === "Enter" && brands[0]) go(brands[0]);
     };
 
@@ -137,7 +156,7 @@ export default function ChooseBrandPage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:gap-5 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:gap-5 md:grid-cols-2 lg:grid-cols-3">
             {brands.map((b) => (
               <button
                 key={b.key}
@@ -170,6 +189,10 @@ export default function ChooseBrandPage() {
                             ? "h-9 sm:h-10"
                             : b.key === "fiat"
                             ? "h-7 sm:h-8"
+                            : b.key === "renault"
+                            ? "h-8 sm:h-9"
+                            : b.key === "nissan"
+                            ? "h-7 sm:h-8"
                             : "h-7 sm:h-8"
                         }`}
                       />
@@ -198,7 +221,9 @@ export default function ChooseBrandPage() {
 
       <div
         className={`fixed inset-0 z-[9999] transition-all duration-500 ${
-          entering ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
+          entering
+            ? "pointer-events-auto opacity-100"
+            : "pointer-events-none opacity-0"
         }`}
       >
         <div className="absolute inset-0 bg-white/75 backdrop-blur-xl dark:bg-black/70" />
@@ -215,6 +240,8 @@ export default function ChooseBrandPage() {
                       ? "h-10 sm:h-12"
                       : entering.key === "hyundai"
                       ? "h-8 sm:h-10"
+                      : entering.key === "renault"
+                      ? "h-9 sm:h-11"
                       : "h-8 sm:h-10"
                   }`}
                 />

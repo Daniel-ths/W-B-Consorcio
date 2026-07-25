@@ -8,7 +8,7 @@ import {
   ChevronLeft,
 } from "lucide-react";
 
-type BrandKey = "chevrolet" | "hyundai" | "fiat" | "volkswagen";
+type BrandKey = "chevrolet" | "hyundai" | "fiat" | "volkswagen" | "nissan";
 
 const BRAND_UI: Record<
   BrandKey,
@@ -54,6 +54,17 @@ const BRAND_UI: Record<
     tag: "Site Volkswagen",
     href: "/admin/cars/volkswagen/new",
   },
+
+  nissan: {
+    title: "Nissan",
+    subtitle:
+      "Cadastrar veículos, versões, cores e configurações da Nissan",
+    accent: "from-orange-500 to-red-500",
+    icon: Building2,
+    tag: "Site Nissan",
+    href: "/admin/cars/nissan/new",
+  },
+
 };
 
 export default function ChooseBrandToCreateCar() {
