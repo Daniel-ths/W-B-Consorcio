@@ -5,21 +5,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import {
-  LayoutDashboard,
   CalendarRange,
   Loader2,
   ArrowLeft,
   RefreshCw,
-  Users,
-  UserRound,
-  BadgeCheck,
-  CarFront,
-  Clock3,
-  FileText,
   ChevronDown,
   ChevronRight,
-  Search,
-  AlertTriangle,
 } from "lucide-react";
 
 const SUPERVISOR_EMAILS = [
@@ -35,7 +26,8 @@ const SUPERVISOR_EMAILS = [
 const cleanText = (v: any) => String(v || "").trim();
 const lowerText = (v: any) => cleanText(v).toLowerCase();
 const onlyDigits = (v: any) => String(v || "").replace(/\D/g, "");
-const isEmailLike = (value: any) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanText(value));
+const isEmailLike = (value: any) =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanText(value));
 
 const isSupervisorEmail = (email?: string | null) =>
   !!email && SUPERVISOR_EMAILS.includes(lowerText(email));
@@ -93,7 +85,6 @@ const getSupervisorBySimilarName = (sale: any) => {
     sale?.approved_by_email,
     sale?.details?.approved_by_name,
     sale?.details?.approved_by_email,
-
     sale?.seller_name,
     sale?.details?.seller_name,
     sale?.details?.vendedor_digitado,
@@ -101,7 +92,6 @@ const getSupervisorBySimilarName = (sale: any) => {
     sale?.details?.approved_by,
     sale?.details?.supervisor_name,
     sale?.details?.supervisor_email,
-
     sale?.profiles?.email,
     sale?.details?.seller_email,
     sale?.details?.vendedor_email,
@@ -117,7 +107,6 @@ const getSupervisorBySimilarName = (sale: any) => {
 
     const localPart = value.includes("@") ? value.split("@")[0] : value;
     const normalizedCandidate = normalizeLooseName(localPart);
-
     if (!normalizedCandidate) continue;
 
     const exact = SUPERVISOR_NAME_MAP.find(
@@ -142,11 +131,9 @@ const getSupervisorEmail = (sale: any) => {
     sale?.approved_by_email,
     sale?.details?.approved_by_name,
     sale?.details?.approved_by_email,
-
     sale?.details?.supervisor_email,
     sale?.details?.email_supervisor,
     sale?.details?.approved_email,
-
     sale?.profiles?.email,
     isEmailLike(sale?.seller_name) ? sale?.seller_name : "",
     sale?.details?.seller_email,
@@ -216,10 +203,8 @@ const getReferenceDate = (sale: any) =>
 
 const isSameSelectedDay = (isoLike: string, selectedDay: string) => {
   if (!isoLike) return false;
-
   const reference = new Date(isoLike);
   const selected = new Date(`${selectedDay}T00:00:00`);
-
   return (
     reference.getFullYear() === selected.getFullYear() &&
     reference.getMonth() === selected.getMonth() &&
@@ -228,7 +213,9 @@ const isSameSelectedDay = (isoLike: string, selectedDay: string) => {
 };
 
 const buildSaleIdentityKey = (sale: any) => {
-  const clientCpf = onlyDigits(sale?.client_cpf || sale?.details?.client_cpf || sale?.details?.cpf || "");
+  const clientCpf = onlyDigits(
+    sale?.client_cpf || sale?.details?.client_cpf || sale?.details?.cpf || ""
+  );
   const clientPhone = onlyDigits(
     sale?.client_phone || sale?.details?.client_phone || sale?.details?.telefone || ""
   );
@@ -238,14 +225,17 @@ const buildSaleIdentityKey = (sale: any) => {
 
   const created = getReferenceDate(sale) ? new Date(getReferenceDate(sale)) : null;
   const minuteKey =
-    created && !Number.isNaN(created.getTime()) ? created.toISOString().slice(0, 16) : "";
+    created && !Number.isNaN(created.getTime())
+      ? created.toISOString().slice(0, 16)
+      : "";
 
-  return [clientCpf || clientPhone || clientName, clientName, carName, total, minuteKey].join("|");
+  return [clientCpf || clientPhone || clientName, clientName, carName, total, minuteKey].join(
+    "|"
+  );
 };
 
 const saleScore = (sale: any) => {
   let score = 0;
-
   if (cleanText(sale?.details?.vendedor_digitado)) score += 100;
   if (cleanText(sale?.details?.vendedor_nome)) score += 95;
   if (cleanText(sale?.details?.seller_name)) score += 90;
@@ -256,7 +246,6 @@ const saleScore = (sale: any) => {
   if (cleanText(sale?.approved_at)) score += 5;
   if (cleanText(getSupervisorEmail(sale))) score += 5;
   if (cleanText(sale?.profiles?.email)) score += 2;
-
   return score;
 };
 
@@ -283,10 +272,7 @@ const dedupeSales = (rows: any[]) => {
     if (rowScore === currentScore) {
       const currentCreated = new Date(getReferenceDate(current) || 0).getTime();
       const rowCreated = new Date(getReferenceDate(row) || 0).getTime();
-
-      if (rowCreated > currentCreated) {
-        map.set(key, row);
-      }
+      if (rowCreated > currentCreated) map.set(key, row);
     }
   }
 
@@ -296,6 +282,21 @@ const dedupeSales = (rows: any[]) => {
       new Date(getReferenceDate(a) || 0).getTime()
   );
 };
+
+function StatusBadge({ status }: { status: string }) {
+  const styles =
+    status === "Aprovado"
+      ? "bg-emerald-50 text-emerald-700"
+      : status === "Recusado"
+      ? "bg-red-50 text-red-700"
+      : "bg-amber-50 text-amber-800";
+
+  return (
+    <span className={`inline-block px-2 py-0.5 text-[11px] font-medium ${styles}`}>
+      {status}
+    </span>
+  );
+}
 
 export default function AdminConsultaDiasPage() {
   const router = useRouter();
@@ -312,10 +313,7 @@ export default function AdminConsultaDiasPage() {
     try {
       const { data, error } = await supabase
         .from("sales")
-        .select(`
-          *,
-          profiles:seller_id (email)
-        `)
+        .select(`*, profiles:seller_id (email)`)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -361,20 +359,26 @@ export default function AdminConsultaDiasPage() {
           status: cleanText(sale?.status) || "—",
           time: getReferenceDate(sale),
           supervisor_email: hasSupervisor ? supervisorEmail : "",
-          supervisor_name: hasSupervisor ? supervisorLabel(supervisorEmail) : "NÃO IDENTIFICADO",
+          supervisor_name: hasSupervisor
+            ? supervisorLabel(supervisorEmail)
+            : "NÃO IDENTIFICADO",
           raw_sale: sale,
         };
       })
-      .sort((a, b) => new Date(b.time || 0).getTime() - new Date(a.time || 0).getTime());
+      .sort(
+        (a, b) => new Date(b.time || 0).getTime() - new Date(a.time || 0).getTime()
+      );
   }, [salesOfSelectedDay]);
 
-  const identifiedRequests = useMemo(() => {
-    return allRequestsOfDay.filter((item) => !!item.supervisor_email);
-  }, [allRequestsOfDay]);
+  const identifiedRequests = useMemo(
+    () => allRequestsOfDay.filter((item) => !!item.supervisor_email),
+    [allRequestsOfDay]
+  );
 
-  const unidentifiedRequests = useMemo(() => {
-    return allRequestsOfDay.filter((item) => !item.supervisor_email);
-  }, [allRequestsOfDay]);
+  const unidentifiedRequests = useMemo(
+    () => allRequestsOfDay.filter((item) => !item.supervisor_email),
+    [allRequestsOfDay]
+  );
 
   const groupedBySupervisor = useMemo(() => {
     const base = SUPERVISOR_EMAILS.map((email) => ({
@@ -415,7 +419,8 @@ export default function AdminConsultaDiasPage() {
     }
 
     list.sort(
-      (a, b) => b.total - a.total || a.supervisorName.localeCompare(b.supervisorName, "pt-BR")
+      (a, b) =>
+        b.total - a.total || a.supervisorName.localeCompare(b.supervisorName, "pt-BR")
     );
 
     return list;
@@ -437,7 +442,12 @@ export default function AdminConsultaDiasPage() {
       semSupervisor,
       identificados,
     };
-  }, [groupedBySupervisor, allRequestsOfDay, unidentifiedRequests, identifiedRequests]);
+  }, [
+    groupedBySupervisor,
+    allRequestsOfDay,
+    unidentifiedRequests,
+    identifiedRequests,
+  ]);
 
   const toggleGroup = (key: string) => {
     setExpandedGroups((prev) => ({
@@ -449,59 +459,37 @@ export default function AdminConsultaDiasPage() {
   const renderRequestCard = (item: any, highlightUnidentified = false) => (
     <div
       key={item.id}
-      className={`rounded-2xl border p-4 transition-colors ${
+      className={`border p-4 ${
         highlightUnidentified
-          ? "border-red-200 bg-red-50 hover:bg-red-100/60"
-          : "border-slate-200 bg-white hover:bg-slate-50"
+          ? "border-red-200 bg-red-50"
+          : "border-zinc-200 bg-white"
       }`}
     >
-      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 mb-2">
-            <UserRound size={15} className={highlightUnidentified ? "text-red-400" : "text-slate-400"} />
-            <p className="text-sm font-black text-slate-900 uppercase truncate">
-              {item.seller_name}
-            </p>
-          </div>
-
-          <p className="text-sm text-slate-700 font-medium">
-            Cliente: <span className="font-black text-slate-900">{item.client_name}</span>
+          <p className="text-[14px] font-medium text-zinc-900">{item.seller_name}</p>
+          <p className="mt-1 text-[13px] text-zinc-600">
+            Cliente: <span className="font-medium text-zinc-900">{item.client_name}</span>
           </p>
-
-          <div className="mt-2 space-y-1">
-            <p className="text-[11px] text-slate-500 font-bold flex items-center gap-2">
-              <CarFront size={12} />
-              {item.car_name}
-            </p>
-
-            <p className="text-[11px] text-slate-500 font-bold flex items-center gap-2">
-              <Clock3 size={12} />
-              {formatTimeBR(item.time)}
-            </p>
-
-            <p className="text-[11px] text-slate-500 font-bold">
-              Supervisor detectado:{" "}
-              <span className={item.supervisor_email ? "text-emerald-700" : "text-red-600"}>
+          <div className="mt-2 space-y-0.5 text-[12px] text-zinc-500">
+            <p>{item.car_name}</p>
+            <p>{formatTimeBR(item.time)}</p>
+            <p>
+              Supervisor:{" "}
+              <span
+                className={
+                  item.supervisor_email ? "text-emerald-700" : "font-medium text-red-600"
+                }
+              >
                 {item.supervisor_name}
               </span>
             </p>
           </div>
         </div>
 
-        <div className="md:text-right shrink-0">
-          <span
-            className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase border ${
-              item.status === "Aprovado"
-                ? "bg-green-50 text-green-700 border-green-200"
-                : item.status === "Recusado"
-                ? "bg-red-50 text-red-700 border-red-200"
-                : "bg-yellow-50 text-yellow-800 border-yellow-200"
-            }`}
-          >
-            {item.status}
-          </span>
-
-          <p className="text-sm font-black text-slate-900 mt-2">
+        <div className="shrink-0 sm:text-right">
+          <StatusBadge status={item.status} />
+          <p className="mt-2 text-[14px] font-semibold text-zinc-900">
             {formatMoney(item.total_price)}
           </p>
         </div>
@@ -510,35 +498,27 @@ export default function AdminConsultaDiasPage() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      <header className="sticky top-0 z-30 bg-white border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="bg-black text-[#f2e14c] p-2 rounded-lg">
-              <LayoutDashboard size={20} />
-            </div>
-            <div>
-              <h1 className="text-lg font-black uppercase tracking-tight">
-                Consulta de Supervisores por Dia
-              </h1>
-              <p className="text-xs text-slate-400 font-bold">
-                Supervisores, pedidos identificados e não identificados
-              </p>
-            </div>
+    <div className="min-h-screen bg-zinc-50">
+      <header className="border-b border-zinc-200 bg-white">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 md:px-6">
+          <div>
+            <p className="text-[12px] text-zinc-500">Administração</p>
+            <h1 className="text-lg font-semibold text-zinc-900">
+              Consulta de supervisores por dia
+            </h1>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap justify-end">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <button
               onClick={() => router.push("/admin")}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold"
+              className="inline-flex h-9 items-center gap-1.5 border border-zinc-200 bg-white px-3 text-[12px] font-medium text-zinc-700 hover:bg-zinc-50"
             >
               <ArrowLeft size={14} />
               Voltar
             </button>
-
             <button
               onClick={fetchSales}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold"
+              className="inline-flex h-9 items-center gap-1.5 border border-zinc-200 bg-white px-3 text-[12px] font-medium text-zinc-700 hover:bg-zinc-50"
             >
               <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
               Atualizar
@@ -547,163 +527,113 @@ export default function AdminConsultaDiasPage() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-8">
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-5 mb-8">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+      <main className="mx-auto max-w-6xl space-y-6 px-4 py-6 md:px-6">
+        {/* seletor de dia */}
+        <div className="bg-white p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-base font-black uppercase tracking-tight text-slate-900">
-                Selecione o dia da consulta
-              </h2>
-              <p className="text-xs text-slate-400 font-bold mt-1">
-                Agora com mais campos para identificar supervisor e vendedor.
+              <p className="text-[14px] font-medium text-zinc-900">Dia da consulta</p>
+              <p className="text-[12px] text-zinc-500">
+                Supervisores, pedidos identificados e não identificados
               </p>
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
-                <CalendarRange size={16} className="text-slate-400" />
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-2 border border-zinc-200 px-3 py-2">
+                <CalendarRange size={14} className="text-zinc-400" />
                 <input
                   type="date"
                   value={selectedDay}
                   onChange={(e) => setSelectedDay(e.target.value)}
-                  className="bg-transparent text-xs font-bold text-slate-700 outline-none"
+                  className="bg-transparent text-[12px] text-zinc-700 outline-none"
                 />
               </div>
-
               <button
                 onClick={() => setSelectedDay(getISODateToday())}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold"
+                className="h-9 border border-zinc-200 px-3 text-[12px] font-medium text-zinc-700 hover:bg-zinc-50"
               >
-                <CalendarRange size={14} />
                 Hoje
               </button>
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div className="p-2 rounded-lg bg-blue-50 text-blue-600">
-                <Users size={18} />
-              </div>
-              <span className="text-[10px] uppercase font-black text-slate-400">Supervisores</span>
+        {/* KPIs */}
+        <div className="grid grid-cols-2 gap-px bg-zinc-200 md:grid-cols-5">
+          {[
+            { label: "Supervisores", value: String(resumo.totalSupervisores) },
+            { label: "Ativos no dia", value: String(resumo.comAtendimento) },
+            { label: "Por supervisor", value: String(resumo.totalAtendimentos) },
+            { label: "Identificados", value: String(resumo.identificados) },
+            { label: "Não identificados", value: String(resumo.semSupervisor) },
+          ].map((k) => (
+            <div key={k.label} className="bg-white px-4 py-3">
+              <p className="text-[12px] text-zinc-500">{k.label}</p>
+              <p className="mt-1 text-lg font-semibold text-zinc-900">{k.value}</p>
             </div>
-            <p className="text-xs font-bold text-slate-500 mt-3">Total cadastrados</p>
-            <h3 className="text-2xl font-black text-slate-900">{resumo.totalSupervisores}</h3>
-          </div>
-
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600">
-                <BadgeCheck size={18} />
-              </div>
-              <span className="text-[10px] uppercase font-black text-slate-400">Ativos no dia</span>
-            </div>
-            <p className="text-xs font-bold text-slate-500 mt-3">Com pelo menos 1 atendimento</p>
-            <h3 className="text-2xl font-black text-slate-900">{resumo.comAtendimento}</h3>
-          </div>
-
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div className="p-2 rounded-lg bg-amber-50 text-amber-700">
-                <FileText size={18} />
-              </div>
-              <span className="text-[10px] uppercase font-black text-slate-400">Por supervisor</span>
-            </div>
-            <p className="text-xs font-bold text-slate-500 mt-3">Atendimentos casados</p>
-            <h3 className="text-2xl font-black text-slate-900">{resumo.totalAtendimentos}</h3>
-          </div>
-
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div className="p-2 rounded-lg bg-violet-50 text-violet-700">
-                <Search size={18} />
-              </div>
-              <span className="text-[10px] uppercase font-black text-slate-400">Identificados</span>
-            </div>
-            <p className="text-xs font-bold text-slate-500 mt-3">Pedidos com supervisor</p>
-            <h3 className="text-2xl font-black text-slate-900">{resumo.identificados}</h3>
-          </div>
-
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div className="p-2 rounded-lg bg-red-50 text-red-600">
-                <AlertTriangle size={18} />
-              </div>
-              <span className="text-[10px] uppercase font-black text-slate-400">Não identificados</span>
-            </div>
-            <p className="text-xs font-bold text-slate-500 mt-3">Sem supervisor identificado</p>
-            <h3 className="text-2xl font-black text-slate-900">{resumo.semSupervisor}</h3>
-          </div>
+          ))}
         </div>
 
         {loading ? (
-          <div className="bg-white border border-slate-200 rounded-2xl p-16 flex flex-col items-center justify-center text-slate-400 shadow-sm">
-            <Loader2 className="animate-spin mb-3" size={32} />
-            <p className="text-sm font-bold uppercase">Carregando consulta diária...</p>
+          <div className="flex items-center justify-center gap-2 bg-white px-4 py-16 text-[13px] text-zinc-400">
+            <Loader2 size={18} className="animate-spin" />
+            Carregando consulta diária…
           </div>
         ) : (
           <>
-            {/* SUPERVISORES EM CIMA */}
-            <div className="space-y-4 mb-10">
+            {/* por supervisor */}
+            <div className="space-y-3">
+              <div>
+                <h2 className="text-[14px] font-semibold text-zinc-900">
+                  Por supervisor
+                </h2>
+                <p className="text-[12px] text-zinc-500">
+                  Dia: {formatInputDateToBR(selectedDay)}
+                </p>
+              </div>
+
               {groupedBySupervisor.map((group) => {
                 const isOpen = !!expandedGroups[group.supervisorEmail];
 
                 return (
-                  <div
-                    key={group.supervisorEmail}
-                    className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden"
-                  >
+                  <div key={group.supervisorEmail} className="bg-white">
                     <button
                       type="button"
                       onClick={() => toggleGroup(group.supervisorEmail)}
-                      className="w-full p-5 border-b border-slate-100 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
+                      className="flex w-full items-start justify-between gap-4 border-b border-zinc-200 px-4 py-3 text-left hover:bg-zinc-50"
                     >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0 flex items-start gap-3">
-                          <div className="mt-0.5 text-slate-500">
-                            {isOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
-                          </div>
-
-                          <div className="min-w-0">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                              Supervisor
-                            </p>
-                            <h3 className="text-lg font-black text-slate-900 truncate">
-                              {group.supervisorName}
-                            </h3>
-                            <p className="text-xs text-slate-500 font-bold truncate mt-1">
-                              {group.supervisorEmail}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="shrink-0">
-                          <span className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-black text-white text-xs font-black">
-                            {group.total} atendimento{group.total === 1 ? "" : "s"}
-                          </span>
+                      <div className="flex min-w-0 items-start gap-2">
+                        <span className="mt-0.5 text-zinc-400">
+                          {isOpen ? (
+                            <ChevronDown size={16} />
+                          ) : (
+                            <ChevronRight size={16} />
+                          )}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-[14px] font-medium text-zinc-900">
+                            {group.supervisorName}
+                          </p>
+                          <p className="truncate text-[12px] text-zinc-500">
+                            {group.supervisorEmail}
+                          </p>
                         </div>
                       </div>
-
-                      <p className="text-[11px] text-slate-400 font-bold mt-3">
-                        Dia selecionado:{" "}
-                        <span className="text-slate-700">{formatInputDateToBR(selectedDay)}</span>
-                      </p>
+                      <span className="shrink-0 bg-zinc-900 px-2.5 py-1 text-[11px] font-medium text-white">
+                        {group.total} atendimento{group.total === 1 ? "" : "s"}
+                      </span>
                     </button>
 
                     {isOpen && (
-                      <div className="p-5">
+                      <div className="space-y-2 p-4">
                         {group.total === 0 ? (
-                          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm font-medium text-slate-500">
-                            Nenhum atendimento encontrado para este supervisor nesse dia.
-                          </div>
+                          <p className="text-[13px] text-zinc-500">
+                            Nenhum atendimento neste dia.
+                          </p>
                         ) : (
-                          <div className="space-y-3">
-                            {group.atendimentos.map((item: any) =>
-                              renderRequestCard(item, false)
-                            )}
-                          </div>
+                          group.atendimentos.map((item: any) =>
+                            renderRequestCard(item, false)
+                          )
                         )}
                       </div>
                     )}
@@ -712,91 +642,86 @@ export default function AdminConsultaDiasPage() {
               })}
             </div>
 
-            {/* GERAIS IDENTIFICADOS */}
-            <div className="mb-10">
-              <div className="flex items-center justify-between gap-4 mb-4">
+            {/* identificados */}
+            <div>
+              <div className="mb-3 flex items-center justify-between gap-4">
                 <div>
-                  <h3 className="text-base font-black uppercase tracking-tight text-slate-900">
-                    Pedidos gerais identificados
-                  </h3>
-                  <p className="text-xs text-slate-400 font-bold mt-1">
-                    Aqui ficam todos os pedidos do dia que conseguiram bater com algum supervisor.
+                  <h2 className="text-[14px] font-semibold text-zinc-900">
+                    Pedidos identificados
+                  </h2>
+                  <p className="text-[12px] text-zinc-500">
+                    Pedidos do dia com supervisor reconhecido
                   </p>
                 </div>
-
                 <button
                   type="button"
                   onClick={() => setShowGeneralIdentified((prev) => !prev)}
-                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold"
+                  className="inline-flex h-9 items-center gap-1.5 border border-zinc-200 px-3 text-[12px] font-medium text-zinc-700 hover:bg-zinc-50"
                 >
-                  {showGeneralIdentified ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  {showGeneralIdentified ? (
+                    <ChevronDown size={14} />
+                  ) : (
+                    <ChevronRight size={14} />
+                  )}
                   {showGeneralIdentified ? "Ocultar" : "Mostrar"}
                 </button>
               </div>
 
               {showGeneralIdentified && (
-                <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-                  <div className="p-5 border-b border-slate-100 bg-slate-50">
-                    <p className="text-xs font-bold text-slate-500">
-                      Dia selecionado:{" "}
-                      <span className="text-slate-800">{formatInputDateToBR(selectedDay)}</span>
-                    </p>
+                <div className="bg-white">
+                  <div className="border-b border-zinc-200 px-4 py-2.5 text-[12px] text-zinc-500">
+                    {formatInputDateToBR(selectedDay)}
                   </div>
-
-                  <div className="p-5">
+                  <div className="space-y-2 p-4">
                     {identifiedRequests.length === 0 ? (
-                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm font-medium text-slate-500">
-                        Nenhum pedido identificado encontrado nesse dia.
-                      </div>
+                      <p className="text-[13px] text-zinc-500">
+                        Nenhum pedido identificado neste dia.
+                      </p>
                     ) : (
-                      <div className="space-y-3">
-                        {identifiedRequests.map((item) => renderRequestCard(item, false))}
-                      </div>
+                      identifiedRequests.map((item) => renderRequestCard(item, false))
                     )}
                   </div>
                 </div>
               )}
             </div>
 
-            {/* NÃO IDENTIFICADOS POR ÚLTIMO */}
-            <div className="mb-10">
-              <div className="flex items-center justify-between gap-4 mb-4">
+            {/* não identificados */}
+            <div>
+              <div className="mb-3 flex items-center justify-between gap-4">
                 <div>
-                  <h3 className="text-base font-black uppercase tracking-tight text-red-700">
+                  <h2 className="text-[14px] font-semibold text-red-700">
                     Pedidos não identificados
-                  </h3>
-                  <p className="text-xs text-slate-400 font-bold mt-1">
-                    Estes pedidos existem no dia, mas não bateram com nenhum supervisor.
+                  </h2>
+                  <p className="text-[12px] text-zinc-500">
+                    Existem no dia, mas sem supervisor identificado
                   </p>
                 </div>
-
                 <button
                   type="button"
                   onClick={() => setShowUnidentified((prev) => !prev)}
-                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-red-200 bg-white hover:bg-red-50 text-red-700 text-xs font-bold"
+                  className="inline-flex h-9 items-center gap-1.5 border border-red-200 px-3 text-[12px] font-medium text-red-700 hover:bg-red-50"
                 >
-                  {showUnidentified ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  {showUnidentified ? (
+                    <ChevronDown size={14} />
+                  ) : (
+                    <ChevronRight size={14} />
+                  )}
                   {showUnidentified ? "Ocultar" : "Mostrar"}
                 </button>
               </div>
 
               {showUnidentified && (
-                <div className="bg-white border border-red-200 rounded-2xl shadow-sm overflow-hidden">
-                  <div className="p-5 border-b border-red-100 bg-red-50">
-                    <p className="text-xs font-bold text-red-700">
-                      Dia selecionado: <span>{formatInputDateToBR(selectedDay)}</span>
-                    </p>
+                <div className="border border-red-200 bg-white">
+                  <div className="border-b border-red-100 bg-red-50 px-4 py-2.5 text-[12px] text-red-700">
+                    {formatInputDateToBR(selectedDay)}
                   </div>
-
-                  <div className="p-5">
+                  <div className="space-y-2 p-4">
                     {unidentifiedRequests.length === 0 ? (
-                      <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-700">
-                        Nenhum pedido não identificado nesse dia.
-                      </div>
+                      <p className="text-[13px] text-emerald-700">
+                        Nenhum pedido não identificado neste dia.
+                      </p>
                     ) : (
-                      <div className="space-y-3">
-                        {unidentifiedRequests.map((item) => renderRequestCard(item, true))}
-                      </div>
+                      unidentifiedRequests.map((item) => renderRequestCard(item, true))
                     )}
                   </div>
                 </div>
@@ -805,10 +730,10 @@ export default function AdminConsultaDiasPage() {
           </>
         )}
 
-        <div className="mt-8 flex justify-start">
+        <div>
           <Link
             href="/admin"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold"
+            className="inline-flex h-9 items-center gap-1.5 border border-zinc-200 bg-white px-3 text-[12px] font-medium text-zinc-700 hover:bg-zinc-50"
           >
             <ArrowLeft size={14} />
             Voltar ao painel admin

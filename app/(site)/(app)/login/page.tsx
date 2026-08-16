@@ -197,7 +197,6 @@ export default function LoginPage() {
                   Entrar no sistema
                 </h1>
                 <p className="mt-2 text-sm text-slate-500">
-                  Use seu e-mail corporativo para continuar.
                 </p>
               </div>
 
@@ -223,7 +222,7 @@ export default function LoginPage() {
                   />
                   <input
                     type="email"
-                    placeholder="exemplo@wbauto.com"
+                    placeholder=""
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
@@ -242,7 +241,7 @@ export default function LoginPage() {
                   />
                   <input
                     type={showPassword ? "text" : "password"}
-                    placeholder="••••••••"
+                    placeholder=""
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
@@ -279,12 +278,10 @@ export default function LoginPage() {
               </button>
 
               <div className="pt-2 text-center text-xs text-slate-500">
-                Ao entrar, você concorda com as políticas internas da empresa.
               </div>
             </form>
 
             <div className="mt-7 text-center text-xs text-slate-400">
-              © 2026 Nacional Consórcio LTDA. Todos os direitos reservados.
             </div>
           </div>
         </div>

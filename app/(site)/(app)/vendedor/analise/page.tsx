@@ -6,19 +6,21 @@ import { supabase } from "@/lib/supabase";
 import {
   ArrowLeft,
   Loader2,
-  Landmark,
+  Banknote,
   ChevronRight,
   ExternalLink,
-  ShieldCheck,
-  DollarSign,
+  Car,
   X,
-  Tag,
-  CheckCircle2,
+  Ticket,
+  Check,
   AlertCircle,
+  Percent,
+  Calendar,
+  Info,
 } from "lucide-react";
 
 // =========================
-// VISUAL NACIONAL CONSÓRCIO
+// VISUAL
 // =========================
 const BRAND_BLUE = "#0072bc";
 const BRAND_NAVY = "#10233f";
@@ -399,8 +401,6 @@ const safeNumber = (v: any) => {
 const normalizeVolkswagenCredit = (credit: number) => {
   const value = safeNumber(credit);
   if (!value || value <= 0) return 0;
-
-  // Mantém o valor real informado/calculado, sem arredondar para cima
   return value;
 };
 
@@ -472,58 +472,6 @@ function findCoupon(
   }
 
   return { ok: true, coupon };
-}
-
-// =========================
-// UI
-// =========================
-const Card = ({ className = "", children }: any) => (
-  <div
-    className={`bg-white border border-[#d9e6f2] rounded-[28px] shadow-[0_18px_55px_rgba(16,35,63,0.07)] ${className}`}
-  >
-    {children}
-  </div>
-);
-
-const CardHeader = ({ className = "", children }: any) => (
-  <div className={`px-6 pt-6 ${className}`}>{children}</div>
-);
-
-const CardBody = ({ className = "", children }: any) => (
-  <div className={`px-6 pb-6 ${className}`}>{children}</div>
-);
-
-const Divider = () => <div className="h-px w-full bg-[#d9e6f2]" />;
-
-function StatCard({
-  label,
-  value,
-  accent = false,
-}: {
-  label: string;
-  value: string;
-  accent?: boolean;
-}) {
-  return (
-    <div
-      className={[
-        "rounded-2xl p-4 border shadow-sm",
-        accent
-          ? "bg-[#0072bc] text-white border-[#0072bc]"
-          : "bg-white text-[#172033] border-[#d9e6f2]",
-      ].join(" ")}
-    >
-      <p
-        className={[
-          "text-[10px] font-black uppercase tracking-widest",
-          accent ? "text-white/75" : "text-[#8792a1]",
-        ].join(" ")}
-      >
-        {label}
-      </p>
-      <p className="text-lg font-black mt-1">{value}</p>
-    </div>
-  );
 }
 
 // =========================
@@ -712,11 +660,11 @@ function AnaliseContent() {
       const consorcioOpcoes = [
         {
           key: "integral",
-          label: "Opção 1",
+          label: "Integral",
           prazo: parcelaTabela.months,
           percentualCategoria: 1,
           parcela: primeiraParcelaIntegral,
-          detalhe: "1ª parcela integral.",
+          detalhe: "1ª parcela integral + demais reduzidas",
           codigoTabela: tabelaSelecionada.code,
           creditoTabela: tabelaSelecionada.credit,
           primeiraParcelaIntegral,
@@ -731,11 +679,11 @@ function AnaliseContent() {
         },
         {
           key: "reduzida",
-          label: "Opção 2",
+          label: "Reduzida",
           prazo: parcelaTabela.months,
           percentualCategoria: 0.75,
           parcela: demaisParcelasReduzidas,
-          detalhe: `${quantidadeReduzidas} parcelas reduzidas.`,
+          detalhe: `${quantidadeReduzidas} parcelas após a 1ª`,
           codigoTabela: tabelaSelecionada.code,
           creditoTabela: tabelaSelecionada.credit,
           primeiraParcelaIntegral,
@@ -1030,12 +978,17 @@ function AnaliseContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[#f4f8fb]">
-        <div className="w-16 h-16 rounded-[24px] bg-white border border-[#d9e6f2] flex items-center justify-center shadow-sm">
-          <Loader2 className="animate-spin h-7 w-7 text-[#0072bc]" />
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#f7f9fc] relative overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          <div className="absolute top-1/3 left-1/4 w-72 h-72 rounded-full bg-[#0072bc]/8 blur-[90px] animate-pulse" />
+          <div
+            className="absolute bottom-1/4 right-1/4 w-56 h-56 rounded-full bg-[#b8d4ea]/40 blur-[70px] animate-pulse"
+            style={{ animationDelay: "1s" }}
+          />
         </div>
-        <p className="mt-4 text-xs font-black uppercase tracking-widest text-[#8792a1]">
-          Calculando simulação
+        <Loader2 className="h-8 w-8 text-[#0072bc] animate-spin relative z-10" />
+        <p className="mt-5 text-[11px] font-medium tracking-[0.18em] uppercase text-[#8a9aab] relative z-10">
+          Montando simulação
         </p>
       </div>
     );
@@ -1045,92 +998,125 @@ function AnaliseContent() {
   const credito = resultado?.credito || 0;
 
   return (
-    <div className="min-h-screen bg-[#f4f8fb] font-sans text-[#172033] pb-24">
-      <header className="bg-white/95 backdrop-blur border-b border-[#d9e6f2] sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-5 sm:px-6 py-4 flex justify-between items-center gap-4">
+    <div className="min-h-screen bg-[#f7f9fc] text-[#1a2332] relative overflow-hidden">
+      {/* Fundo animado sutil (claro) */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden">
+        <div
+          className="absolute -top-24 -left-24 w-[380px] h-[380px] rounded-full bg-[#0072bc]/[0.07] blur-[100px]"
+          style={{ animation: "float1 20s ease-in-out infinite" }}
+        />
+        <div
+          className="absolute top-[45%] -right-20 w-[300px] h-[300px] rounded-full bg-[#a8cce0]/25 blur-[90px]"
+          style={{ animation: "float2 24s ease-in-out infinite" }}
+        />
+        <div
+          className="absolute -bottom-16 left-1/3 w-[260px] h-[260px] rounded-full bg-[#d0e4f2]/40 blur-[80px]"
+          style={{ animation: "float3 16s ease-in-out infinite" }}
+        />
+        <style jsx>{`
+          @keyframes float1 {
+            0%, 100% { transform: translate(0, 0); }
+            50% { transform: translate(36px, 28px); }
+          }
+          @keyframes float2 {
+            0%, 100% { transform: translate(0, 0); }
+            50% { transform: translate(-28px, -36px); }
+          }
+          @keyframes float3 {
+            0%, 100% { transform: translate(0, 0); }
+            50% { transform: translate(22px, -18px); }
+          }
+        `}</style>
+      </div>
+
+      {/* Header */}
+      <header className="relative z-30 sticky top-0 border-b border-[#e4ebf3] bg-white/85 backdrop-blur-xl">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <button
             onClick={() => router.back()}
-            className="text-xs font-black text-[#566173] hover:text-[#0072bc] flex items-center gap-2 uppercase transition-all"
+            className="flex items-center gap-2 text-[#6b7c8f] hover:text-[#0072bc] transition-colors"
           >
-            <ArrowLeft size={16} /> Voltar
+            <span className="w-8 h-8 rounded-xl bg-[#f0f4f8] flex items-center justify-center">
+              <ArrowLeft size={16} strokeWidth={1.75} />
+            </span>
+            <span className="text-xs font-medium hidden sm:inline">Voltar</span>
           </button>
 
-          <div className="hidden md:block">
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="text-right hidden sm:block">
-              <h1 className="font-black text-[#172033] text-sm uppercase">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="text-right min-w-0">
+              <p className="text-sm font-semibold text-[#1a2332] truncate max-w-[140px] sm:max-w-[200px]">
                 {dadosIniciais.nome}
-              </h1>
-              <p className="text-[10px] text-[#8792a1] font-bold uppercase tracking-wider max-w-[240px] truncate">
+              </p>
+              <p className="text-[11px] text-[#8a9aab] truncate max-w-[140px] sm:max-w-[200px]">
                 {dadosIniciais.modelo}
               </p>
             </div>
-
             {dadosIniciais.imagem ? (
-              <div className="w-11 h-11 rounded-full overflow-hidden border border-[#d9e6f2] bg-white shadow-sm">
+              <div className="w-9 h-9 rounded-xl overflow-hidden border border-[#e4ebf3] flex-shrink-0 bg-white shadow-sm">
                 <img
                   src={dadosIniciais.imagem}
                   className="w-full h-full object-cover"
-                  alt="Veículo"
+                  alt=""
                 />
               </div>
             ) : (
-              <div className="w-11 h-11 rounded-full border border-[#d9e6f2] bg-white shadow-sm" />
+              <div className="w-9 h-9 rounded-xl bg-[#f0f4f8] border border-[#e4ebf3] flex items-center justify-center flex-shrink-0">
+                <Car size={16} className="text-[#8a9aab]" strokeWidth={1.5} />
+              </div>
             )}
           </div>
         </div>
       </header>
 
+      {/* Modal Lance */}
       {isLanceOpen ? (
         <div
-          className="fixed inset-0 z-[100] bg-[#10233f]/65 backdrop-blur-sm flex items-center justify-center p-4"
+          className="fixed inset-0 z-[100] bg-[#10233f]/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-5"
           onClick={() => setIsLanceOpen(false)}
         >
           <div
-            className="bg-white w-full max-w-2xl rounded-[32px] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[92vh]"
+            className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl border border-[#e4ebf3] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="p-5 border-b border-[#d9e6f2] flex items-center justify-between flex-shrink-0">
+            <div className="px-5 pt-5 pb-4 flex items-center justify-between border-b border-[#eef2f7]">
               <div>
-                <h3 className="font-black text-[#172033] uppercase text-sm">
-                  Simulador de Lance
-                </h3>
-                <p className="text-[11px] text-[#566173] mt-1">
-                  Aplique um lance e escolha como deseja reduzir.
+                <h3 className="text-sm font-semibold text-[#1a2332]">Lance</h3>
+                <p className="text-[12px] text-[#7a8b9e] mt-0.5">
+                  Aplique e escolha como reduzir
                 </p>
               </div>
-
               <button
                 onClick={() => setIsLanceOpen(false)}
-                className="p-2 rounded-full hover:bg-[#f4f8fb] text-[#566173]"
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-[#8a9aab] hover:text-[#1a2332] hover:bg-[#f0f4f8] transition-colors"
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
 
-            <div className="p-5 space-y-5 flex-1 overflow-y-auto overscroll-contain">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <StatCard label="Crédito" value={formatMoney(lanceCalc.credito)} />
-                <StatCard
-                  label="Parcela atual"
-                  value={formatMoney(lanceCalc.parcelaBase)}
-                />
-                <StatCard
-                  label="Plano"
-                  value={planoSelecionado?.label || "-"}
-                  accent
-                />
+            <div className="p-5 space-y-4 overflow-y-auto flex-1">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-2xl bg-[#f7f9fc] border border-[#e8eef5] p-3.5">
+                  <p className="text-[10px] text-[#8a9aab] uppercase tracking-wider mb-1">
+                    Crédito
+                  </p>
+                  <p className="text-base font-semibold text-[#1a2332]">
+                    {formatMoney(lanceCalc.credito)}
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-[#f7f9fc] border border-[#e8eef5] p-3.5">
+                  <p className="text-[10px] text-[#8a9aab] uppercase tracking-wider mb-1">
+                    Parcela
+                  </p>
+                  <p className="text-base font-semibold text-[#1a2332]">
+                    {formatMoney(lanceCalc.parcelaBase)}
+                  </p>
+                </div>
               </div>
 
-              <div className="bg-white border border-[#d9e6f2] rounded-2xl p-4">
-                <p className="text-[10px] text-[#8792a1] font-black uppercase mb-2">
-                  Valor do Lance
-                </p>
-
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-black text-[#8792a1]">R$</span>
+              <div>
+                <p className="text-[11px] text-[#7a8b9e] mb-2">Valor do lance</p>
+                <div className="flex items-center gap-2 rounded-xl bg-[#f7f9fc] border border-[#e4ebf3] px-3.5 h-12 focus-within:border-[#0072bc] focus-within:ring-2 focus-within:ring-[#0072bc]/15 transition-all">
+                  <span className="text-sm text-[#8a9aab]">R$</span>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -1140,82 +1126,61 @@ function AnaliseContent() {
                       setLanceValor(num);
                       setLanceDisplay(formatBRLInput(num));
                     }}
-                    className="w-full bg-[#f4f8fb] border border-[#d9e6f2] rounded-xl h-11 px-3 text-lg font-black text-[#172033] outline-none focus:border-[#0072bc]"
+                    className="w-full bg-transparent text-lg font-semibold text-[#1a2332] outline-none"
                     placeholder="0,00"
                   />
                 </div>
-
-                <p className="text-[11px] text-[#566173] mt-2">
-                  Máximo:{" "}
-                  <span className="font-black">
-                    {formatMoney(lanceCalc.credito)}
-                  </span>
+                <p className="text-[11px] text-[#8a9aab] mt-1.5 flex items-center gap-1">
+                  <Info size={11} />
+                  Máx. {formatMoney(lanceCalc.credito)}
                 </p>
               </div>
 
-              <div className="bg-white border border-[#d9e6f2] rounded-2xl p-4">
-                <p className="text-[10px] text-[#8792a1] font-black uppercase mb-2">
-                  Como aplicar o lance?
-                </p>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setLanceMode("reduzir_parcela")}
-                    className={[
-                      "h-11 rounded-xl border text-xs font-black uppercase tracking-widest transition-all",
-                      lanceMode === "reduzir_parcela"
-                        ? "bg-[#0072bc] text-white border-[#0072bc]"
-                        : "bg-white text-[#43546a] border-[#d9e6f2] hover:border-[#0072bc]",
-                    ].join(" ")}
-                  >
-                    Reduzir parcela
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setLanceMode("reduzir_meses")}
-                    className={[
-                      "h-11 rounded-xl border text-xs font-black uppercase tracking-widest transition-all",
-                      lanceMode === "reduzir_meses"
-                        ? "bg-[#0072bc] text-white border-[#0072bc]"
-                        : "bg-white text-[#43546a] border-[#d9e6f2] hover:border-[#0072bc]",
-                    ].join(" ")}
-                  >
-                    Reduzir meses
-                  </button>
-                </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setLanceMode("reduzir_parcela")}
+                  className={[
+                    "h-11 rounded-xl text-xs font-semibold transition-all",
+                    lanceMode === "reduzir_parcela"
+                      ? "bg-[#0072bc] text-white shadow-md shadow-[#0072bc]/20"
+                      : "bg-[#f7f9fc] text-[#5a6d80] border border-[#e4ebf3] hover:border-[#0072bc]/40",
+                  ].join(" ")}
+                >
+                  Reduzir parcela
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLanceMode("reduzir_meses")}
+                  className={[
+                    "h-11 rounded-xl text-xs font-semibold transition-all",
+                    lanceMode === "reduzir_meses"
+                      ? "bg-[#0072bc] text-white shadow-md shadow-[#0072bc]/20"
+                      : "bg-[#f7f9fc] text-[#5a6d80] border border-[#e4ebf3] hover:border-[#0072bc]/40",
+                  ].join(" ")}
+                >
+                  Reduzir meses
+                </button>
               </div>
 
-              <div className="bg-white border border-[#d9e6f2] rounded-2xl p-4">
-                <div className="flex items-center justify-between gap-3 mb-2">
-                  <p className="text-[10px] text-[#8792a1] font-black uppercase">
-                    Código de Promoção
-                  </p>
-
-                  {couponApplied ? (
-                    <span className="inline-flex items-center gap-2 text-[10px] font-black uppercase text-emerald-700">
-                      <CheckCircle2 size={14} /> Aplicado
-                    </span>
-                  ) : null}
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-                  <div className="flex-1 flex items-center gap-2 bg-[#f4f8fb] border border-[#d9e6f2] rounded-xl h-11 px-3">
-                    <Tag size={16} className="text-[#8792a1]" />
+              {/* Cupom */}
+              <div>
+                <p className="text-[11px] text-[#7a8b9e] mb-2">Cupom</p>
+                <div className="flex gap-2">
+                  <div className="flex-1 flex items-center gap-2 rounded-xl bg-[#f7f9fc] border border-[#e4ebf3] px-3 h-11">
+                    <Ticket size={14} className="text-[#8a9aab] flex-shrink-0" />
                     <input
                       value={couponInput}
                       onChange={(e) => setCouponInput(e.target.value)}
-                      placeholder="Digite o código"
-                      className="w-full bg-transparent outline-none text-sm font-black uppercase tracking-wider text-[#172033] placeholder:text-[#8792a1]"
+                      placeholder="Código"
+                      className="w-full bg-transparent text-sm font-medium uppercase tracking-wide text-[#1a2332] outline-none placeholder:text-[#a8b5c4]"
                     />
                   </div>
-
                   {!couponApplied ? (
                     <button
                       type="button"
                       onClick={applyCoupon}
-                      className="h-11 px-4 rounded-xl bg-[#10233f] text-white font-black uppercase text-xs tracking-widest hover:bg-[#172033] transition-all"
+                      className="h-11 px-4 rounded-xl bg-[#1a2332] text-white text-xs font-semibold hover:bg-[#2a3545] transition-colors"
                     >
                       Aplicar
                     </button>
@@ -1223,379 +1188,276 @@ function AnaliseContent() {
                     <button
                       type="button"
                       onClick={clearCoupon}
-                      className="h-11 px-4 rounded-xl border-2 border-[#d9e6f2] hover:border-[#0072bc] text-[#172033] font-black uppercase text-xs tracking-widest transition-all"
+                      className="h-11 px-4 rounded-xl border border-[#e4ebf3] text-[#5a6d80] text-xs font-semibold hover:border-[#0072bc] transition-colors"
                     >
-                      Remover
+                      Limpar
                     </button>
                   )}
                 </div>
-
                 {couponError ? (
-                  <div className="mt-2 flex items-center gap-2 text-rose-600">
-                    <AlertCircle size={14} />
-                    <p className="text-[11px] font-bold">{couponError}</p>
-                  </div>
+                  <p className="mt-2 text-[11px] text-rose-500 flex items-center gap-1.5">
+                    <AlertCircle size={12} /> {couponError}
+                  </p>
                 ) : null}
-
                 {couponApplied ? (
-                  <div className="mt-3 bg-[#f4f8fb] border border-[#d9e6f2] rounded-xl p-3">
-                    <p className="text-[11px] font-black text-[#172033] uppercase">
-                      {couponApplied.label}
-                    </p>
-                    <p className="text-[11px] text-[#566173] mt-1">
-                      {couponApplied.description}
-                    </p>
-
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {couponApplied.effects.freteFree ? (
-                        <span className="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase">
-                          Frete grátis
-                        </span>
-                      ) : null}
-
-                      {couponApplied.effects.platingFree ? (
-                        <span className="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase">
-                          Emplacamento grátis
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
+                  <p className="mt-2 text-[11px] text-emerald-600 flex items-center gap-1.5">
+                    <Check size={12} /> {couponApplied.label}
+                  </p>
                 ) : null}
               </div>
 
-              <div className="bg-gradient-to-br from-[#dff0fb] to-white border border-[#b8dcf1] rounded-2xl p-4">
-                <div className="flex items-start justify-between gap-3">
+              <div className="rounded-2xl bg-[#eef6fc] border border-[#c5dff0] p-4">
+                <div className="flex justify-between items-end">
                   <div>
-                    <p className="text-[10px] font-black uppercase text-[#10233f]/70">
-                      Resultado com lance
+                    <p className="text-[10px] text-[#5a7a94] uppercase tracking-wider">
+                      Após lance
                     </p>
-                    <p className="text-[11px] text-[#10233f]/70 mt-1">
-                      Crédito após lance:{" "}
-                      <span className="font-black">
-                        {formatMoney(lanceCalc.creditoAposLance)}
-                      </span>
+                    <p className="text-sm text-[#3d5a72] mt-0.5">
+                      {formatMoney(lanceCalc.creditoAposLance)}
                     </p>
                   </div>
-
                   <div className="text-right">
-                    <p className="text-[10px] font-black uppercase text-[#10233f]/70">
-                      Parcela final
-                    </p>
-                    <p className="text-2xl font-black text-[#10233f]">
+                    <p className="text-2xl font-semibold text-[#10233f] tracking-tight">
                       {formatMoney(lanceCalc.parcelaFinal)}
                     </p>
-                    <p className="text-[10px] font-black uppercase text-[#10233f]/70 mt-1">
-                      Prazo final: {lanceCalc.prazoFinal}x
+                    <p className="text-[11px] text-[#5a7a94]">
+                      {lanceCalc.prazoFinal}x
                     </p>
                   </div>
                 </div>
-
-                <p className="text-[11px] text-[#10233f]/70 mt-3">
-                  {lanceMode === "reduzir_parcela"
-                    ? "Você mantém o prazo e diminui o valor da parcela."
-                    : "Você mantém a parcela e reduz a quantidade de meses quando possível."}
-                </p>
               </div>
             </div>
 
-            <div className="p-5 border-t border-[#d9e6f2] flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between flex-shrink-0 bg-white sticky bottom-0">
+            <div className="p-4 border-t border-[#eef2f7] flex gap-2.5">
               <button
                 type="button"
                 onClick={() => {
                   setIsLanceOpen(false);
                   avancarParaContrato({ withLance: false });
                 }}
-                className="h-11 px-4 rounded-xl border-2 border-[#d9e6f2] hover:border-[#0072bc] text-[#172033] font-black uppercase text-xs tracking-widest transition-all"
+                className="flex-1 h-11 rounded-xl border border-[#e4ebf3] text-[#5a6d80] text-xs font-semibold hover:bg-[#f7f9fc] transition-colors"
               >
-                Continuar sem lance
+                Sem lance
               </button>
-
               <button
                 type="button"
                 onClick={() => {
                   setIsLanceOpen(false);
                   avancarParaContrato({ withLance: true });
                 }}
-                className="h-11 px-4 rounded-xl bg-[#0072bc] text-white font-black uppercase text-xs tracking-widest hover:bg-[#005d99] transition-all flex items-center justify-center gap-2"
+                className="flex-1 h-11 rounded-xl bg-[#0072bc] text-white text-xs font-semibold hover:bg-[#0084d6] shadow-md shadow-[#0072bc]/20 transition-colors flex items-center justify-center gap-1.5"
               >
-                Aplicar lance e continuar <ChevronRight size={14} />
+                Aplicar
+                <ChevronRight size={14} />
               </button>
             </div>
           </div>
         </div>
       ) : null}
 
-      <main className="max-w-6xl mx-auto px-5 sm:px-6 py-8">
-        <div className="md:hidden mb-6">
+      {/* Conteúdo */}
+      <main className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 py-7 sm:py-9">
+        {/* Resumo */}
+        <div className="flex flex-wrap items-end justify-between gap-4 mb-7">
+          <div>
+            <p className="text-[11px] text-[#8a9aab] tracking-wider uppercase mb-1">
+              Crédito disponível
+            </p>
+            <h1 className="text-2xl sm:text-3xl font-semibold text-[#10233f] tracking-tight">
+              {formatMoney(credito)}
+            </h1>
+            <p className="text-sm text-[#7a8b9e] mt-1">
+              Veículo {formatMoney(valorCarro)} · Entrada{" "}
+              {formatMoney(entradaManual || 0)}
+            </p>
+          </div>
+
+          <button
+            onClick={() => {
+              const sugerida = (dadosIniciais.valor || 0) * 0.3;
+              setEntradaManual(sugerida);
+              setEntradaDisplay(formatBRLInput(sugerida));
+            }}
+            className="h-9 px-3.5 rounded-lg bg-white border border-[#e4ebf3] text-[11px] font-medium text-[#5a6d80] hover:border-[#0072bc] hover:text-[#0072bc] transition-colors shadow-sm"
+          >
+            Sugerir 30%
+          </button>
         </div>
 
-        <div className="mb-8">
-          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-[#0072bc]">
-                Nacional Consórcio
-              </p>
-              <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-[#10233f] mt-1">
-                Simulação de Crédito
-              </h2>
-              <p className="text-sm text-[#566173] mt-2">
-                Compare financiamento e consórcio com uma apresentação limpa e
-                comercial.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full lg:w-auto">
-              <StatCard label="Valor do veículo" value={formatMoney(valorCarro)} />
-              <StatCard label="Entrada" value={formatMoney(entradaManual || 0)} />
-              <StatCard label="Crédito" value={formatMoney(credito)} accent />
+        {/* Entrada */}
+        <div className="mb-7">
+          <div className="rounded-2xl bg-white border border-[#e4ebf3] shadow-[0_4px_24px_rgba(16,35,63,0.04)] p-1 focus-within:border-[#0072bc]/50 focus-within:ring-2 focus-within:ring-[#0072bc]/10 transition-all">
+            <div className="flex items-center gap-3 px-4 h-16">
+              <div className="w-10 h-10 rounded-xl bg-[#eef5fb] flex items-center justify-center flex-shrink-0">
+                <Banknote size={18} className="text-[#0072bc]" strokeWidth={1.6} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-[#8a9aab] uppercase tracking-wider leading-none mb-1">
+                  Valor da entrada
+                </p>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-sm text-[#8a9aab]">R$</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={entradaDisplay}
+                    onChange={(e) => {
+                      const num = parseDigitsToBRLNumber(e.target.value);
+                      setEntradaManual(num);
+                      setEntradaDisplay(formatBRLInput(num));
+                    }}
+                    className="w-full bg-transparent text-xl sm:text-2xl font-semibold text-[#1a2332] outline-none tracking-tight"
+                    placeholder="0,00"
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        <Card className="mb-8">
-          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-2xl bg-[#eef5fb] text-[#0072bc] flex items-center justify-center">
-                <DollarSign size={20} />
-              </div>
-
+        {/* Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+          {/* Financiamento */}
+          <div className="lg:col-span-2 rounded-2xl bg-white border border-[#e4ebf3] shadow-[0_4px_24px_rgba(16,35,63,0.04)] overflow-hidden">
+            <div className="px-5 pt-5 pb-3 flex items-center gap-2.5">
+              <Percent size={16} className="text-[#8a9aab]" strokeWidth={1.75} />
               <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-[#8792a1]">
-                  Controle da simulação
-                </p>
-                <h3 className="text-lg font-black text-[#172033]">
-                  Valor da Entrada
-                </h3>
-                <p className="text-xs text-[#566173] mt-1">
-                  
-                </p>
+                <p className="text-sm font-medium text-[#1a2332]">Financiamento</p>
+                <p className="text-[11px] text-[#8a9aab]">CDC · estimativa</p>
               </div>
             </div>
 
-            <button
-              onClick={() => {
-                const sugerida = (dadosIniciais.valor || 0) * 0.3;
-                setEntradaManual(sugerida);
-                setEntradaDisplay(formatBRLInput(sugerida));
-              }}
-              className="h-11 px-4 rounded-xl bg-[#0072bc] hover:bg-[#005d99] text-white text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 w-full sm:w-auto"
-            >
-              Sugerir 30%
-            </button>
-          </CardHeader>
-
-          <div className="px-6">
-            <Divider />
-          </div>
-
-          <CardBody className="pt-5">
-            <div className="flex items-center gap-3 bg-[#f4f8fb] border border-[#d9e6f2] rounded-2xl p-4">
-              <span className="text-sm font-black text-[#8792a1]">R$</span>
-              <input
-                type="text"
-                inputMode="numeric"
-                value={entradaDisplay}
-                onChange={(e) => {
-                  const num = parseDigitsToBRLNumber(e.target.value);
-                  setEntradaManual(num);
-                  setEntradaDisplay(formatBRLInput(num));
-                }}
-                className="bg-transparent border-none text-[#172033] text-3xl font-black w-full focus:ring-0 p-0 outline-none"
-                placeholder="0,00"
-              />
-            </div>
-          </CardBody>
-        </Card>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch">
-          <Card className="overflow-hidden flex flex-col">
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-[#eef5fb] text-[#566173] flex items-center justify-center">
-                  <Landmark size={20} />
-                </div>
-
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-[#8792a1]">
-                    CDC • simulação bancária
-                  </p>
-                  <h3 className="text-lg font-black text-[#172033] uppercase">
-                    Financiamento
-                  </h3>
-                </div>
-              </div>
-
-              <div className="mt-4 bg-[#f4f8fb] border border-[#d9e6f2] rounded-2xl p-4 text-center">
-                <p className="text-[10px] text-[#8792a1] uppercase font-black mb-1">
-                  Saldo a financiar
-                </p>
-                <p className="text-2xl font-black text-[#172033]">
-                  {formatMoney(credito)}
-                </p>
-              </div>
-            </CardHeader>
-
-            <div className="px-6">
-              <Divider />
+            <div className="px-3 pb-2 space-y-0.5">
+              {resultado?.financiamento?.planos?.map((p: any) => (
+                <button
+                  key={p.prazo}
+                  type="button"
+                  onClick={() => irParaSantander(p)}
+                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-[#f7f9fc] transition-colors group"
+                >
+                  <span className="text-[13px] text-[#7a8b9e] group-hover:text-[#5a6d80] transition-colors">
+                    {p.prazo}x
+                  </span>
+                  <span className="text-[13px] font-medium text-[#1a2332]">
+                    {formatMoney(p.parcela)}
+                  </span>
+                </button>
+              ))}
             </div>
 
-            <CardBody className="pt-5 flex-1 flex flex-col">
-              <div className="flex justify-between text-[10px] font-black text-[#8792a1] uppercase mb-3 px-1">
-                <span>Prazo</span>
-                <span>Parcela</span>
-              </div>
-
-              <div className="flex-1">
-                {resultado?.financiamento?.planos?.map((p: any) => (
-                  <button
-                    key={p.prazo}
-                    type="button"
-                    onClick={() => irParaSantander(p)}
-                    className="flex w-full justify-between items-center py-3 px-2 rounded-xl hover:bg-[#f4f8fb] transition-all border border-transparent hover:border-[#d9e6f2] text-left"
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      <span className="px-2 py-1 rounded-lg bg-[#eef5fb] text-[#43546a] text-[11px] font-black">
-                        {p.prazo}x
-                      </span>
-                      <span className="text-sm font-bold text-[#6d7480]">
-                        clique para usar no contrato
-                      </span>
-                    </span>
-
-                    <span className="font-black text-[#172033]">
-                      {formatMoney(p.parcela)}
-                    </span>
-                  </button>
-                ))}
-              </div>
-
+            <div className="px-4 pb-4 pt-1">
               <button
                 onClick={() => irParaSantander()}
-                className="mt-6 w-full bg-white border-2 border-[#d9e6f2] hover:border-[#0072bc] text-[#172033] font-black py-4 rounded-2xl uppercase text-xs tracking-widest transition-all flex items-center justify-center gap-2"
+                className="w-full h-10 rounded-xl border border-[#e4ebf3] text-[11px] font-medium text-[#7a8b9e] hover:text-[#0072bc] hover:border-[#0072bc]/40 transition-all flex items-center justify-center gap-1.5"
               >
-                Simular no Santander <ExternalLink size={14} />
+                Abrir no Santander
+                <ExternalLink size={12} />
               </button>
-            </CardBody>
-          </Card>
+            </div>
+          </div>
 
-          <Card className="overflow-hidden flex flex-col ring-1 ring-[#0072bc]/10">
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-[#0072bc] text-white flex items-center justify-center">
-                  <ShieldCheck size={20} />
-                </div>
+          {/* Consórcio */}
+          <div className="lg:col-span-3 rounded-2xl bg-white border border-[#0072bc]/20 shadow-[0_8px_32px_rgba(0,114,188,0.08)] overflow-hidden relative">
+            <div className="absolute inset-0 bg-gradient-to-br from-[#eef6fc]/80 via-transparent to-transparent pointer-events-none" />
 
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-[#8792a1]">
-                    tabela exclusiva • máximo {CONSORCIO_MAX_MESES}x
-                  </p>
-                  <h3 className="text-lg font-black text-[#172033] uppercase">
-                    Consórcio Nacional
-                  </h3>
-                </div>
-              </div>
-
-              <div className="mt-5">
-                <p className="text-[10px] font-black text-[#8792a1] uppercase mb-2">
-                  Quantidade de parcelas
+            <div className="relative px-5 pt-5 pb-3 flex items-center gap-2.5">
+              <Calendar size={16} className="text-[#0072bc]" strokeWidth={1.75} />
+              <div>
+                <p className="text-sm font-medium text-[#1a2332]">Consórcio Nacional</p>
+                <p className="text-[11px] text-[#8a9aab]">
+                  Tabela exclusiva · até {CONSORCIO_MAX_MESES}x
                 </p>
+              </div>
+            </div>
 
-                <div className="flex flex-wrap gap-2">
-                  {CONSORCIO_PRAZOS.filter(
-                    (p) => p <= CONSORCIO_MAX_MESES
-                  ).map((p) => {
+            {/* Prazos */}
+            <div className="relative px-5 pb-4">
+              <p className="text-[10px] text-[#8a9aab] uppercase tracking-wider mb-2">
+                Prazo
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {CONSORCIO_PRAZOS.filter((p) => p <= CONSORCIO_MAX_MESES).map(
+                  (p) => {
                     const active = prazoConsorcio === p;
-
                     return (
                       <button
                         key={p}
                         onClick={() => setPrazoConsorcio(p)}
                         className={[
-                          "h-10 px-3 rounded-xl border text-xs font-black uppercase tracking-widest transition-all",
+                          "h-9 min-w-[48px] px-2.5 rounded-lg text-[12px] font-medium transition-all",
                           active
-                            ? "bg-[#0072bc] text-white border-[#0072bc]"
-                            : "bg-white text-[#43546a] border-[#d9e6f2] hover:border-[#0072bc]",
+                            ? "bg-[#0072bc] text-white shadow-sm shadow-[#0072bc]/25"
+                            : "bg-[#f7f9fc] text-[#5a6d80] border border-[#e4ebf3] hover:border-[#0072bc]/40",
                         ].join(" ")}
                       >
                         {p}x
                       </button>
                     );
-                  })}
-                </div>
+                  }
+                )}
               </div>
-            </CardHeader>
-
-            <div className="px-6">
-              <Divider />
             </div>
 
-            <CardBody className="pt-5 flex-1 flex flex-col">
-              <div className="flex justify-between text-[10px] font-black text-[#8792a1] uppercase mb-3 px-1">
-                <span>Opção</span>
-                <span>Parcela</span>
-              </div>
+            {/* Opções */}
+            <div className="relative px-4 pb-3 space-y-2">
+              {resultado?.consorcio?.opcoes?.map((op: any) => {
+                const isSelected = planoSelecionado?.key === op.key;
 
-              <div className="space-y-2 flex-1">
-                {resultado?.consorcio?.opcoes?.map((op: any) => {
-                  const isSelected = planoSelecionado?.key === op.key;
-
-                  return (
-                    <button
-                      key={op.key}
-                      type="button"
-                      onClick={() => {
-                        setPlanoSelecionado(op);
-                        setLanceValor(0);
-                        setLanceDisplay(formatBRLInput(0));
-                        setLanceMode("reduzir_parcela");
-                      }}
-                      className={[
-                        "w-full text-left rounded-2xl border p-4 transition-all",
-                        isSelected
-                          ? "border-[#0072bc] bg-gradient-to-br from-[#dff0fb] to-white shadow-md"
-                          : "border-[#d9e6f2] bg-white hover:bg-[#f4f8fb]",
-                      ].join(" ")}
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex items-start gap-3">
-                          <div
-                            className={[
-                              "mt-1 w-5 h-5 rounded-full border-2 flex items-center justify-center",
-                              isSelected
-                                ? "border-[#0072bc]"
-                                : "border-slate-300",
-                            ].join(" ")}
-                          >
-                            {isSelected ? (
-                              <div className="w-2.5 h-2.5 rounded-full bg-[#10233f]" />
-                            ) : null}
-                          </div>
-
-                          <div>
-                            <p className="font-black text-sm text-[#172033]">
-                              {op.label}
-                            </p>
-                            <p className="text-[11px] text-[#566173] mt-1">
-                              {op.detalhe}
-                            </p>
-                          </div>
+                return (
+                  <button
+                    key={op.key}
+                    type="button"
+                    onClick={() => {
+                      setPlanoSelecionado(op);
+                      setLanceValor(0);
+                      setLanceDisplay(formatBRLInput(0));
+                      setLanceMode("reduzir_parcela");
+                    }}
+                    className={[
+                      "w-full text-left rounded-xl px-4 py-3.5 transition-all border",
+                      isSelected
+                        ? "bg-[#eef6fc] border-[#0072bc]/45 shadow-sm"
+                        : "bg-[#fafbfc] border-[#e8eef5] hover:border-[#c5d8ea] hover:bg-white",
+                    ].join(" ")}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div
+                          className={[
+                            "w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors",
+                            isSelected
+                              ? "border-[#0072bc] bg-[#0072bc]"
+                              : "border-[#c5d0dc]",
+                          ].join(" ")}
+                        >
+                          {isSelected ? (
+                            <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                          ) : null}
                         </div>
-
-                        <div className="text-right">
-                          <p className="font-black text-xl text-[#172033]">
-                            {formatMoney(op.parcela)}
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-[#1a2332]">
+                            {op.label}
                           </p>
-                          <p className="text-[10px] uppercase font-black text-[#6d7480] mt-1">
-                            {op.prazo}x •{" "}
-                            {op.key === "reduzida" ? "reduzida" : "integral"}
+                          <p className="text-[11px] text-[#7a8b9e] truncate">
+                            {op.detalhe}
                           </p>
                         </div>
                       </div>
-                    </button>
-                  );
-                })}
-              </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className="text-lg font-semibold text-[#1a2332] tracking-tight">
+                          {formatMoney(op.parcela)}
+                        </p>
+                        <p className="text-[10px] text-[#8a9aab]">
+                          {op.prazo}x
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
 
+            <div className="relative px-4 pb-5 pt-1">
               <button
                 onClick={() => {
                   if (!planoSelecionado) return;
@@ -1603,24 +1465,24 @@ function AnaliseContent() {
                 }}
                 disabled={!planoSelecionado}
                 className={[
-                  "mt-6 w-full font-black py-4 rounded-2xl uppercase text-xs tracking-widest transition-all flex items-center justify-center gap-2",
+                  "w-full h-12 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2",
                   planoSelecionado
-                    ? "bg-[#0072bc] text-white hover:bg-[#005d99] shadow-lg"
-                    : "bg-[#eef5fb] text-[#8792a1] cursor-not-allowed",
+                    ? "bg-[#0072bc] text-white hover:bg-[#0084d6] shadow-lg shadow-[#0072bc]/25 active:scale-[0.98]"
+                    : "bg-[#eef2f7] text-[#a0aec0] cursor-not-allowed",
                 ].join(" ")}
               >
-                {planoSelecionado
-                  ? `Continuar (${planoSelecionado.prazo}x • ${
-                      planoSelecionado.key === "reduzida"
-                        ? "Reduzida"
-                        : "Integral"
-                    })`
-                  : "Selecione uma opção acima"}
-
-                {planoSelecionado ? <ChevronRight size={14} /> : null}
+                {planoSelecionado ? (
+                  <>
+                    Continuar · {planoSelecionado.prazo}x{" "}
+                    {planoSelecionado.label}
+                    <ChevronRight size={16} />
+                  </>
+                ) : (
+                  "Escolha uma opção"
+                )}
               </button>
-            </CardBody>
-          </Card>
+            </div>
+          </div>
         </div>
       </main>
     </div>
@@ -1629,7 +1491,7 @@ function AnaliseContent() {
 
 export default function AnalisePage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#f4f8fb]" />}>
+    <Suspense fallback={<div className="min-h-screen bg-[#f7f9fc]" />}>
       <AnaliseContent />
     </Suspense>
   );

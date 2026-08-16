@@ -8,6 +8,7 @@ import {
   ChevronRight,
   ChevronLeft,
   MessageCircle,
+  ArrowLeft,
 } from "lucide-react";
 
 type HeroSlide = {
@@ -228,6 +229,17 @@ export default function VolkswagenPage() {
       <header className="fixed left-0 top-0 z-[80] h-[46px] w-full bg-black/95 text-white max-md:h-[58px]">
         <div className="flex h-full items-center justify-between px-[76px] max-xl:px-10 max-lg:px-6 max-md:px-4">
           <div className="flex h-full min-w-0 items-center gap-7 max-lg:gap-5 max-md:w-full max-md:gap-4 max-md:overflow-x-auto max-md:whitespace-nowrap">
+            {/* Voltar para marcas */}
+            <Link
+              href="/"
+              className="flex shrink-0 items-center gap-1.5 text-[13px] font-bold text-white/80 transition-all duration-300 hover:scale-[1.04] hover:text-white max-md:text-[12px]"
+            >
+              <ArrowLeft size={14} className="max-md:h-3.5 max-md:w-3.5" />
+              <span>Marcas</span>
+            </Link>
+
+            <div className="h-4 w-px shrink-0 bg-white/25" />
+
             <img
               src={VW_IMAGES.logo}
               alt="Volkswagen"
@@ -335,15 +347,19 @@ export default function VolkswagenPage() {
         <MessageCircle className="h-7 w-7 max-md:h-6 max-md:w-6" />
       </a>
 
-      <section id="modelos" className="bg-white px-[76px] pb-24 pt-24 max-xl:px-10 max-lg:px-6 max-md:px-4 max-md:pb-16 max-md:pt-16">
+      <section
+        id="modelos"
+        className="bg-white px-[76px] pb-24 pt-24 max-xl:px-10 max-lg:px-6 max-md:px-4 max-md:pb-16 max-md:pt-16"
+      >
         <div className="mx-auto max-w-[1500px] text-center">
           <h2 className="vw-section-title text-[50px] font-bold tracking-[-0.03em] max-lg:text-[42px] max-md:text-[34px] max-[380px]:text-[30px]">
             Encontre o seu Volkswagen
           </h2>
 
           <p className="mx-auto mt-10 max-w-[980px] text-[14px] leading-6 text-[#001e50]/80 max-md:mt-6 max-md:text-[13px]">
-            Conheça os modelos recomendados, modelos em destaque, veículos elétricos ou
-            explore todos os modelos para escolher o Volkswagen 0 km que mais combina com você.
+            Conheça os modelos recomendados, modelos em destaque, veículos
+            elétricos ou explore todos os modelos para escolher o Volkswagen 0
+            km que mais combina com você.
           </p>
 
           <h3 className="mt-14 text-[48px] font-bold tracking-[-0.03em] max-lg:text-[38px] max-md:mt-10 max-md:text-[30px]">

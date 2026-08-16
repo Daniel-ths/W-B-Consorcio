@@ -1,36 +1,44 @@
-import { Loader2 } from "lucide-react";
-
 export default function Loading() {
   return (
-    <div className="min-h-screen bg-white pt-24 px-6 lg:px-12">
+    <div className="min-h-screen bg-white pt-24 px-6 lg:px-12 animate-[fadeIn_0.4s_ease-out]">
       <div className="max-w-[1400px] mx-auto flex gap-8">
         
-        {/* SKELETON DO MENU LATERAL (Igual ao seu layout) */}
-        <aside className="hidden md:block w-1/4 pr-6 border-r border-gray-100 space-y-4 animate-pulse">
-            <div className="h-4 bg-gray-200 rounded w-1/3 mb-8"></div> {/* Título 'Categorias' */}
-            
-            {/* Lista de Categorias Fake */}
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-                <div key={i} className="h-12 bg-gray-100 rounded-lg w-full"></div>
-            ))}
+        {/* SIDEBAR */}
+        <aside className="hidden md:block w-1/4 pr-6 border-r border-gray-100">
+          <div className="space-y-6 animate-pulse">
+            <div className="h-4 w-28 bg-gray-200 rounded" />
+
+            <div className="space-y-3">
+              {[1, 2, 3, 4, 5, 6, 7].map((i) => (
+                <div
+                  key={i}
+                  className="h-12 w-full rounded-xl bg-gray-100"
+                />
+              ))}
+            </div>
+          </div>
         </aside>
 
-        {/* SKELETON DO GRID DE CARROS (Conteúdo Principal) */}
+        {/* GRID */}
         <main className="flex-1">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-pulse">
-                {[1, 2, 3, 4, 5, 6].map((i) => (
-                     <div key={i} className="flex flex-col items-center p-4 bg-white border border-gray-100 rounded-xl">
-                        {/* Imagem do carro */}
-                        <div className="h-32 bg-gray-100 rounded-lg w-full mb-4"></div>
-                        {/* Texto Nome */}
-                        <div className="h-5 bg-gray-200 rounded w-3/4 mb-2"></div>
-                        {/* Texto Preço */}
-                        <div className="h-4 bg-gray-100 rounded w-1/2 mb-4"></div>
-                        {/* Botão Saiba Mais */}
-                        <div className="h-3 bg-gray-100 rounded w-1/3"></div>
-                     </div>
-                ))}
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-12">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div
+                key={i}
+                className="flex flex-col animate-pulse opacity-0 animate-[fadeIn_0.5s_ease-out_forwards]"
+                style={{ animationDelay: `${i * 80}ms` }}
+              >
+                <div className="aspect-[16/10] w-full rounded-2xl bg-gray-100 mb-6" />
+                <div className="h-5 w-20 rounded bg-gray-200 mb-3" />
+                <div className="h-6 w-3/4 rounded bg-gray-200 mb-3" />
+                <div className="space-y-1.5 mb-6">
+                  <div className="h-3 w-16 rounded bg-gray-100" />
+                  <div className="h-5 w-28 rounded bg-gray-200" />
+                </div>
+                <div className="h-4 w-28 rounded bg-gray-100 mt-auto" />
+              </div>
+            ))}
+          </div>
         </main>
       </div>
     </div>

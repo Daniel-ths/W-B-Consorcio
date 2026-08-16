@@ -16,13 +16,12 @@ import {
   Instagram,
   Youtube,
   X,
-  Phone,
   LayoutDashboard,
   LogOut,
   ShieldCheck,
-  CarFront,
   LogIn,
   Search,
+  ArrowLeft,
 } from "lucide-react";
 
 type FiatCategory =
@@ -52,7 +51,8 @@ type VehicleRow = {
 
 const FIAT_IMAGES = {
   logo: "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/avatars/logo_header_hub_fiat_02.svg",
-  heroBg: "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/avatars/BANNERS%20FIAT/Screenshot_24.svg",
+  heroBg:
+    "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/avatars/BANNERS%20FIAT/Screenshot_24.svg",
   heroMain: "COLE_AQUI_IMAGEM_PRINCIPAL_HERO",
   promoLeft:
     "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/avatars/BANNERS%20FIAT/banner-mini-home-fiat-dia-d@2x.webp",
@@ -84,10 +84,6 @@ const FIAT_IMAGES = {
   footerLogo:
     "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/avatars/BANNERS%20FIAT/logo_footer_hub_fiat.svg",
 };
-
-
-const LOGO_SIDEBAR =
-  "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/parceirologo.png";
 
 const CONSULTA_CLIENTE_LINK = "/vendedor/consulta-cliente";
 
@@ -136,29 +132,20 @@ const fallbackVehicles: Vehicle[] = [
 ];
 
 const fiatCategoryBySlug: Record<string, FiatCategory[]> = {
-  // PASSEIO
   mobi: ["TODOS", "PASSEIO"],
   argo: ["TODOS", "PASSEIO"],
   cronos: ["TODOS", "PASSEIO"],
-  "e500": ["TODOS", "ELÉTRICOS"],
-
-  // SUV
+  e500: ["TODOS", "ELÉTRICOS"],
   pulse: ["TODOS", "SUV"],
   "pulse-hybrid": ["TODOS", "SUV", "HÍBRIDOS"],
   fastback: ["TODOS", "SUV"],
   "fastback-hybrid": ["TODOS", "SUV", "HÍBRIDOS"],
-
-  // ESPORTIVOS
   abarth: ["TODOS", "ESPORTIVOS"],
   "pulse-abarth": ["TODOS", "SUV", "ESPORTIVOS"],
   "fastback-abarth": ["TODOS", "SUV", "ESPORTIVOS"],
-
-  // PICAPES
   strada: ["TODOS", "PICAPES", "UTILITÁRIOS"],
   toro: ["TODOS", "PICAPES"],
   titano: ["TODOS", "PICAPES", "UTILITÁRIOS"],
-
-  // UTILITÁRIOS
   fiorino: ["TODOS", "UTILITÁRIOS"],
   ducato: ["TODOS", "UTILITÁRIOS"],
   scudo: ["TODOS", "UTILITÁRIOS"],
@@ -168,7 +155,7 @@ const fiatCategoryBySlug: Record<string, FiatCategory[]> = {
 function normalizeText(value: string) {
   return String(value || "")
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim();
 }
@@ -197,7 +184,11 @@ function getVehicleCategories(slug: string, name: string): FiatCategory[] {
     categories.push("HÍBRIDOS");
   }
 
-  if (search.includes("eletric") || search.includes("500e") || search.includes("e-scudo")) {
+  if (
+    search.includes("eletric") ||
+    search.includes("500e") ||
+    search.includes("e-scudo")
+  ) {
     categories.push("ELÉTRICOS");
   }
 
@@ -326,19 +317,15 @@ function mapVehicleFromDb(row: VehicleRow): Vehicle {
 
 function isValidImageUrl(url?: string | null) {
   if (!url) return false;
-
   const value = String(url).trim();
-
   if (!value) return false;
   if (value.startsWith("COLE_AQUI")) return false;
-
   return value.startsWith("http");
 }
 
 function preloadOneImage(url: string) {
   return new Promise<void>((resolve) => {
     const img = new Image();
-
     img.onload = () => resolve();
     img.onerror = () => resolve();
     img.src = url;
@@ -347,18 +334,17 @@ function preloadOneImage(url: string) {
 
 async function preloadImages(urls: string[], timeoutMs = 1800) {
   const safeUrls = Array.from(new Set(urls.filter(isValidImageUrl)));
-
   if (!safeUrls.length) return;
 
-  const preload = Promise.all(safeUrls.map(preloadOneImage)).then(() => undefined);
-
+  const preload = Promise.all(safeUrls.map(preloadOneImage)).then(
+    () => undefined
+  );
   const timeout = new Promise<void>((resolve) => {
     window.setTimeout(resolve, timeoutMs);
   });
 
   await Promise.race([preload, timeout]);
 }
-
 
 function FiatNavbar() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -371,6 +357,8 @@ function FiatNavbar() {
   const router = useRouter();
   const pathname = usePathname();
   const currentUserIdRef = useRef<string | null>(null);
+
+  const isBrandsPage = pathname === "/" || pathname === "";
 
   useEffect(() => {
     setSidebarOpen(false);
@@ -390,7 +378,7 @@ function FiatNavbar() {
         setUserRole(profile.role || "vendedor");
       }
     } catch {
-      // mantém a navbar funcionando mesmo se o perfil não carregar
+      // silencioso
     }
   };
 
@@ -507,8 +495,21 @@ function FiatNavbar() {
   return (
     <>
       <nav className="fixed top-0 z-[1001] flex h-16 w-full items-center justify-between border-b border-white/10 bg-black px-4 font-sans shadow-sm transition-all md:px-6">
-        <div className="flex h-full items-center">
-          <Link href="/fiat" className="flex h-full items-center">
+        <div className="flex h-full items-center gap-0">
+          {/* Desktop: Voltar para marcas */}
+          {!isBrandsPage && (
+            <Link
+              href="/"
+              className="hidden h-full items-center gap-2 border-r border-white/20 px-3 text-white/80 transition hover:bg-white/10 hover:text-white lg:flex"
+            >
+              <ArrowLeft size={14} />
+              <span className="text-[10px] font-bold uppercase tracking-wider">
+                Marcas
+              </span>
+            </Link>
+          )}
+
+          <Link href="/fiat" className="flex h-full items-center px-1">
             <img
               src={FIAT_IMAGES.logo}
               alt="Fiat"
@@ -518,6 +519,19 @@ function FiatNavbar() {
         </div>
 
         <div className="flex h-full items-center">
+          {/* Mobile: Voltar para marcas */}
+          {!isBrandsPage && (
+            <Link
+              href="/"
+              className="flex h-full min-w-[64px] flex-col items-center justify-center border-l border-white/20 px-3 text-white transition hover:bg-white/10 lg:hidden"
+            >
+              <ArrowLeft className="h-[15px] w-[15px]" />
+              <span className="mt-1 text-[9px] font-bold uppercase tracking-wide">
+                Marcas
+              </span>
+            </Link>
+          )}
+
           <div className="hidden h-full items-center lg:flex">
             {loading ? (
               <div className="mx-4 h-8 w-8 animate-pulse rounded-full bg-white/20" />
@@ -533,7 +547,11 @@ function FiatNavbar() {
                     }`}
                   >
                     {avatarUrl ? (
-                      <img src={avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
+                      <img
+                        src={avatarUrl}
+                        alt="Avatar"
+                        className="h-full w-full object-cover"
+                      />
                     ) : (
                       <User size={16} />
                     )}
@@ -553,8 +571,12 @@ function FiatNavbar() {
 
                 <div className="invisible absolute right-0 top-full mt-3 w-64 translate-y-2 rounded-2xl border border-gray-100 bg-white p-2 opacity-0 shadow-xl transition-all duration-200 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
                   <div className="mb-2 rounded-xl bg-gray-50 p-3">
-                    <p className="truncate text-xs font-bold text-gray-900">{displayName}</p>
-                    <p className="truncate text-[10px] text-gray-500">{user.email}</p>
+                    <p className="truncate text-xs font-bold text-gray-900">
+                      {displayName}
+                    </p>
+                    <p className="truncate text-[10px] text-gray-500">
+                      {user.email}
+                    </p>
                   </div>
 
                   <Link
@@ -629,7 +651,11 @@ function FiatNavbar() {
         }`}
       >
         <div className="flex h-20 items-center justify-between border-b border-gray-100 p-6">
-          <img src={FIAT_IMAGES.logo} alt="Fiat" className="h-8 w-auto object-contain" />
+          <img
+            src={FIAT_IMAGES.logo}
+            alt="Fiat"
+            className="h-8 w-auto object-contain"
+          />
           <button
             onClick={() => setSidebarOpen(false)}
             className="rounded-full bg-gray-50 p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-black"
@@ -654,7 +680,11 @@ function FiatNavbar() {
                     }`}
                   >
                     {avatarUrl ? (
-                      <img src={avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
+                      <img
+                        src={avatarUrl}
+                        alt="Avatar"
+                        className="h-full w-full object-cover"
+                      />
                     ) : (
                       <User size={18} />
                     )}
@@ -663,7 +693,9 @@ function FiatNavbar() {
                     <p className="max-w-[150px] truncate text-xs font-bold text-gray-900">
                       {displayName}
                     </p>
-                    <p className="max-w-[150px] truncate text-[10px] text-gray-500">{user.email}</p>
+                    <p className="max-w-[150px] truncate text-[10px] text-gray-500">
+                      {user.email}
+                    </p>
                   </div>
                 </div>
 
@@ -673,7 +705,11 @@ function FiatNavbar() {
                     onClick={() => setSidebarOpen(false)}
                     className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 transition-colors hover:border-black"
                   >
-                    {isAdmin ? <ShieldCheck size={14} /> : <LayoutDashboard size={14} />}
+                    {isAdmin ? (
+                      <ShieldCheck size={14} />
+                    ) : (
+                      <LayoutDashboard size={14} />
+                    )}
                     {dashboardLabel}
                   </Link>
 
@@ -704,7 +740,9 @@ function FiatNavbar() {
               </>
             ) : (
               <div className="text-center">
-                <p className="mb-3 text-xs text-gray-500">Acesse sua conta para gerenciar propostas.</p>
+                <p className="mb-3 text-xs text-gray-500">
+                  Acesse sua conta para gerenciar propostas.
+                </p>
                 <Link
                   href="/login"
                   onClick={() => setSidebarOpen(false)}
@@ -720,6 +758,20 @@ function FiatNavbar() {
             <p className="border-b border-gray-100 pb-2 text-[10px] font-bold uppercase tracking-widest text-gray-400">
               Navegação
             </p>
+
+            {/* Sidebar: Voltar para marcas */}
+            {!isBrandsPage && (
+              <Link
+                href="/"
+                onClick={() => setSidebarOpen(false)}
+                className="group flex items-center gap-4 text-sm font-bold uppercase tracking-wide text-gray-900 transition-colors hover:text-[#ff1435]"
+              >
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-50 text-gray-400 transition-colors group-hover:bg-black group-hover:text-white">
+                  <ArrowLeft size={18} />
+                </span>
+                Voltar para Marcas
+              </Link>
+            )}
 
             <Link
               href="/fiat"
@@ -757,7 +809,9 @@ function FiatNavbar() {
         </div>
 
         <div className="border-t border-gray-100 p-6 text-center">
-          <p className="text-[10px] font-medium text-gray-400">© 2026 WBCNAC Digital</p>
+          <p className="text-[10px] font-medium text-gray-400">
+            © 2026 WBCNAC Digital
+          </p>
         </div>
       </div>
     </>
@@ -848,7 +902,10 @@ export default function FiatPage() {
   }, [activeCategory, catalogVehicles]);
 
   const itemsPerPage = isMobile ? 2 : 5;
-  const totalPages = Math.max(1, Math.ceil(filteredVehicles.length / itemsPerPage));
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredVehicles.length / itemsPerPage)
+  );
 
   const visibleVehicles = useMemo(() => {
     const start = page * itemsPerPage;
@@ -907,7 +964,8 @@ export default function FiatPage() {
           </h1>
 
           <p className="mt-3 text-[14px] font-semibold leading-6 text-black/65">
-            Estamos carregando imagens, ofertas e catálogo para deixar a página mais fluida.
+            Estamos carregando imagens, ofertas e catálogo para deixar a página
+            mais fluida.
           </p>
 
           <div className="mt-7 h-2 overflow-hidden rounded-full bg-black/10">
@@ -925,11 +983,9 @@ export default function FiatPage() {
             0% {
               transform: translateX(-120%);
             }
-
             50% {
               transform: translateX(60%);
             }
-
             100% {
               transform: translateX(235%);
             }
@@ -1281,7 +1337,11 @@ export default function FiatPage() {
               <a href="#" aria-label="Instagram">
                 <Instagram className="h-9 w-9" />
               </a>
-              <a href="#" aria-label="X" className="text-[52px] leading-none text-white">
+              <a
+                href="#"
+                aria-label="X"
+                className="text-[52px] leading-none text-white"
+              >
                 𝕏
               </a>
             </div>
@@ -1352,7 +1412,6 @@ export default function FiatPage() {
           }
         }
 
-
         .fiat-hero-car {
           animation: fiatImageIn 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
         }
@@ -1366,12 +1425,12 @@ export default function FiatPage() {
             opacity: 0;
             transform: translateY(12px) scale(0.985);
           }
-
           to {
             opacity: 1;
             transform: translateY(0) scale(1);
           }
-        }      `}</style>
+        }
+      `}</style>
     </main>
   );
 }

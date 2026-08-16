@@ -16,6 +16,7 @@ import {
   ChevronDown,
   LogIn,
   Search,
+  ArrowLeft,
 } from "lucide-react";
 import VehiclesMenu from "./VehiclesMenu";
 import MobileCatalogModal from "./MobileCatalogModal";
@@ -44,6 +45,9 @@ export default function Navbar() {
   const pathname = usePathname();
 
   const currentUserIdRef = useRef<string | null>(null);
+
+  // Não mostrar o botão se já estiver na página de marcas
+  const isBrandsPage = pathname === "/" || pathname === "";
 
   useEffect(() => {
     setSidebarOpen(false);
@@ -161,7 +165,8 @@ export default function Navbar() {
     }
   };
 
-  const toggleMenu = (menu: string) => setMenuAberto(menuAberto === menu ? null : menu);
+  const toggleMenu = (menu: string) =>
+    setMenuAberto(menuAberto === menu ? null : menu);
 
   const role = (userRole || "").toLowerCase();
   const email = (user?.email || "").toLowerCase();
@@ -194,7 +199,7 @@ export default function Navbar() {
   return (
     <>
       <nav className="fixed top-0 z-[1001] flex h-16 w-full items-center justify-between border-b border-gray-100 bg-white/95 px-4 font-sans shadow-sm backdrop-blur-md transition-all lg:px-12">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <button
             onClick={() => setSidebarOpen(true)}
             className="rounded-full p-2 text-gray-700 transition-colors hover:bg-gray-100 lg:hidden"
@@ -203,7 +208,22 @@ export default function Navbar() {
             <Menu size={24} />
           </button>
 
-          <div className="hidden items-center lg:flex">
+          {/* Desktop: Voltar para marcas + Veículos */}
+          <div className="hidden items-center gap-2 lg:flex">
+            {!isBrandsPage && (
+              <Link
+                href="/"
+                onClick={() => {
+                  setMenuAberto(null);
+                  setCatalogOpen(false);
+                }}
+                className="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3.5 py-2 text-xs font-bold uppercase tracking-widest text-gray-600 transition-all hover:border-gray-300 hover:bg-gray-50 hover:text-black"
+              >
+                <ArrowLeft size={14} />
+                Marcas
+              </Link>
+            )}
+
             <button
               onClick={() => toggleMenu("veiculos")}
               className={`flex items-center gap-2 rounded-full px-4 py-2 text-xs font-bold uppercase tracking-widest transition-all ${
@@ -212,7 +232,8 @@ export default function Navbar() {
                   : "text-gray-500 hover:bg-gray-100 hover:text-black"
               }`}
             >
-              {menuAberto === "veiculos" ? <X size={14} /> : <Menu size={14} />} Veículos
+              {menuAberto === "veiculos" ? <X size={14} /> : <Menu size={14} />}{" "}
+              Veículos
             </button>
           </div>
         </div>
@@ -234,7 +255,22 @@ export default function Navbar() {
           </Link>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          {/* Mobile: botão rápido Voltar marcas */}
+          {!isBrandsPage && (
+            <Link
+              href="/"
+              onClick={() => {
+                setMenuAberto(null);
+                setCatalogOpen(false);
+              }}
+              className="flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-600 transition-all hover:bg-gray-50 lg:hidden"
+            >
+              <ArrowLeft size={12} />
+              Marcas
+            </Link>
+          )}
+
           <div className="hidden lg:block">
             {loading ? (
               <div className="h-8 w-8 animate-pulse rounded-full bg-gray-200" />
@@ -243,11 +279,17 @@ export default function Navbar() {
                 <button className="flex items-center gap-3 rounded-full border border-gray-200 bg-white py-1 pl-1 pr-3 transition-all hover:border-gray-300 hover:shadow-sm">
                   <div
                     className={`flex h-8 w-8 items-center justify-center overflow-hidden rounded-full text-sm font-bold ${
-                      isAdmin ? "bg-black text-[#f2e14c]" : "bg-gray-100 text-gray-600"
+                      isAdmin
+                        ? "bg-black text-[#f2e14c]"
+                        : "bg-gray-100 text-gray-600"
                     }`}
                   >
                     {avatarUrl ? (
-                      <img src={avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
+                      <img
+                        src={avatarUrl}
+                        alt="Avatar"
+                        className="h-full w-full object-cover"
+                      />
                     ) : (
                       <User size={16} />
                     )}
@@ -265,8 +307,12 @@ export default function Navbar() {
 
                 <div className="invisible absolute right-0 top-full mt-3 w-64 translate-y-2 rounded-2xl border border-gray-100 bg-white p-2 opacity-0 shadow-xl transition-all duration-200 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
                   <div className="mb-2 rounded-xl bg-gray-50 p-3">
-                    <p className="truncate text-xs font-bold text-gray-900">{displayName}</p>
-                    <p className="truncate text-[10px] text-gray-500">{user.email}</p>
+                    <p className="truncate text-xs font-bold text-gray-900">
+                      {displayName}
+                    </p>
+                    <p className="truncate text-[10px] text-gray-500">
+                      {user.email}
+                    </p>
                   </div>
 
                   <Link
@@ -284,7 +330,7 @@ export default function Navbar() {
                   </Link>
 
                   <Link
-                    href= "/supervisor/consultar-cliente"
+                    href="/supervisor/consultar-cliente"
                     className="flex items-center gap-3 rounded-lg px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 hover:text-black"
                   >
                     <Search size={16} /> Consulta de Cliente
@@ -340,7 +386,11 @@ export default function Navbar() {
         }`}
       >
         <div className="flex h-20 items-center justify-between border-b border-gray-100 p-6">
-          <img src={LOGO_SIDEBAR} alt="Logo" className="h-12 w-auto object-contain" />
+          <img
+            src={LOGO_SIDEBAR}
+            alt="Logo"
+            className="h-12 w-auto object-contain"
+          />
           <button
             onClick={() => setSidebarOpen(false)}
             className="rounded-full bg-gray-50 p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-black"
@@ -362,7 +412,11 @@ export default function Navbar() {
                     }`}
                   >
                     {avatarUrl ? (
-                      <img src={avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
+                      <img
+                        src={avatarUrl}
+                        alt="Avatar"
+                        className="h-full w-full object-cover"
+                      />
                     ) : (
                       <User size={18} />
                     )}
@@ -371,7 +425,9 @@ export default function Navbar() {
                     <p className="max-w-[150px] truncate text-xs font-bold text-gray-900">
                       {displayName}
                     </p>
-                    <p className="max-w-[150px] truncate text-[10px] text-gray-500">{user.email}</p>
+                    <p className="max-w-[150px] truncate text-[10px] text-gray-500">
+                      {user.email}
+                    </p>
                   </div>
                 </div>
 
@@ -381,7 +437,11 @@ export default function Navbar() {
                     onClick={() => setSidebarOpen(false)}
                     className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 transition-colors hover:border-black"
                   >
-                    {isAdmin ? <ShieldCheck size={14} /> : <LayoutDashboard size={14} />}
+                    {isAdmin ? (
+                      <ShieldCheck size={14} />
+                    ) : (
+                      <LayoutDashboard size={14} />
+                    )}
                     {dashboardLabel}
                   </Link>
 
@@ -432,6 +492,20 @@ export default function Navbar() {
               Navegação
             </p>
 
+            {/* Sidebar: Voltar para marcas */}
+            {!isBrandsPage && (
+              <Link
+                href="/"
+                onClick={() => setSidebarOpen(false)}
+                className="group flex w-full items-center gap-4 text-sm font-bold uppercase tracking-wide text-gray-900 transition-colors hover:text-[#f2e14c]"
+              >
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-50 text-gray-400 transition-colors group-hover:bg-black group-hover:text-[#f2e14c]">
+                  <ArrowLeft size={18} />
+                </span>
+                Voltar para Marcas
+              </Link>
+            )}
+
             <button
               onClick={() => {
                 setSidebarOpen(false);
@@ -469,11 +543,16 @@ export default function Navbar() {
         </div>
 
         <div className="border-t border-gray-100 p-6 text-center">
-          <p className="text-[10px] font-medium text-gray-400">© 2026 WBCNAC Digital</p>
+          <p className="text-[10px] font-medium text-gray-400">
+            © 2026 WBCNAC Digital
+          </p>
         </div>
       </div>
 
-      <MobileCatalogModal open={catalogOpen} onClose={() => setCatalogOpen(false)} />
+      <MobileCatalogModal
+        open={catalogOpen}
+        onClose={() => setCatalogOpen(false)}
+      />
     </>
   );
 }

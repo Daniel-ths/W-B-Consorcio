@@ -7,22 +7,10 @@ import {
   ChevronLeft,
   Search,
   Loader2,
-  Users,
-  CreditCard,
-  Phone,
-  CarFront,
-  Wallet,
-  CalendarDays,
-  BadgeCheck,
-  Database,
-  UserSearch,
   ArrowUpDown,
   Eye,
   MessageCircle,
-  X,
-  ShieldCheck,
-  ClipboardList,
-  CheckCircle2,
+  Phone,
 } from "lucide-react";
 
 /* =========================
@@ -40,18 +28,16 @@ const maskCPF = (value: string) => {
     .replace(/(-\d{2})\d+?$/, "$1");
 };
 
-const formatCurrency = (val: number) => {
-  return new Intl.NumberFormat("pt-BR", {
+const formatCurrency = (val: number) =>
+  new Intl.NumberFormat("pt-BR", {
     style: "currency",
     currency: "BRL",
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(Number(val || 0));
-};
 
 const formatPhoneDisplay = (phoneLike: string) => {
   const digits = onlyDigits(phoneLike);
-
   if (!digits) return "—";
 
   let national = digits;
@@ -60,38 +46,31 @@ const formatPhoneDisplay = (phoneLike: string) => {
   if (national.length === 11) {
     return `(${national.slice(0, 2)}) ${national.slice(2, 7)}-${national.slice(7)}`;
   }
-
   if (national.length === 10) {
     return `(${national.slice(0, 2)}) ${national.slice(2, 6)}-${national.slice(6)}`;
   }
-
   return phoneLike || "—";
 };
 
 const toWhatsDigits = (phoneLike: string) => {
   const digits = onlyDigits(phoneLike);
   if (!digits) return "";
-
   if (digits.startsWith("55")) return digits;
   if (digits.length === 10 || digits.length === 11) return `55${digits}`;
-
   return digits;
 };
 
 const normalizeSellerDisplayName = (sale: any) => {
   const detailsSeller = cleanText(sale?.details?.vendedor_digitado);
   const rootSeller = cleanText(sale?.seller_name);
-
   if (detailsSeller) return detailsSeller.toUpperCase();
   if (rootSeller) return rootSeller.toUpperCase();
-
   return "—";
 };
 
 const isPlaceholderName = (name?: string) => {
   const value = cleanText(name);
   if (!value) return true;
-
   const placeholders = [
     "—",
     "-",
@@ -100,7 +79,6 @@ const isPlaceholderName = (name?: string) => {
     "nao informado",
     "sem nome",
   ];
-
   return placeholders.includes(value);
 };
 
@@ -110,27 +88,22 @@ const nameScore = (name?: string) => {
   return value.length;
 };
 
-const pickBetterName = (a?: string, b?: string) => {
-  return nameScore(b) > nameScore(a) ? b || a || "—" : a || b || "—";
-};
+const pickBetterName = (a?: string, b?: string) =>
+  nameScore(b) > nameScore(a) ? b || a || "—" : a || b || "—";
 
 const pickBetterText = (current?: string, incoming?: string) => {
   const c = cleanText(current);
   const i = cleanText(incoming);
-
   if (!c && i) return incoming || current || "—";
   if (!i && c) return current || incoming || "—";
-
   return (current && current !== "—" ? current : incoming) || "—";
 };
 
 const pickBetterPhone = (current?: string, incoming?: string) => {
   const c = onlyDigits(current || "");
   const i = onlyDigits(incoming || "");
-
   if (!c && i) return incoming || "—";
   if (!i && c) return current || "—";
-
   return i.length > c.length ? incoming || current || "—" : current || incoming || "—";
 };
 
@@ -170,7 +143,6 @@ function mergeClientesByCpf(rows: ClienteGeral[]) {
 
   for (const row of rows) {
     const cpfKey = onlyDigits(row.cpf);
-
     if (!cpfKey) continue;
 
     const current = map.get(cpfKey);
@@ -184,7 +156,9 @@ function mergeClientesByCpf(rows: ClienteGeral[]) {
       continue;
     }
 
-    const mergedOrigens = Array.from(new Set([...(current.origens || []), ...(row.origens || [])]));
+    const mergedOrigens = Array.from(
+      new Set([...(current.origens || []), ...(row.origens || [])])
+    );
 
     const betterName = pickBetterName(current.nome, row.nome);
 
@@ -226,6 +200,152 @@ function mergeClientesByCpf(rows: ClienteGeral[]) {
   );
 }
 
+function OrigemBadge({ origem }: { origem: Origem }) {
+  if (origem === "PROPOSTA") {
+    return (
+      <span className="bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700">
+        Proposta
+      </span>
+    );
+  }
+  return (
+    <span className="bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+      Consulta
+    </span>
+  );
+}
+
+function OrigemBadgeList({ origens }: { origens: Origem[] }) {
+  return (
+    <div className="flex flex-wrap gap-1">
+      {origens.includes("PROPOSTA") && <OrigemBadge origem="PROPOSTA" />}
+      {origens.includes("CONSULTA_CLIENTE") && (
+        <OrigemBadge origem="CONSULTA_CLIENTE" />
+      )}
+    </div>
+  );
+}
+
+function ClientModal({
+  client,
+  onClose,
+}: {
+  client: ClienteGeral;
+  onClose: () => void;
+}) {
+  const whatsapp = toWhatsDigits(client.telefone || "");
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+
+      <div className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto bg-white">
+        <div className="flex items-start justify-between gap-4 border-b border-zinc-200 px-5 py-4">
+          <div className="min-w-0">
+            <p className="text-[12px] text-zinc-500">Cliente</p>
+            <h2 className="truncate text-lg font-semibold text-zinc-900">
+              {client.nome}
+            </h2>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <OrigemBadgeList origens={client.origens} />
+              <span className="font-mono text-[12px] text-zinc-500">{client.cpf}</span>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-[13px] font-medium text-zinc-500 hover:text-zinc-900"
+          >
+            Fechar
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 gap-5 p-5 sm:grid-cols-2">
+          <div>
+            <p className="mb-2 text-[12px] font-medium text-zinc-500">Identificação</p>
+            <div className="space-y-2 text-[14px]">
+              <div>
+                <p className="text-[12px] text-zinc-500">Nome</p>
+                <p className="font-medium text-zinc-900">{client.nome}</p>
+              </div>
+              <div>
+                <p className="text-[12px] text-zinc-500">CPF</p>
+                <p className="font-mono text-zinc-700">{client.cpf}</p>
+              </div>
+              <div>
+                <p className="text-[12px] text-zinc-500">Telefone</p>
+                <p className="text-zinc-700">
+                  {formatPhoneDisplay(client.telefone || "")}
+                </p>
+              </div>
+              <div>
+                <p className="text-[12px] text-zinc-500">Registro</p>
+                <p className="text-zinc-700">
+                  {new Date(client.created_at).toLocaleDateString("pt-BR")}{" "}
+                  {new Date(client.created_at).toLocaleTimeString("pt-BR", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-2 text-[12px] font-medium text-zinc-500">Atendimento</p>
+            <div className="space-y-2 text-[14px]">
+              <div>
+                <p className="text-[12px] text-zinc-500">Vendedor</p>
+                <p className="font-medium text-zinc-900">
+                  {client.vendedor || "Não informado"}
+                </p>
+              </div>
+              <div>
+                <p className="text-[12px] text-zinc-500">Status</p>
+                <p className="text-zinc-700">{client.status || "—"}</p>
+              </div>
+              <div>
+                <p className="text-[12px] text-zinc-500">Veículo</p>
+                <p className="text-zinc-700">{client.veiculo || "—"}</p>
+              </div>
+              <div>
+                <p className="text-[12px] text-zinc-500">Valor</p>
+                <p className="font-medium text-zinc-900">
+                  {Number(client.valor || 0) > 0
+                    ? formatCurrency(Number(client.valor || 0))
+                    : "—"}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2 border-t border-zinc-200 bg-zinc-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-[12px] text-zinc-500">Consolidado por CPF único</p>
+          <div className="flex gap-2">
+            {whatsapp && (
+              <a
+                href={`https://wa.me/${whatsapp}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex h-9 items-center gap-1.5 bg-emerald-600 px-4 text-[12px] font-medium text-white hover:bg-emerald-700"
+              >
+                <MessageCircle size={14} />
+                WhatsApp
+              </a>
+            )}
+            <button
+              onClick={onClose}
+              className="h-9 border border-zinc-200 bg-white px-4 text-[12px] font-medium text-zinc-700 hover:bg-zinc-50"
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* =========================
    PAGE
 ========================= */
@@ -233,9 +353,9 @@ export default function ClientesConsultadosPage() {
   const [loading, setLoading] = useState(true);
   const [clientes, setClientes] = useState<ClienteGeral[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [origemFilter, setOrigemFilter] = useState<"TODOS" | "PROPOSTA" | "CONSULTA_CLIENTE">(
-    "TODOS"
-  );
+  const [origemFilter, setOrigemFilter] = useState<
+    "TODOS" | "PROPOSTA" | "CONSULTA_CLIENTE"
+  >("TODOS");
   const [sortKey, setSortKey] = useState<SortKey>("created_at");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [selectedClient, setSelectedClient] = useState<ClienteGeral | null>(null);
@@ -252,7 +372,6 @@ export default function ClientesConsultadosPage() {
 
   async function fetchClientes() {
     setLoading(true);
-
     try {
       const [salesResult, clientsResult] = await Promise.all([
         supabase.from("sales").select("*").order("created_at", { ascending: false }),
@@ -262,40 +381,43 @@ export default function ClientesConsultadosPage() {
       if (salesResult.error) throw salesResult.error;
       if (clientsResult.error) throw clientsResult.error;
 
-      const salesRows = (salesResult.data || []).map((sale: any): ClienteGeral => ({
-        id: `sale-${sale.id}`,
-        nome: sale.client_name || "—",
-        cpf: sale.client_cpf || "—",
-        email: sale.client_email || "—",
-        telefone: sale.client_phone || "—",
-        vendedor: normalizeSellerDisplayName(sale),
-        veiculo: sale.car_name || "—",
-        valor: Number(sale.total_price || 0),
-        score: 0,
-        status: sale.status || "Aprovado",
-        created_at: sale.created_at,
-        origemPrincipal: "PROPOSTA",
-        origens: ["PROPOSTA"],
-      }));
+      const salesRows = (salesResult.data || []).map(
+        (sale: any): ClienteGeral => ({
+          id: `sale-${sale.id}`,
+          nome: sale.client_name || "—",
+          cpf: sale.client_cpf || "—",
+          email: sale.client_email || "—",
+          telefone: sale.client_phone || "—",
+          vendedor: normalizeSellerDisplayName(sale),
+          veiculo: sale.car_name || "—",
+          valor: Number(sale.total_price || 0),
+          score: 0,
+          status: sale.status || "Aprovado",
+          created_at: sale.created_at,
+          origemPrincipal: "PROPOSTA",
+          origens: ["PROPOSTA"],
+        })
+      );
 
-      const clientsRows = (clientsResult.data || []).map((client: any): ClienteGeral => ({
-        id: `client-${client.id}`,
-        nome: client.name || "—",
-        cpf: client.cpf ? maskCPF(client.cpf) : "—",
-        email: client.email || "—",
-        telefone: client.phone || "—",
-        vendedor: client.seller_name || "—",
-        veiculo: "—",
-        valor: 0,
-        score: Number(client.score || 0),
-        status: client.status || "Em análise",
-        created_at: client.created_at,
-        origemPrincipal: "CONSULTA_CLIENTE",
-        origens: ["CONSULTA_CLIENTE"],
-      }));
+      const clientsRows = (clientsResult.data || []).map(
+        (client: any): ClienteGeral => ({
+          id: `client-${client.id}`,
+          nome: client.name || "—",
+          cpf: client.cpf ? maskCPF(client.cpf) : "—",
+          email: client.email || "—",
+          telefone: client.phone || "—",
+          vendedor: client.seller_name || "—",
+          veiculo: "—",
+          valor: 0,
+          score: Number(client.score || 0),
+          status: client.status || "Em análise",
+          created_at: client.created_at,
+          origemPrincipal: "CONSULTA_CLIENTE",
+          origens: ["CONSULTA_CLIENTE"],
+        })
+      );
 
-      const merged = mergeClientesByCpf([...salesRows, ...clientsRows]);
-      setClientes(merged);
+      setClientes(mergeClientesByCpf([...salesRows, ...clientsRows]));
     } catch (error) {
       console.error("Erro ao buscar clientes:", error);
     } finally {
@@ -329,17 +451,16 @@ export default function ClientesConsultadosPage() {
         const dir = sortDir === "asc" ? 1 : -1;
 
         if (sortKey === "created_at") {
-          return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir;
+          return (
+            (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir
+          );
         }
-
         if (sortKey === "nome") {
           return String(a.nome || "").localeCompare(String(b.nome || ""), "pt-BR") * dir;
         }
-
         if (sortKey === "cpf") {
           return String(a.cpf || "").localeCompare(String(b.cpf || ""), "pt-BR") * dir;
         }
-
         return (Number(a.valor || 0) - Number(b.valor || 0)) * dir;
       });
   }, [clientes, searchTerm, origemFilter, sortKey, sortDir]);
@@ -358,56 +479,54 @@ export default function ClientesConsultadosPage() {
   const visiblePages = useMemo(() => {
     const pages: number[] = [];
     const maxButtons = 5;
-
     let start = Math.max(1, page - 2);
     let end = Math.min(totalPages, start + maxButtons - 1);
-
     if (end - start < maxButtons - 1) {
       start = Math.max(1, end - maxButtons + 1);
     }
-
     for (let i = start; i <= end; i++) pages.push(i);
     return pages;
   }, [page, totalPages]);
 
   const kpis = useMemo(() => {
     const total = filteredClientes.length;
-    const propostas = filteredClientes.filter((c) => c.origens.includes("PROPOSTA")).length;
-    const consultas = filteredClientes.filter((c) => c.origens.includes("CONSULTA_CLIENTE")).length;
-    const valorTotal = filteredClientes.reduce((acc, item) => acc + Number(item.valor || 0), 0);
-
+    const propostas = filteredClientes.filter((c) =>
+      c.origens.includes("PROPOSTA")
+    ).length;
+    const consultas = filteredClientes.filter((c) =>
+      c.origens.includes("CONSULTA_CLIENTE")
+    ).length;
+    const valorTotal = filteredClientes.reduce(
+      (acc, item) => acc + Number(item.valor || 0),
+      0
+    );
     return { total, propostas, consultas, valorTotal };
   }, [filteredClientes]);
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-zinc-50">
       {selectedClient && (
         <ClientModal client={selectedClient} onClose={() => setSelectedClient(null)} />
       )}
 
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 md:px-6">
+      <header className="border-b border-zinc-200 bg-white">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 md:px-6">
           <div className="flex items-center gap-3">
             <Link
               href="/admin/dashboard"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+              className="inline-flex h-9 w-9 items-center justify-center border border-zinc-200 text-zinc-700 hover:bg-zinc-50"
             >
               <ChevronLeft size={18} />
             </Link>
-
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-400">
-                Painel Administrativo
-              </p>
-              <h1 className="text-lg font-black text-slate-900 md:text-xl">
-                Clientes Gerais
-              </h1>
+              <p className="text-[12px] text-zinc-500">Administração</p>
+              <h1 className="text-lg font-semibold text-zinc-900">Clientes gerais</h1>
             </div>
           </div>
 
           <button
             onClick={fetchClientes}
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100"
+            className="inline-flex h-9 items-center gap-1.5 border border-zinc-200 bg-white px-3 text-[12px] font-medium text-zinc-700 hover:bg-zinc-50"
           >
             <Loader2 size={14} className={loading ? "animate-spin" : ""} />
             Atualizar
@@ -415,75 +534,60 @@ export default function ClientesConsultadosPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 py-5 md:px-6 md:py-8">
-        <section className="mb-5 overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-r from-slate-100 via-white to-slate-100 shadow-sm">
-          <div className="grid gap-4 p-4 md:grid-cols-[1.4fr_0.8fr] md:p-6">
-            <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-lg md:h-14 md:w-14">
-                <Users className="h-6 w-6 md:h-7 md:w-7" />
-              </div>
+      <main className="mx-auto max-w-6xl space-y-6 px-4 py-6 md:px-6">
+        <div>
+          <p className="text-[13px] text-zinc-600">
+            Base unificada por CPF. Quando o mesmo CPF aparece em proposta e consulta, fica um
+            único registro com o nome mais completo.
+          </p>
+        </div>
 
-              <div className="min-w-0">
-                <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700 md:text-sm">
-                  <Database className="h-4 w-4" />
-                  Base unificada sem CPF repetido
-                </div>
-
-                <h2 className="text-xl font-bold tracking-tight text-slate-950 md:text-3xl">
-                  Clientes únicos por CPF
-                </h2>
-
-                <p className="mt-2 max-w-2xl text-sm text-slate-600 md:text-base">
-                  Quando o mesmo CPF existe em mais de uma origem, o sistema mantém só um cliente e
-                  prioriza o nome mais completo.
-                </p>
-              </div>
+        {/* KPIs */}
+        <div className="grid grid-cols-2 gap-px bg-zinc-200 md:grid-cols-4">
+          {[
+            { label: "Total", value: String(kpis.total) },
+            { label: "Com proposta", value: String(kpis.propostas) },
+            { label: "Com consulta", value: String(kpis.consultas) },
+            { label: "Valor em propostas", value: formatCurrency(kpis.valorTotal) },
+          ].map((k) => (
+            <div key={k.label} className="bg-white px-4 py-3">
+              <p className="text-[12px] text-zinc-500">{k.label}</p>
+              <p className="mt-1 text-lg font-semibold text-zinc-900">{k.value}</p>
             </div>
+          ))}
+        </div>
 
-            <div className="rounded-3xl border border-blue-100 bg-blue-50 p-4">
-              <div className="flex items-center gap-2 text-blue-700">
-                <CheckCircle2 size={16} />
-                <p className="text-xs font-black uppercase tracking-wide md:text-sm">
-                  Regra aplicada
-                </p>
-              </div>
-              <p className="mt-2 text-sm leading-6 text-slate-700">
-                CPF único, vendedor destacado e prioridade para nome completo.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section className="mb-5 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
+        {/* filtros */}
+        <div className="bg-white p-4">
           <div className="flex flex-col gap-3">
-            <div className="relative w-full">
+            <div className="relative">
               <Search
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                size={18}
+                size={16}
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"
               />
               <input
                 type="text"
-                placeholder="Buscar por nome, CPF, telefone, vendedor ou veículo..."
-                className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-10 pr-4 text-sm font-medium transition-all focus:border-black focus:outline-none"
+                placeholder="Buscar nome, CPF, telefone, vendedor ou veículo…"
+                className="h-10 w-full border border-zinc-200 bg-white pl-9 pr-3 text-[14px] outline-none focus:border-zinc-400"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
 
-            <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
               <div className="flex flex-wrap gap-2">
                 {[
                   { label: "Todos", value: "TODOS" },
                   { label: "Proposta", value: "PROPOSTA" },
-                  { label: "Consulta de Cliente", value: "CONSULTA_CLIENTE" },
+                  { label: "Consulta", value: "CONSULTA_CLIENTE" },
                 ].map((item) => (
                   <button
                     key={item.value}
                     onClick={() => setOrigemFilter(item.value as any)}
-                    className={`rounded-lg px-4 py-2 text-xs font-bold uppercase transition-all ${
+                    className={`h-9 px-3 text-[12px] font-medium ${
                       origemFilter === item.value
-                        ? "bg-black text-white"
-                        : "bg-slate-50 text-slate-500 hover:bg-slate-100"
+                        ? "bg-zinc-900 text-white"
+                        : "border border-zinc-200 text-zinc-600 hover:bg-zinc-50"
                     }`}
                   >
                     {item.label}
@@ -492,168 +596,127 @@ export default function ClientesConsultadosPage() {
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => toggleSort("created_at")}
-                  className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold uppercase ${
-                    sortKey === "created_at"
-                      ? "border-black bg-black text-white"
-                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                  }`}
-                >
-                  <ArrowUpDown size={14} /> Data {sortKey === "created_at" ? `(${sortDir})` : ""}
-                </button>
-
-                <button
-                  onClick={() => toggleSort("nome")}
-                  className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold uppercase ${
-                    sortKey === "nome"
-                      ? "border-black bg-black text-white"
-                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                  }`}
-                >
-                  <ArrowUpDown size={14} /> Nome {sortKey === "nome" ? `(${sortDir})` : ""}
-                </button>
-
-                <button
-                  onClick={() => toggleSort("cpf")}
-                  className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold uppercase ${
-                    sortKey === "cpf"
-                      ? "border-black bg-black text-white"
-                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                  }`}
-                >
-                  <ArrowUpDown size={14} /> CPF {sortKey === "cpf" ? `(${sortDir})` : ""}
-                </button>
-
-                <button
-                  onClick={() => toggleSort("valor")}
-                  className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold uppercase ${
-                    sortKey === "valor"
-                      ? "border-black bg-black text-white"
-                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                  }`}
-                >
-                  <ArrowUpDown size={14} /> Valor {sortKey === "valor" ? `(${sortDir})` : ""}
-                </button>
+                {(["created_at", "nome", "cpf", "valor"] as const).map((key) => {
+                  const labels = {
+                    created_at: "Data",
+                    nome: "Nome",
+                    cpf: "CPF",
+                    valor: "Valor",
+                  };
+                  const active = sortKey === key;
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => toggleSort(key)}
+                      className={`inline-flex h-9 items-center gap-1.5 px-3 text-[12px] font-medium ${
+                        active
+                          ? "bg-zinc-900 text-white"
+                          : "border border-zinc-200 text-zinc-600 hover:bg-zinc-50"
+                      }`}
+                    >
+                      <ArrowUpDown size={13} />
+                      {labels[key]}
+                      {active ? (sortDir === "asc" ? " ↑" : " ↓") : ""}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
-        </section>
+        </div>
 
-        <section className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <KpiCard icon={<Users size={18} />} label="Total" value={String(kpis.total)} tone="slate" />
-          <KpiCard icon={<BadgeCheck size={18} />} label="Com Proposta" value={String(kpis.propostas)} tone="blue" />
-          <KpiCard icon={<UserSearch size={18} />} label="Com Consulta" value={String(kpis.consultas)} tone="emerald" />
-          <KpiCard icon={<Wallet size={18} />} label="Valor em Propostas" value={formatCurrency(kpis.valorTotal)} tone="amber" />
-        </section>
-
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-100 p-4">
-            <div>
-              <h3 className="font-bold text-slate-800">Clientes</h3>
-              <p className="text-xs text-slate-500">
-                {filteredClientes.length} resultado(s) • exibindo {Math.min(PAGE_SIZE, paginatedClientes.length)} por página
-              </p>
-            </div>
+        {/* lista */}
+        <div className="bg-white">
+          <div className="border-b border-zinc-200 px-4 py-3">
+            <h2 className="text-[14px] font-semibold text-zinc-900">Clientes</h2>
+            <p className="text-[12px] text-zinc-500">
+              {filteredClientes.length} resultado(s) · página {page} de {totalPages}
+            </p>
           </div>
 
           {loading ? (
-            <div className="flex flex-col items-center justify-center p-12 text-slate-400">
-              <Loader2 className="mb-2 animate-spin" size={32} />
-              <p className="text-xs font-bold uppercase">Carregando...</p>
+            <div className="flex items-center justify-center gap-2 px-4 py-10 text-[13px] text-zinc-400">
+              <Loader2 size={18} className="animate-spin" />
+              Carregando…
             </div>
           ) : paginatedClientes.length === 0 ? (
-            <div className="p-12 text-center text-slate-400">
-              <p className="text-sm font-medium">Nenhum cliente encontrado.</p>
-            </div>
+            <p className="px-4 py-10 text-center text-[13px] text-zinc-400">
+              Nenhum cliente encontrado.
+            </p>
           ) : (
             <>
+              {/* desktop */}
               <div className="hidden overflow-x-auto lg:block">
-                <table className="w-full text-left">
-                  <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase text-slate-500">
+                <table className="w-full text-left text-[13px]">
+                  <thead className="border-b border-zinc-200 bg-zinc-50 text-[11px] text-zinc-500">
                     <tr>
-                      <th className="px-6 py-4">Origem</th>
-                      <th className="px-6 py-4">Cliente</th>
-                      <th className="px-6 py-4">Contato</th>
-                      <th className="px-6 py-4">Atendimento</th>
-                      <th className="px-6 py-4 text-right">Data</th>
-                      <th className="px-6 py-4 text-right">Ações</th>
+                      <th className="px-4 py-2.5 font-medium">Origem</th>
+                      <th className="px-4 py-2.5 font-medium">Cliente</th>
+                      <th className="px-4 py-2.5 font-medium">Contato</th>
+                      <th className="px-4 py-2.5 font-medium">Atendimento</th>
+                      <th className="px-4 py-2.5 text-right font-medium">Data</th>
+                      <th className="px-4 py-2.5 text-right font-medium">Ações</th>
                     </tr>
                   </thead>
-
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-zinc-100">
                     {paginatedClientes.map((item) => (
-                      <tr key={item.id} className="hover:bg-slate-50">
-                        <td className="px-6 py-4">
+                      <tr key={item.id} className="hover:bg-zinc-50">
+                        <td className="px-4 py-2.5">
                           <OrigemBadgeList origens={item.origens} />
                         </td>
-
-                        <td className="px-6 py-4">
-                          <p className="text-sm font-bold uppercase text-slate-900">{item.nome}</p>
-                          <p className="mt-1 font-mono text-[11px] text-slate-400">{item.cpf}</p>
+                        <td className="px-4 py-2.5">
+                          <p className="font-medium text-zinc-900">{item.nome}</p>
+                          <p className="mt-0.5 font-mono text-[11px] text-zinc-400">
+                            {item.cpf}
+                          </p>
                         </td>
-
-                        <td className="px-6 py-4">
-                          <div className="space-y-1 text-xs text-slate-600">
-                            <p className="flex items-center gap-2">
-                              <Phone size={12} />
-                              <span>{formatPhoneDisplay(item.telefone || "")}</span>
+                        <td className="px-4 py-2.5 text-zinc-600">
+                          <span className="inline-flex items-center gap-1">
+                            <Phone size={12} className="text-zinc-400" />
+                            {formatPhoneDisplay(item.telefone || "")}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <p className="font-medium text-zinc-800">
+                            {item.vendedor || "—"}
+                          </p>
+                          {item.veiculo && item.veiculo !== "—" && (
+                            <p className="text-[11px] text-zinc-400">{item.veiculo}</p>
+                          )}
+                          {Number(item.valor || 0) > 0 && (
+                            <p className="text-[11px] text-zinc-500">
+                              {formatCurrency(Number(item.valor || 0))}
                             </p>
-                          </div>
+                          )}
                         </td>
-
-                        <td className="px-6 py-4">
-                          <div className="space-y-1 text-xs text-slate-600">
-                            <p className="flex items-center gap-2">
-                              <BadgeCheck size={12} />
-                              <span className="font-bold text-slate-800">
-                                Vendedor: {item.vendedor || "—"}
-                              </span>
-                            </p>
-
-                            {item.veiculo && item.veiculo !== "—" ? (
-                              <p className="flex items-center gap-2">
-                                <CarFront size={12} />
-                                <span>{item.veiculo}</span>
-                              </p>
-                            ) : null}
-
-                            {Number(item.valor || 0) > 0 ? (
-                              <p className="flex items-center gap-2">
-                                <Wallet size={12} />
-                                <span>{formatCurrency(Number(item.valor || 0))}</span>
-                              </p>
-                            ) : null}
-                          </div>
+                        <td className="px-4 py-2.5 text-right text-zinc-600">
+                          {new Date(item.created_at).toLocaleDateString("pt-BR")}
+                          <br />
+                          <span className="text-[11px] text-zinc-400">
+                            {new Date(item.created_at).toLocaleTimeString("pt-BR", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
                         </td>
-
-                        <td className="px-6 py-4 text-right text-xs font-bold text-slate-600">
-                          {new Date(item.created_at).toLocaleDateString("pt-BR")} <br />
-                          {new Date(item.created_at).toLocaleTimeString("pt-BR", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </td>
-
-                        <td className="px-6 py-4">
-                          <div className="flex items-center justify-end gap-2">
+                        <td className="px-4 py-2.5 text-right">
+                          <div className="flex items-center justify-end gap-1">
                             {toWhatsDigits(item.telefone || "") && (
                               <a
                                 href={`https://wa.me/${toWhatsDigits(item.telefone || "")}`}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="inline-flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs font-bold text-green-700 hover:bg-green-100"
+                                className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50"
                               >
-                                <MessageCircle size={14} />
+                                <MessageCircle size={13} />
                                 WhatsApp
                               </a>
                             )}
-
                             <button
                               onClick={() => setSelectedClient(item)}
-                              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                              className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-zinc-600 hover:bg-zinc-100"
                             >
-                              <Eye size={14} />
+                              <Eye size={13} />
                               Ver
                             </button>
                           </div>
@@ -664,122 +727,94 @@ export default function ClientesConsultadosPage() {
                 </table>
               </div>
 
-              <div className="grid grid-cols-1 gap-3 p-4 lg:hidden">
+              {/* mobile */}
+              <div className="space-y-3 p-4 lg:hidden">
                 {paginatedClientes.map((item) => (
-                  <div
-                    key={item.id}
-                    className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
-                  >
+                  <div key={item.id} className="border border-zinc-200 bg-white p-4">
                     <div className="mb-3 flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-bold uppercase text-slate-900">
-                          {item.nome}
+                        <p className="truncate font-medium text-zinc-900">{item.nome}</p>
+                        <p className="mt-0.5 font-mono text-[11px] text-zinc-400">
+                          {item.cpf}
                         </p>
-                        <p className="mt-1 font-mono text-[11px] text-slate-400">{item.cpf}</p>
                       </div>
                       <OrigemBadgeList origens={item.origens} />
                     </div>
 
-                    <div className="space-y-2 text-xs text-slate-600">
-                      <p className="flex items-center gap-2">
-                        <Phone size={12} />
-                        <span>{formatPhoneDisplay(item.telefone || "")}</span>
+                    <div className="space-y-1 text-[13px] text-zinc-600">
+                      <p>{formatPhoneDisplay(item.telefone || "")}</p>
+                      <p className="font-medium text-zinc-800">
+                        Vendedor: {item.vendedor || "—"}
                       </p>
-
-                      <p className="flex items-center gap-2">
-                        <BadgeCheck size={12} />
-                        <span className="font-bold text-slate-800">
-                          Vendedor: {item.vendedor || "—"}
-                        </span>
-                      </p>
-
-                      {item.veiculo && item.veiculo !== "—" ? (
-                        <p className="flex items-center gap-2">
-                          <CarFront size={12} />
-                          <span>{item.veiculo}</span>
-                        </p>
-                      ) : null}
-
-                      {Number(item.valor || 0) > 0 ? (
-                        <p className="flex items-center gap-2">
-                          <Wallet size={12} />
-                          <span>{formatCurrency(Number(item.valor || 0))}</span>
-                        </p>
-                      ) : null}
-
-                      <p className="flex items-center gap-2">
-                        <CalendarDays size={12} />
-                        <span>
-                          {new Date(item.created_at).toLocaleDateString("pt-BR")} às{" "}
-                          {new Date(item.created_at).toLocaleTimeString("pt-BR", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </span>
+                      {item.veiculo && item.veiculo !== "—" && <p>{item.veiculo}</p>}
+                      {Number(item.valor || 0) > 0 && (
+                        <p>{formatCurrency(Number(item.valor || 0))}</p>
+                      )}
+                      <p className="text-[12px] text-zinc-400">
+                        {new Date(item.created_at).toLocaleDateString("pt-BR")}{" "}
+                        {new Date(item.created_at).toLocaleTimeString("pt-BR", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
                       </p>
                     </div>
 
-                    <div className="mt-4 grid grid-cols-2 gap-2">
+                    <div className="mt-3 flex gap-2">
                       {toWhatsDigits(item.telefone || "") && (
                         <a
                           href={`https://wa.me/${toWhatsDigits(item.telefone || "")}`}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs font-bold text-green-700 hover:bg-green-100"
+                          className="inline-flex flex-1 items-center justify-center gap-1 border border-emerald-200 bg-emerald-50 px-3 py-2 text-[12px] font-medium text-emerald-700"
                         >
                           <MessageCircle size={14} />
                           WhatsApp
                         </a>
                       )}
-
                       <button
                         onClick={() => setSelectedClient(item)}
-                        className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100"
+                        className="inline-flex flex-1 items-center justify-center gap-1 border border-zinc-200 bg-white px-3 py-2 text-[12px] font-medium text-zinc-700"
                       >
                         <Eye size={14} />
-                        Ver detalhes
+                        Ver
                       </button>
                     </div>
                   </div>
                 ))}
               </div>
 
-              <div className="flex flex-col items-center justify-between gap-4 border-t border-slate-100 p-4 md:flex-row">
-                <div className="text-[11px] font-bold text-slate-400">
-                  Mostrando{" "}
-                  <span className="text-slate-800">
-                    {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filteredClientes.length)}
-                  </span>{" "}
-                  de <span className="text-slate-800">{filteredClientes.length}</span>
-                </div>
-
+              {/* paginação */}
+              <div className="flex flex-col items-center justify-between gap-3 border-t border-zinc-200 px-4 py-3 sm:flex-row">
+                <p className="text-[12px] text-zinc-500">
+                  {(page - 1) * PAGE_SIZE + 1}–
+                  {Math.min(page * PAGE_SIZE, filteredClientes.length)} de{" "}
+                  {filteredClientes.length}
+                </p>
                 <div className="flex flex-wrap items-center justify-center gap-2">
                   <button
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                     disabled={page === 1}
-                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold uppercase text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+                    className="h-8 border border-zinc-200 px-3 text-[12px] font-medium text-zinc-600 hover:bg-zinc-50 disabled:opacity-40"
                   >
                     Anterior
                   </button>
-
                   {visiblePages.map((p) => (
                     <button
                       key={p}
                       onClick={() => setPage(p)}
-                      className={`rounded-lg px-3 py-2 text-xs font-bold uppercase ${
+                      className={`h-8 px-3 text-[12px] font-medium ${
                         page === p
-                          ? "bg-black text-white"
-                          : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                          ? "bg-zinc-900 text-white"
+                          : "border border-zinc-200 text-zinc-600 hover:bg-zinc-50"
                       }`}
                     >
-                      Página {p}
+                      {p}
                     </button>
                   ))}
-
                   <button
                     onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                     disabled={page === totalPages}
-                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold uppercase text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+                    className="h-8 border border-zinc-200 px-3 text-[12px] font-medium text-zinc-600 hover:bg-zinc-50 disabled:opacity-40"
                   >
                     Próxima
                   </button>
@@ -787,256 +822,8 @@ export default function ClientesConsultadosPage() {
               </div>
             </>
           )}
-        </section>
+        </div>
       </main>
-    </div>
-  );
-}
-
-/* =========================
-   COMPONENTS
-========================= */
-function OrigemBadge({ origem }: { origem: Origem }) {
-  if (origem === "PROPOSTA") {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[10px] font-black uppercase tracking-wide text-blue-700">
-        <BadgeCheck size={12} />
-        Proposta
-      </span>
-    );
-  }
-
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">
-      <UserSearch size={12} />
-      Consulta Cliente
-    </span>
-  );
-}
-
-function OrigemBadgeList({ origens }: { origens: Origem[] }) {
-  return (
-    <div className="flex flex-wrap gap-1">
-      {origens.includes("PROPOSTA") && <OrigemBadge origem="PROPOSTA" />}
-      {origens.includes("CONSULTA_CLIENTE") && <OrigemBadge origem="CONSULTA_CLIENTE" />}
-    </div>
-  );
-}
-
-function KpiCard({
-  icon,
-  label,
-  value,
-  tone,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  tone: "slate" | "blue" | "emerald" | "amber";
-}) {
-  const toneMap = {
-    slate: "bg-slate-50 text-slate-700",
-    blue: "bg-blue-50 text-blue-700",
-    emerald: "bg-emerald-50 text-emerald-700",
-    amber: "bg-amber-50 text-amber-700",
-  };
-
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex items-center justify-between">
-        <div className={`rounded-lg p-2 ${toneMap[tone]}`}>{icon}</div>
-        <span className="text-[10px] font-black uppercase text-slate-400">{label}</span>
-      </div>
-      <p className="mt-3 break-words text-2xl font-black text-slate-900">{value}</p>
-    </div>
-  );
-}
-
-function ClientModal({
-  client,
-  onClose,
-}: {
-  client: ClienteGeral;
-  onClose: () => void;
-}) {
-  const whatsapp = toWhatsDigits(client.telefone || "");
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative w-full max-w-3xl overflow-hidden rounded-3xl bg-white shadow-2xl">
-        <div className="border-b border-slate-100 bg-gradient-to-r from-slate-100 via-white to-slate-100 p-5 md:p-6">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                Detalhes do Cliente
-              </p>
-              <h2 className="truncate text-xl font-black text-slate-900 md:text-2xl">
-                {client.nome}
-              </h2>
-
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <OrigemBadgeList origens={client.origens} />
-                <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[10px] font-black uppercase tracking-wide text-slate-600">
-                  {client.cpf}
-                </span>
-              </div>
-            </div>
-
-            <button
-              onClick={onClose}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-            >
-              <X size={18} />
-            </button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 p-5 md:grid-cols-[1.2fr_0.8fr] md:p-6">
-          <div className="space-y-4">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <h3 className="mb-3 text-xs font-black uppercase tracking-wide text-slate-500">
-                Identificação
-              </h3>
-
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <ModalInfo label="Nome completo" value={client.nome} highlight />
-                <ModalInfo label="CPF" value={client.cpf} />
-                <ModalInfo label="Telefone" value={formatPhoneDisplay(client.telefone || "")} />
-                <ModalInfo
-                  label="Data do registro"
-                  value={`${new Date(client.created_at).toLocaleDateString("pt-BR")} às ${new Date(
-                    client.created_at
-                  ).toLocaleTimeString("pt-BR", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}`}
-                />
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <h3 className="mb-3 text-xs font-black uppercase tracking-wide text-slate-500">
-                Atendimento
-              </h3>
-
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <ModalInfo
-                  label="Vendedor que atendeu"
-                  value={client.vendedor || "Não informado"}
-                  highlight
-                />
-                <ModalInfo label="Status" value={client.status || "—"} />
-                <ModalInfo label="Veículo" value={client.veiculo || "—"} />
-                <ModalInfo label="Valor da proposta" value={Number(client.valor || 0) > 0 ? formatCurrency(Number(client.valor || 0)) : "—"} />
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
-              <h3 className="mb-2 text-xs font-black uppercase tracking-wide text-emerald-700">
-                Ação rápida
-              </h3>
-              <p className="text-sm text-emerald-800">
-                Entre em contato direto com o cliente no WhatsApp.
-              </p>
-
-              {whatsapp ? (
-                <a
-                  href={`https://wa.me/${whatsapp}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-green-600 px-4 py-3 text-sm font-bold text-white hover:bg-green-700"
-                >
-                  <MessageCircle size={16} />
-                  Abrir WhatsApp
-                </a>
-              ) : (
-                <div className="mt-4 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-500">
-                  Telefone indisponível
-                </div>
-              )}
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <h3 className="mb-3 text-xs font-black uppercase tracking-wide text-slate-500">
-                Resumo
-              </h3>
-
-              <div className="space-y-3">
-                <ResumoLinha label="Cliente" value={client.nome} />
-                <ResumoLinha label="CPF" value={client.cpf} />
-                <ResumoLinha label="Telefone" value={formatPhoneDisplay(client.telefone || "")} />
-                <ResumoLinha label="Vendedor" value={client.vendedor || "—"} />
-                <ResumoLinha
-                  label="Origens"
-                  value={client.origens
-                    .map((o) => (o === "PROPOSTA" ? "Proposta" : "Consulta de Cliente"))
-                    .join(" + ")}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-3 border-t border-slate-100 bg-slate-50 p-5 md:flex-row md:items-center md:justify-between">
-          <div className="text-xs font-bold text-slate-500">
-            Cliente consolidado por CPF único
-          </div>
-
-          <div className="flex items-center gap-2">
-            {whatsapp && (
-              <a
-                href={`https://wa.me/${whatsapp}`}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-xs font-bold text-green-700 hover:bg-green-100"
-              >
-                <MessageCircle size={14} />
-                WhatsApp
-              </a>
-            )}
-
-            <button
-              onClick={onClose}
-              className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100"
-            >
-              Fechar
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ModalInfo({
-  label,
-  value,
-  highlight = false,
-}: {
-  label: string;
-  value: string;
-  highlight?: boolean;
-}) {
-  return (
-    <div className={`rounded-xl border p-4 ${highlight ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-white"}`}>
-      <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">{label}</p>
-      <p className={`mt-2 break-words text-sm font-bold ${highlight ? "text-emerald-800" : "text-slate-900"}`}>
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function ResumoLinha({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-2 last:border-0 last:pb-0">
-      <span className="text-xs font-bold uppercase text-slate-400">{label}</span>
-      <span className="max-w-[60%] break-words text-right text-sm font-semibold text-slate-900">
-        {value}
-      </span>
     </div>
   );
 }

@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
 import { Search } from "lucide-react";
 
 type BrandKey =
@@ -13,7 +14,14 @@ type BrandKey =
   | "renault"
   | "nissan";
 
-type Brand = { key: BrandKey; name: string; logo: string; disabled?: boolean };
+type Brand = {
+  key: BrandKey;
+  name: string;
+  logo: string;
+  disabled?: boolean;
+  accent: string;
+  soft: string;
+};
 
 export default function ChooseBrandPage() {
   const router = useRouter();
@@ -28,31 +36,43 @@ export default function ChooseBrandPage() {
         key: "chevrolet",
         name: "Chevrolet",
         logo: "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/chevrolet-logo.svg",
+        accent: "from-yellow-400 to-amber-500",
+        soft: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/20",
       },
       {
         key: "hyundai",
         name: "Hyundai",
         logo: "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/avatars/580b585b2edbce24c47b2c77.png",
+        accent: "from-sky-500 to-cyan-500",
+        soft: "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-500/10 dark:text-sky-300 dark:border-sky-500/20",
       },
       {
         key: "fiat",
         name: "Fiat",
         logo: "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/avatars/fiat_logo_icon_145827.png",
+        accent: "from-red-500 to-rose-600",
+        soft: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/20",
       },
       {
         key: "volkswagen",
         name: "Volkswagen",
         logo: "https://upload.wikimedia.org/wikipedia/commons/6/6d/Volkswagen_logo_2019.svg",
+        accent: "from-blue-700 to-cyan-500",
+        soft: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-500/20",
       },
       {
         key: "renault",
-        name: "Renault",
+        name: "Manutenção",
         logo: "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/images.jfif",
+        accent: "from-yellow-500 to-amber-600",
+        soft: "bg-yellow-50 text-yellow-800 border-yellow-200 dark:bg-yellow-500/10 dark:text-yellow-300 dark:border-yellow-500/20",
       },
       {
         key: "nissan",
-        name: "Nissan",
+        name: "Manutenção",
         logo: "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/hd-nissan-emblem-logo-transparent-png-701751694774302g4gilafdjp.png",
+        accent: "from-red-600 to-orange-500",
+        soft: "bg-red-50 text-red-700 border-red-200 dark:bg-red-500/10 dark:text-red-300 dark:border-red-500/20",
       },
     ],
     []
@@ -108,10 +128,38 @@ export default function ChooseBrandPage() {
     return () => clearTimers();
   }, []);
 
+  const container = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: { staggerChildren: 0.07, delayChildren: 0.12 },
+    },
+  };
+
+  const item = {
+    hidden: { opacity: 0, y: 22, scale: 0.97 },
+    show: {
+      opacity: 1,
+      y: 0,
+      scale: 1,
+      transition: { type: "spring" as const, stiffness: 320, damping: 24 },
+    },
+  };
+
+  const logoSize = (key: BrandKey) => {
+    if (key === "hyundai") return "h-8 sm:h-9";
+    if (key === "volkswagen") return "h-9 sm:h-10";
+    if (key === "fiat") return "h-7 sm:h-8";
+    if (key === "renault") return "h-8 sm:h-9";
+    if (key === "nissan") return "h-7 sm:h-8";
+    return "h-7 sm:h-8";
+  };
+
   return (
     <main className="fixed inset-0 h-[100svh] w-full overflow-hidden bg-white text-zinc-900 dark:bg-zinc-950 dark:text-white">
       <div className="absolute inset-0 bg-white dark:bg-zinc-950" />
 
+      {/* fundo */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute inset-0 opacity-[0.07] dark:opacity-[0.10] bg-grid" />
         <div className="blob blob-1" />
@@ -120,6 +168,7 @@ export default function ChooseBrandPage() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_35%,rgba(0,0,0,0.10)_100%)] dark:bg-[radial-gradient(circle_at_center,transparent_25%,rgba(0,0,0,0.55)_100%)]" />
       </div>
 
+      {/* botão CPF */}
       <div className="fixed bottom-4 left-4 z-[60] sm:bottom-6 sm:left-6">
         <button
           type="button"
@@ -130,16 +179,22 @@ export default function ChooseBrandPage() {
           <div className="flex h-12 w-12 min-w-12 items-center justify-center">
             <Search className="h-5 w-5" />
           </div>
-
-          <span className="pr-5 text-sm font-semibold whitespace-nowrap opacity-0 max-w-0 overflow-hidden transition-all duration-300 group-hover:opacity-100 group-hover:max-w-[160px]">
+          <span className="max-w-0 overflow-hidden pr-5 text-sm font-semibold whitespace-nowrap opacity-0 transition-all duration-300 group-hover:max-w-[160px] group-hover:opacity-100">
             Consulta de CPF
           </span>
         </button>
       </div>
 
+      {/* conteúdo */}
       <div className="relative z-10 flex h-full w-full items-center justify-center px-4 py-6 sm:px-6 sm:py-8">
         <div className="w-full max-w-lg sm:max-w-xl md:max-w-6xl">
-          <div className="mb-8 text-center sm:mb-10">
+          {/* header */}
+          <motion.div
+            initial={{ opacity: 0, y: -14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, ease: "easeOut" }}
+            className="mb-8 text-center sm:mb-10"
+          >
             <div className="inline-flex items-center gap-2 rounded-full border border-zinc-200/70 bg-white/70 px-3 py-1 backdrop-blur dark:border-white/10 dark:bg-white/5">
               <span className="h-1.5 w-1.5 rounded-full bg-zinc-900/70 dark:bg-white/70" />
               <span className="text-[10px] uppercase tracking-[0.22em] text-zinc-600 dark:text-zinc-300 sm:text-[11px] sm:tracking-[0.28em]">
@@ -154,114 +209,136 @@ export default function ChooseBrandPage() {
             <p className="mt-3 px-4 text-xs text-zinc-600 dark:text-zinc-300 sm:px-0 sm:text-sm">
               Você pode alternar entre marcas a qualquer momento.
             </p>
-          </div>
+          </motion.div>
 
-          <div className="grid grid-cols-1 gap-4 sm:gap-5 md:grid-cols-2 lg:grid-cols-3">
+          {/* grid de marcas */}
+          <motion.div
+            variants={container}
+            initial="hidden"
+            animate="show"
+            className="grid grid-cols-1 gap-4 sm:gap-5 md:grid-cols-2 lg:grid-cols-3"
+          >
             {brands.map((b) => (
-              <button
-                key={b.key}
-                onClick={() => go(b)}
-                disabled={!!b.disabled}
-                className={`
-                  group relative w-full overflow-hidden
-                  rounded-[24px] sm:rounded-[28px]
-                  border border-zinc-200/70 dark:border-white/10
-                  bg-white/75 dark:bg-white/5 backdrop-blur-md
-                  transition-transform duration-300
-                  active:scale-[0.99] md:hover:-translate-y-1
-                  ${b.disabled ? "cursor-not-allowed opacity-60" : ""}
-                `}
-              >
-                <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 md:group-hover:opacity-100">
-                  <div className="absolute -right-20 -top-20 h-56 w-56 rounded-full bg-zinc-200/50 blur-3xl dark:bg-white/10" />
-                </div>
+              <motion.div key={b.key} variants={item} className="h-full">
+                <motion.button
+                  type="button"
+                  onClick={() => go(b)}
+                  disabled={!!b.disabled || !!entering}
+                  whileHover={b.disabled || entering ? undefined : { y: -6, scale: 1.015 }}
+                  whileTap={b.disabled || entering ? undefined : { scale: 0.985 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 22 }}
+                  className={`
+                    group relative h-full w-full overflow-hidden
+                    rounded-[24px] sm:rounded-[28px]
+                    border border-zinc-200/70 dark:border-white/10
+                    bg-white/80 dark:bg-white/5 backdrop-blur-md
+                    text-left shadow-sm
+                    transition-shadow duration-300
+                    hover:shadow-xl hover:shadow-zinc-200/50 dark:hover:shadow-black/40
+                    ${b.disabled ? "cursor-not-allowed opacity-60" : ""}
+                  `}
+                >
+                  {/* barra de cor no topo */}
+                  <div
+                    className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${b.accent} opacity-80 transition-all group-hover:h-1.5`}
+                  />
 
-                <div className="flex items-center justify-between gap-4 p-5 sm:p-8 md:p-10">
-                  <div className="flex min-w-0 items-center gap-4">
-                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-zinc-200/70 bg-white/85 dark:border-white/10 dark:bg-white/10 sm:h-16 sm:w-16">
-                      <img
-                        src={b.logo}
-                        alt={b.name}
-                        className={`w-auto object-contain ${
-                          b.key === "hyundai"
-                            ? "h-8 sm:h-9"
-                            : b.key === "volkswagen"
-                            ? "h-9 sm:h-10"
-                            : b.key === "fiat"
-                            ? "h-7 sm:h-8"
-                            : b.key === "renault"
-                            ? "h-8 sm:h-9"
-                            : b.key === "nissan"
-                            ? "h-7 sm:h-8"
-                            : "h-7 sm:h-8"
-                        }`}
-                      />
-                    </div>
+                  {/* glow */}
+                  <div
+                    className={`pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-gradient-to-br ${b.accent} opacity-0 blur-3xl transition-opacity duration-300 group-hover:opacity-25`}
+                  />
 
-                    <div className="min-w-0 text-left">
-                      <div className="truncate text-lg font-semibold sm:text-xl md:text-2xl">
-                        {b.name}
+                  <div className="relative flex items-center justify-between gap-4 p-5 sm:p-7 md:p-8">
+                    <div className="flex min-w-0 items-center gap-4">
+                      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-zinc-200/70 bg-white/90 dark:border-white/10 dark:bg-white/10 sm:h-16 sm:w-16">
+                        <img
+                          src={b.logo}
+                          alt={b.name}
+                          className={`w-auto object-contain ${logoSize(b.key)}`}
+                        />
                       </div>
-                      <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400 sm:text-sm">
-                        {b.disabled ? "Em breve" : "Entrar"}
+
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="truncate text-lg font-semibold sm:text-xl md:text-2xl">
+                            {b.name}
+                          </span>
+                          <span
+                            className={`hidden rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide sm:inline-flex ${b.soft}`}
+                          >
+                            {b.name}
+                          </span>
+                        </div>
+                        <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400 sm:text-sm">
+                          {b.disabled ? "Em breve" : "Entrar"}
+                        </div>
                       </div>
                     </div>
                   </div>
+
+                  {/* linha inferior animada */}
+                  <div className="h-[2px] w-full bg-zinc-900/5 dark:bg-white/10" />
+                  <div
+                    className={`h-[2px] w-0 bg-gradient-to-r ${b.accent} transition-all duration-500 group-hover:w-full`}
+                  />
+                </motion.button>
+              </motion.div>
+            ))}
+          </motion.div>
+        </div>
+      </div>
+
+      {/* overlay de entrada */}
+      <AnimatePresence>
+        {entering && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.35 }}
+            className="fixed inset-0 z-[9999]"
+          >
+            <div className="absolute inset-0 bg-white/80 backdrop-blur-xl dark:bg-black/75" />
+
+            <div className="relative z-10 grid h-[100svh] place-items-center p-6">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.92, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.96 }}
+                transition={{ type: "spring", stiffness: 280, damping: 22 }}
+                className="flex w-full max-w-xs flex-col items-center gap-4 text-center sm:max-w-sm"
+              >
+                {entering.logo && (
+                  <div className="flex h-16 w-16 items-center justify-center rounded-3xl border border-zinc-200/70 bg-white/90 dark:border-white/10 dark:bg-white/10 sm:h-20 sm:w-20">
+                    <img
+                      src={entering.logo}
+                      alt={entering.name}
+                      className={`w-auto object-contain ${logoSize(entering.key)}`}
+                    />
+                  </div>
+                )}
+
+                <div className="text-[10px] uppercase tracking-[0.28em] text-zinc-500 dark:text-zinc-300 sm:text-xs">
+                  Entrando
                 </div>
 
-                <div className="h-[2px] w-full bg-zinc-900/5 dark:bg-white/10" />
-                <div className="h-[2px] w-0 bg-zinc-900/20 transition-all duration-500 dark:bg-white/20 md:group-hover:w-full" />
+                <div className="text-2xl font-semibold tracking-tight sm:text-3xl md:text-4xl">
+                  {entering.name}
+                </div>
 
-                <div className="pointer-events-none absolute inset-0 rounded-[24px] ring-0 transition-all ring-zinc-900/10 dark:ring-white/15 md:group-hover:ring-2 sm:rounded-[28px]" />
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div
-        className={`fixed inset-0 z-[9999] transition-all duration-500 ${
-          entering
-            ? "pointer-events-auto opacity-100"
-            : "pointer-events-none opacity-0"
-        }`}
-      >
-        <div className="absolute inset-0 bg-white/75 backdrop-blur-xl dark:bg-black/70" />
-
-        <div className="relative z-10 grid h-[100svh] place-items-center p-6">
-          <div className="flex w-full max-w-xs flex-col items-center gap-4 text-center sm:max-w-sm">
-            {entering?.logo && (
-              <div className="flex h-16 w-16 items-center justify-center rounded-3xl border border-zinc-200/70 bg-white/85 dark:border-white/10 dark:bg-white/10 sm:h-20 sm:w-20">
-                <img
-                  src={entering.logo}
-                  alt={entering.name}
-                  className={`w-auto object-contain ${
-                    entering.key === "volkswagen"
-                      ? "h-10 sm:h-12"
-                      : entering.key === "hyundai"
-                      ? "h-8 sm:h-10"
-                      : entering.key === "renault"
-                      ? "h-9 sm:h-11"
-                      : "h-8 sm:h-10"
-                  }`}
-                />
-              </div>
-            )}
-
-            <div className="text-[10px] uppercase tracking-[0.28em] text-zinc-500 dark:text-zinc-300 sm:text-xs">
-              Entrando
+                <div className="h-1 w-48 overflow-hidden rounded-full bg-zinc-200 dark:bg-white/10 sm:w-64">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: "100%" }}
+                    transition={{ duration: 0.52, ease: "easeOut" }}
+                    className={`h-full bg-gradient-to-r ${entering.accent}`}
+                  />
+                </div>
+              </motion.div>
             </div>
-
-            <div className="text-2xl font-semibold tracking-tight sm:text-3xl md:text-4xl">
-              {entering?.name}
-            </div>
-
-            <div className="h-1 w-48 overflow-hidden rounded-full bg-zinc-200 dark:bg-white/10 sm:w-64">
-              <div className="loading-bar h-full w-0 bg-zinc-900/40 dark:bg-white/35" />
-            </div>
-          </div>
-        </div>
-      </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <style jsx global>{`
         html,
@@ -363,19 +440,6 @@ export default function ChooseBrandPage() {
           }
           100% {
             transform: translate3d(0px, 0px, 0) scale(1);
-          }
-        }
-
-        .loading-bar {
-          animation: load 520ms ease-out forwards;
-        }
-
-        @keyframes load {
-          from {
-            width: 0%;
-          }
-          to {
-            width: 100%;
           }
         }
       `}</style>

@@ -1,20 +1,21 @@
-
-
-"use client"
+"use client";
 
 import { useState, Suspense, useEffect, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import {
-  CheckCircle2,
+  Check,
   Loader2,
   ArrowLeft,
   Printer,
   Send,
   QrCode,
-  ShieldCheck,
   MessageSquare,
   AlertTriangle,
+  User,
+  Car,
+  CreditCard,
+  FileText,
 } from "lucide-react";
 
 const PHONE_PREFIX_DISPLAY = "+55 ";
@@ -182,69 +183,19 @@ function builderOrderToContractData(order: BuilderOrderPayload | null) {
 }
 
 const BEST_BID_TEXT =
-  "MELHOR MOMENTO PARA OFERTAR LANCE: ENTRE 7X E 8X PARCELA.";
+  "Melhor momento para ofertar lance: entre a 7ª e a 8ª parcela.";
 
-function makeSmsSafe(raw: string, maxLen = 150) {
-  const ascii = String(raw || "")
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, "");
-
-  const clean = ascii
-    .replace(/\r\n/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-
-  return clean.length > maxLen ? clean.slice(0, maxLen) : clean;
-}
-
-function buildSmsMessage(nomeCliente: string, protocolo: string) {
-  return makeSmsSafe(
-    `Parabéns! Crédito aprovado. Aguarde contato da nossa equipe.`,
-    150
-  );
-}
-
-function BrandMark({ compact = false }: { compact?: boolean }) {
-  return (
-    <div className="flex items-center gap-4">
-
-      {!compact ? (
-        <div className="leading-none">
-          <div className="text-[18px] sm:text-[22px] font-black tracking-[0.24em] text-[#10233f]">
-            NACIONAL
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function SectionTitle({
-  number,
-  title,
-}: {
-  number: string;
-  title: string;
-}) {
-  return (
-    <div className="flex items-center justify-between border-b border-[#d9e6f2] pb-3">
-      <h3 className="text-sm font-black uppercase flex items-center gap-2 text-[#10233f] tracking-tight">
-        <span className="bg-[#0072bc] text-white w-6 h-6 flex items-center justify-center text-[10px] rounded-full shadow-sm">
-          {number}
-        </span>
-        {title}
-      </h3>
-    </div>
-  );
-}
-
-function InfoLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <label className="block text-[9px] font-black text-[#8792a1] uppercase mb-1 tracking-widest">
-      {children}
-    </label>
-  );
+/** Parâmetros do template WhatsApp: {{1}} nome, {{2}} protocolo, {{3}} veículo */
+function buildWhatsAppTemplateParams(
+  nomeCliente: string,
+  protocolo: string,
+  veiculo: string
+) {
+  return [
+    nomeCliente || "Cliente",
+    protocolo || "------",
+    veiculo || "Veículo",
+  ];
 }
 
 function PedidoContent() {
@@ -252,7 +203,9 @@ function PedidoContent() {
   const searchParams = useSearchParams();
 
   const pedidoId = searchParams.get("pedido") || "";
-  const [builderOrder, setBuilderOrder] = useState<BuilderOrderPayload | null>(null);
+  const [builderOrder, setBuilderOrder] = useState<BuilderOrderPayload | null>(
+    null
+  );
 
   const builderContractData = useMemo(
     () => builderOrderToContractData(builderOrder),
@@ -279,7 +232,9 @@ function PedidoContent() {
       try {
         const { data, error } = await supabase
           .from("contract_orders")
-          .select("payload, vehicle_name, version_name, color_name, vehicle_image, total_value")
+          .select(
+            "payload, vehicle_name, version_name, color_name, vehicle_image, total_value"
+          )
           .eq("id", pedidoId)
           .maybeSingle();
 
@@ -342,13 +297,15 @@ function PedidoContent() {
       percentualCategoria: safeNumber(searchParams.get("percentual_categoria")),
       codigoTabela: searchParams.get("codigo_tabela") || "",
       creditoTabela: safeNumber(searchParams.get("credito_tabela")),
-      primeiraParcelaIntegral: safeNumber(searchParams.get("primeira_parcela_integral")),
-      demaisParcelasReduzidas: safeNumber(searchParams.get("demais_parcelas_reduzidas")),
+      primeiraParcelaIntegral: safeNumber(
+        searchParams.get("primeira_parcela_integral")
+      ),
+      demaisParcelasReduzidas: safeNumber(
+        searchParams.get("demais_parcelas_reduzidas")
+      ),
       quantidadeReduzidas: safeNumber(searchParams.get("quantidade_reduzidas")),
       imagem:
-        searchParams.get("imagem") ||
-        builderContractData?.imagem ||
-        "",
+        searchParams.get("imagem") || builderContractData?.imagem || "",
       nome: searchParams.get("nome") || "",
       telefone: searchParams.get("telefone") || "",
       taxaAdmTotal:
@@ -356,10 +313,18 @@ function PedidoContent() {
         TAXA_ADM_TOTAL_FALLBACK,
       pedidoId,
       origem: searchParams.get("origem") || "",
-      vehicleSlug: searchParams.get("vehicle_slug") || builderContractData?.vehicleSlug || "",
-      vehicleName: searchParams.get("vehicle_name") || builderContractData?.vehicleName || "",
-      versionName: searchParams.get("versao") || builderContractData?.versionName || "",
-      colorName: searchParams.get("cor") || builderContractData?.colorName || "",
+      vehicleSlug:
+        searchParams.get("vehicle_slug") ||
+        builderContractData?.vehicleSlug ||
+        "",
+      vehicleName:
+        searchParams.get("vehicle_name") ||
+        builderContractData?.vehicleName ||
+        "",
+      versionName:
+        searchParams.get("versao") || builderContractData?.versionName || "",
+      colorName:
+        searchParams.get("cor") || builderContractData?.colorName || "",
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [searchParams.toString(), builderContractData, pedidoId]
@@ -443,7 +408,8 @@ function PedidoContent() {
 
     const valorCategoria = creditoUsadoParaFallback * (1 + dados.taxaAdmTotal);
 
-    const parcelaIntegralFallback = prazoUsado > 0 ? valorCategoria / prazoUsado : 0;
+    const parcelaIntegralFallback =
+      prazoUsado > 0 ? valorCategoria / prazoUsado : 0;
 
     const parcelaReduzidaFallback =
       prazoUsado > 0
@@ -480,7 +446,12 @@ function PedidoContent() {
       if (dados.descontoTotalValor > 0) {
         desconto = dados.descontoTotalValor;
       } else {
-        const base = dados.totalFinalBase || dados.total || creditoContrato || dados.valor || 0;
+        const base =
+          dados.totalFinalBase ||
+          dados.total ||
+          creditoContrato ||
+          dados.valor ||
+          0;
 
         if (promo.discountPercent > 0) {
           desconto = (base * promo.discountPercent) / 100;
@@ -511,12 +482,15 @@ function PedidoContent() {
     return safeNumber(calculoConsorcio.parcelaContrato);
   }, [calculoConsorcio.parcelaContrato]);
 
+  const valorVeiculo = safeNumber(dados.valor);
+  const entradaCliente = safeNumber(dados.entrada);
+
   const [, setLoadingValidacao] = useState(false);
   const [, setVerificando] = useState(false);
 
   const [loadingEnviar, setLoadingEnviar] = useState(false);
   const [pedidoSalvo, setPedidoSalvo] = useState(false);
-  const [smsStatus, setSmsStatus] = useState<"idle" | "success" | "failed">(
+  const [waStatus, setWaStatus] = useState<"idle" | "success" | "failed">(
     "idle"
   );
 
@@ -697,21 +671,27 @@ function PedidoContent() {
     cpfFormatoValido &&
     String(situacaoReceita || "PENDENTE").toUpperCase() === "REGULAR";
 
-  async function enviarSms(nomeCliente: string) {
+  /** Envia WhatsApp via Vonage (template) para o cliente */
+  async function enviarWhatsApp(nomeCliente: string) {
     if (!telefoneDigits) return false;
 
     const protocolo = numeroPedido || "------";
-    const message = buildSmsMessage(nomeCliente || "cliente", protocolo);
+    const veiculo = dados.modelo || dados.vehicleName || "Veículo";
 
     try {
-      const resp = await fetch("/api/sms/enviar", {
+      const resp = await fetch("/api/whatsapp/enviar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           number: telefoneDigits,
-          message,
-          messageType: "transactional",
-          optIn: true,
+          customerName: nomeCliente || "Cliente",
+          protocolNumber: protocolo,
+          vehicleName: veiculo,
+          templateParams: buildWhatsAppTemplateParams(
+            nomeCliente || "Cliente",
+            protocolo,
+            veiculo
+          ),
         }),
       });
 
@@ -723,15 +703,15 @@ function PedidoContent() {
       } catch {}
 
       if (!resp.ok || json?.error) {
-        console.warn("[sms] HTTP:", resp.status);
-        console.warn("[sms] body:", json ?? text);
+        console.warn("[whatsapp] HTTP:", resp.status);
+        console.warn("[whatsapp] body:", json ?? text);
         return false;
       }
 
-      console.log("[sms] ok:", json ?? text);
+      console.log("[whatsapp] ok:", json ?? text);
       return true;
     } catch (err) {
-      console.warn("[sms] erro de rede:", err);
+      console.warn("[whatsapp] erro de rede:", err);
       return false;
     }
   }
@@ -744,8 +724,14 @@ function PedidoContent() {
 
     if (!telefoneDigits) {
       alert(
-        "📵 Telefone inválido/ausente. Ele deve vir da página anterior como +55DDDNÚMERO (ex: +5591999999999)."
+        "📵 Telefone inválido/ausente. Ele deve vir da página anterior com DDD."
       );
+      return { ok: false as const };
+    }
+
+    if (!isValidCpf(dados.cpf)) {
+      setCpfErro(CPF_INVALID_MESSAGE);
+      alert(CPF_INVALID_MESSAGE);
       return { ok: false as const };
     }
 
@@ -754,111 +740,115 @@ function PedidoContent() {
         data: { user },
       } = await supabase.auth.getUser();
 
-      if (!user) {
-        alert("Sessão expirada. Faça login novamente.");
-        return { ok: false as const };
-      }
-
-      let nomeVendedor = user.email || "";
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("full_name")
-        .eq("id", user.id)
-        .single();
-
-      if (profile && profile.full_name) {
-        nomeVendedor = profile.full_name;
-      } else {
-        const beforeAt = String(user.email || "").split("@")[0] || "";
-        if (beforeAt) nomeVendedor = beforeAt.toUpperCase();
-      }
-
       const payload = {
-        seller_id: user.id,
-        seller_name: nomeVendedor,
-        car_name: dados.modelo,
-        client_name: nomeManual.toUpperCase(),
-        client_cpf: dados.cpf,
-        status: "Aprovado",
-        total_price: calculoConsorcio.creditoContrato || dados.valor,
-        interest_type: dados.tipo,
-        client_phone: telefoneDigits,
-        created_at: new Date().toISOString(),
-        protocol_number: numeroPedido,
-        cpf_status: String(situacaoReceita || "PENDENTE").toUpperCase(),
-        promo_code: promo.codigo || null,
-        promo_label: promo.label || null,
-        promo_discount_percent: promo.discountPercent || 0,
-        promo_discount_value: promo.discountValue || 0,
-        promo_plating_free: promo.platingFree ? true : false,
-        promo_accessories_free: promo.accessoriesFree ? true : false,
-        promo_note: promo.obs || null,
-        lance_value: lanceInfo.hasLance ? lanceInfo.lanceValor : 0,
-        prazo_final: calculoConsorcio.prazoUsado || 0,
-        parcela_final: parcelaReduzidaExibida || 0,
+        protocol: numeroPedido,
+        status: "aprovado",
+        tipo: dados.tipo,
+        cpf: cleanCpf(dados.cpf),
+        nome: nomeManual,
+        telefone: telefoneDigits,
+        modelo: dados.modelo,
+        vehicle_name: dados.vehicleName || dados.modelo,
+        version_name: dados.versionName || "",
+        color_name: dados.colorName || "",
+        vehicle_slug: dados.vehicleSlug || "",
+        vehicle_image: dados.imagem || "",
+        valor: valorVeiculo,
+        entrada: entradaCliente,
+        parcela: parcelaReduzidaExibida,
+        prazo: calculoConsorcio.prazoUsado,
+        total: dados.total || calculoConsorcio.creditoContrato,
+        total_value: valorVeiculo,
+        credito_contrato: calculoConsorcio.creditoContrato,
+        ato_entrada: atoEntrada,
+        modo_parcela: dados.modoParcela || "",
+        codigo_tabela: dados.codigoTabela || "",
+        origem: dados.origem || "",
+        aprovador: aprovadorNome || user?.email || "",
+        aprovador_id: user?.id || null,
+        situacao_receita: situacaoReceita,
+        data_nascimento: dataNascimento,
+        nome_mae: nomeMae,
+        endereco: endereco,
+        lance: lanceInfo.hasLance
+          ? {
+              valor: lanceInfo.lanceValor,
+              modo: lanceInfo.modo,
+              prazo_final: lanceInfo.prazoFinal,
+              parcela_final: lanceInfo.parcelaFinal,
+            }
+          : null,
+        promo: promo.hasPromo ? promo : null,
+        builder_payload: builderOrder || null,
+        payload: builderOrder || null,
       };
 
-      const { error } = await supabase.from("sales").insert([payload]);
-      if (error) throw error;
+      const { error } = await supabase.from("pedidos").insert(payload);
 
-      return { ok: true as const, vendedor: nomeVendedor };
-    } catch (error: any) {
-      console.error(error);
-      alert("Erro ao salvar: " + error.message);
+      if (error) {
+        // fallback: tenta outra tabela comum no projeto
+        const { error: err2 } = await supabase
+          .from("contract_orders")
+          .insert({
+            ...payload,
+            total_value: valorVeiculo,
+          });
+
+        if (err2) {
+          console.error("[salvar] erro:", error, err2);
+          alert("Não foi possível salvar o pedido no painel.");
+          return { ok: false as const };
+        }
+      }
+
+      setPedidoSalvo(true);
+      return { ok: true as const };
+    } catch (e) {
+      console.error("[salvar] exceção:", e);
+      alert("Erro ao salvar o pedido. Tente novamente.");
       return { ok: false as const };
     }
   };
 
   const handleEnviarParaAnalise = async () => {
-    if (pedidoSalvo) return;
+    if (loadingEnviar || pedidoSalvo) return;
 
     setLoadingEnviar(true);
-    setSmsStatus("idle");
-
-    if (!isValidCpf(dados.cpf)) {
-      setCpfErro(CPF_INVALID_MESSAGE);
-      alert(CPF_INVALID_MESSAGE);
-      setLoadingEnviar(false);
-      return;
-    }
-
-    setCpfErro("");
+    setWaStatus("idle");
 
     try {
-      const cpfConsultado = await consultarCpf({ silent: true });
+      // 1) Consulta CPF (silencioso se já tiver dados)
+      if (!apiData) {
+        const cpfRes = await consultarCpf({ silent: true });
+        if (!cpfRes.ok && !nomeManual) {
+          alert("Consulte/valide o CPF antes de enviar.");
+          return;
+        }
+      }
 
-      if (!cpfConsultado.ok && !nomeManual && !dados.nome) {
-        alert(
-          "Não foi possível consultar o CPF e também não há nome disponível para concluir a análise."
-        );
+      if (!nomeManual) {
+        alert("Preencha o nome do cliente antes de enviar.");
         return;
       }
 
-      const saved = await salvarNoBanco();
-      if (!saved.ok) return;
+      if (!telefoneDigits) {
+        alert("Telefone inválido. Volte e informe o celular com DDD.");
+        return;
+      }
 
-      const nomeCliente = (nomeManual || dados.nome || "cliente").trim();
-      const okSms = await enviarSms(nomeCliente);
+      // 2) Salva no banco
+      const saveRes = await salvarNoBanco();
+      if (!saveRes.ok) return;
 
-      setSmsStatus(okSms ? "success" : "failed");
-      setPedidoSalvo(true);
+      // 3) Dispara WhatsApp (não bloqueia o pedido se falhar)
+      const waOk = await enviarWhatsApp(nomeManual);
+      setWaStatus(waOk ? "success" : "failed");
 
-      if (cpfConsultado.ok && okSms) {
-        alert(
-          `✅ Análise concluída. CPF consultado, pedido aprovado e SMS enviado! (${saved.vendedor || "vendedor"})`
-        );
-      } else if (cpfConsultado.ok && !okSms) {
-        alert(
-          `✅ Análise concluída. CPF consultado e pedido aprovado no painel. SMS não foi enviado, mas a aprovação segue normalmente. (${saved.vendedor || "vendedor"})`
-        );
-      } else if (!cpfConsultado.ok && okSms) {
-        alert(
-          `✅ Análise concluída. Pedido aprovado no painel e SMS enviado! Dados do CPF não puderam ser atualizados agora. (${saved.vendedor || "vendedor"})`
-        );
+      if (waOk) {
+        alert("✅ Pedido enviado e WhatsApp disparado para o cliente!");
       } else {
         alert(
-          `✅ Análise concluída. Pedido aprovado no painel. SMS não foi enviado e os dados do CPF não puderam ser atualizados agora. (${saved.vendedor || "vendedor"})`
+          "✅ Pedido salvo no painel.\n⚠️ WhatsApp não foi enviado (confira a API / template)."
         );
       }
     } finally {
@@ -866,687 +856,530 @@ function PedidoContent() {
     }
   };
 
+  const handlePrint = () => {
+    if (typeof window !== "undefined") window.print();
+  };
+
   return (
-    <div className="min-h-screen bg-[#f4f8fb] font-sans text-[#172033] pb-32 md:pb-20 print:bg-white print:p-0">
-      <header className="px-4 md:px-6 py-4 bg-white/95 backdrop-blur border-b border-[#d9e6f2] sticky top-0 z-50 print:hidden shadow-[0_10px_35px_rgba(16,35,63,0.08)] safe-area-top">
-        <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
+    <div className="min-h-screen bg-[#f7f9fc] text-[#1a2332]">
+      {/* Barra superior */}
+      <div className="print:hidden sticky top-0 z-40 bg-white/90 backdrop-blur border-b border-[#e4ebf3]">
+        <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between gap-3">
           <button
+            type="button"
             onClick={() => router.back()}
-            className="flex items-center gap-2 text-[#566173] hover:text-[#0072bc] transition-colors font-black text-xs uppercase tracking-widest"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#5a6d80] hover:text-[#1a2332]"
           >
-            <ArrowLeft size={18} />
-            <span className="hidden md:inline">Voltar</span>
+            <ArrowLeft size={16} />
+            Voltar
           </button>
 
-          <div className="flex items-center gap-2 md:gap-3">
-            <button
-              onClick={() => window.print()}
-              className="bg-white border border-[#d9e6f2] text-[#43546a] p-2 md:px-4 md:py-2 rounded-xl text-xs font-black uppercase hover:border-[#0072bc] hover:text-[#0072bc] flex items-center gap-2 shadow-sm transition-all"
-            >
-              <Printer size={18} />
-              <span className="hidden md:inline">Imprimir</span>
-            </button>
-
-            {!pedidoSalvo ? (
-              <button
-                onClick={handleEnviarParaAnalise}
-                disabled={loadingEnviar}
-                className="bg-[#0072bc] text-white px-4 py-2.5 rounded-xl text-xs font-black uppercase hover:bg-[#005d99] flex items-center gap-2 shadow-lg shadow-[#0072bc]/20 transition-all hover:scale-105 active:scale-95 disabled:opacity-70"
-                title="Salva no painel como APROVADO e tenta enviar SMS."
-              >
-                {loadingEnviar ? (
-                  <Loader2 className="animate-spin" size={16} />
-                ) : (
-                  <Send size={16} />
-                )}
-                <span className="md:inline">
-                  {loadingEnviar ? "Analisando..." : "Enviar p/ análise"}
-                </span>
-              </button>
-            ) : (
-              <div className="flex flex-col items-end gap-2 animate-in fade-in zoom-in">
-              </div>
-            )}
+          <div className="text-center">
+            <p className="text-[10px] uppercase tracking-widest text-[#8a9aab]">
+              Contrato / pedido
+            </p>
+            <p className="text-sm font-semibold text-[#10233f]">
+              Nº {numeroPedido || "------"}
+            </p>
           </div>
+
+          <button
+            type="button"
+            onClick={handlePrint}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#5a6d80] hover:text-[#1a2332]"
+          >
+            <Printer size={16} />
+            Imprimir
+          </button>
         </div>
-      </header>
+      </div>
 
-      <main className="w-full md:max-w-[210mm] mx-auto py-4 md:py-8 px-4 md:px-0 print:max-w-full print:p-0 print:m-0">
-        <div className="bg-white shadow-[0_25px_80px_rgba(16,35,63,0.12)] rounded-[28px] md:rounded-[32px] overflow-hidden w-full min-h-[80vh] md:min-h-[297mm] flex flex-col relative print:shadow-none print:w-full print:rounded-none">
-          <div className="absolute inset-0 flex items-center justify-center opacity-[0.035] pointer-events-none select-none overflow-hidden">
-            <h1 className="text-[72px] md:text-[135px] font-black -rotate-45 text-[#10233f] whitespace-nowrap tracking-widest">
-              NACIONAL CONSÓRCIO
-            </h1>
-          </div>
-
-          <div className="p-6 md:p-10 pb-4 md:pb-6 border-b-4 border-[#0072bc] flex flex-col md:flex-row justify-between items-start md:items-start gap-6 md:gap-0 relative z-10 bg-white">
-            <div className="flex flex-col gap-1 w-full md:w-auto">
-              <div className="flex justify-between items-center md:block">
-                <div className="mb-2">
-                  <BrandMark compact={false} />
-                </div>
-
-                <div className="md:hidden">
-                  <span className="text-[10px] text-[#8792a1] font-bold uppercase mr-2">
-                    Prot:
-                  </span>
-                  <span className="text-sm font-mono font-black text-[#10233f] bg-[#f4f8fb] px-2 py-1 rounded-lg border border-[#d9e6f2]">
-                    #{numeroPedido || "------"}
-                  </span>
-                </div>
-              </div>
-
-              <h1 className="text-lg md:text-xl font-black uppercase tracking-tight text-[#10233f] mt-3">
-                Proposta Comercial
-              </h1>
-
-              <p className="text-[10px] text-[#566173] uppercase tracking-widest font-bold">
-                Consórcio, veículos e soluções comerciais
-              </p>
-
-              {(promo.hasPromo || lanceInfo.hasLance) && (
-                <div className="mt-3 flex flex-wrap gap-2 print:hidden">
-                  {lanceInfo.hasLance ? (
-                    <span className="text-[10px] font-black uppercase px-2 py-1 rounded-full bg-[#10233f] text-white">
-                      Lance: {formatMoney(lanceInfo.lanceValor)}
-                    </span>
-                  ) : null}
-
-                  {promo.hasPromo ? (
-                    <>
-                      <span className="text-[10px] font-black uppercase px-2 py-1 rounded-full bg-[#dff0fb] text-[#0072bc] border border-[#b8dcf1]">
-                        Promo:{" "}
-                        {(promo.codigo || promo.label || "Aplicada").toUpperCase()}
-                      </span>
-
-                      {promo.platingFree ? (
-                        <span className="text-[10px] font-black uppercase px-2 py-1 rounded-full bg-emerald-100 text-emerald-700">
-                          Emplacamento grátis
-                        </span>
-                      ) : null}
-
-                      {promo.accessoriesFree ? (
-                        <span className="text-[10px] font-black uppercase px-2 py-1 rounded-full bg-emerald-100 text-emerald-700">
-                          Acessórios grátis
-                        </span>
-                      ) : null}
-
-                      {promo.discountPercent ? (
-                        <span className="text-[10px] font-black uppercase px-2 py-1 rounded-full bg-[#f4f8fb] text-[#43546a] border border-[#d9e6f2]">
-                          {promo.discountPercent}% OFF
-                        </span>
-                      ) : null}
-
-                      {promo.discountValue ? (
-                        <span className="text-[10px] font-black uppercase px-2 py-1 rounded-full bg-[#f4f8fb] text-[#43546a] border border-[#d9e6f2]">
-                          {formatMoney(promo.discountValue)} OFF
-                        </span>
-                      ) : null}
-                    </>
-                  ) : null}
-                </div>
-              )}
-            </div>
-
-            <div className="text-right hidden md:block">
-              <div className="flex flex-col items-end">
-                <p className="text-[9px] font-black text-[#8792a1] uppercase tracking-widest mb-1">
-                  Número do Protocolo
+      <main className="max-w-3xl mx-auto px-4 py-6 sm:py-8">
+        <div className="bg-white rounded-3xl border border-[#e4ebf3] shadow-sm overflow-hidden relative">
+          {/* Cabeçalho do documento */}
+          <div className="px-5 sm:px-8 pt-7 pb-5 border-b border-[#eef2f7]">
+            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-[#8a9aab]">
+                  Nacional Consórcio
                 </p>
-                <p className="text-xl font-mono font-black text-[#10233f] bg-[#f4f8fb] border border-[#d9e6f2] px-3 py-1 rounded-xl">
-                  #{numeroPedido || "------"}
+                <h1 className="text-xl sm:text-2xl font-semibold text-[#10233f] mt-1">
+                  Proposta de adesão
+                </h1>
+                <p className="text-[12px] text-[#6b7c8f] mt-1">
+                  {dados.tipo} · Belém (PA), {dataAtual || "—"}
                 </p>
               </div>
 
-              <div className="mt-3 flex items-center justify-end gap-2">
-                <span className="text-[10px] font-black uppercase text-[#8792a1]">
-                  Modalidade:
-                </span>
-                <span className="bg-[#0072bc] text-white text-[10px] font-black uppercase px-3 py-1 rounded-full">
-                  {dados.tipo}
-                </span>
-              </div>
+              {pedidoSalvo ? (
+                <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 text-emerald-700 px-3 py-1.5 text-xs font-semibold">
+                  <div className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center">
+                    {loadingEnviar ? (
+                      <Loader2 size={12} className="animate-spin" />
+                    ) : (
+                      <Check size={12} />
+                    )}
+                  </div>
+                  Aprovado no painel
+                </div>
+              ) : null}
             </div>
           </div>
 
-          <div className="p-6 md:p-10 space-y-8 flex-1 relative z-10">
-            {(loadingEnviar || pedidoSalvo) && (
-              <div
-                className={`print:hidden relative overflow-hidden rounded-3xl border-2 p-6 md:p-8 shadow-lg ${
-                  loadingEnviar
-                    ? "border-[#b8dcf1] bg-gradient-to-br from-[#dff0fb] via-white to-[#f4f8fb]"
-                    : "border-emerald-300 bg-gradient-to-br from-emerald-50 via-white to-emerald-100"
-                }`}
-              >
-                <div
-                  className={`absolute -right-10 -top-10 rounded-full ${
-                    loadingEnviar
-                      ? "w-40 h-40 bg-[#0072bc]/10"
-                      : "w-40 h-40 bg-green-500/10"
-                  }`}
-                />
-
-                <div
-                  className={`absolute -left-10 -bottom-10 rounded-full ${
-                    loadingEnviar
-                      ? "w-32 h-32 bg-[#0072bc]/10"
-                      : "w-32 h-32 bg-emerald-500/10"
-                  }`}
-                />
-
-                <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                  <div>
-                    <div
-                      className={`inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white text-[11px] font-black uppercase shadow-sm ${
-                        loadingEnviar
-                          ? "border border-[#b8dcf1] text-[#0072bc]"
-                          : "border border-green-200 text-green-700"
-                      }`}
-                    >
-                      {loadingEnviar ? (
-                        <Loader2 size={14} className="animate-spin" />
-                      ) : (
-                        <CheckCircle2 size={14} />
-                      )}
-                      {loadingEnviar
-                        ? "Análise em andamento"
-                        : "Resultado da análise"}
-                    </div>
-
-                    <h2
-                      className={`mt-4 text-3xl md:text-5xl font-black uppercase tracking-tight leading-none ${
-                        loadingEnviar ? "text-[#0072bc]" : "text-green-700"
-                      }`}
-                    >
-                      {loadingEnviar ? "Analisando..." : "Aprovado"}
-                    </h2>
-
-                    <p className="mt-3 text-sm md:text-base font-bold uppercase tracking-wide text-[#43546a]">
-                      {loadingEnviar
-                        ? "Aguarde enquanto finalizamos a análise comercial."
-                        : "Análise concluída com sucesso e proposta aprovada."}
-                    </p>
-
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <span
-                        className={`text-[11px] font-black uppercase px-3 py-1.5 rounded-full ${
-                          loadingEnviar
-                            ? "bg-[#0072bc] text-white"
-                            : "bg-green-600 text-white"
-                        }`}
-                      >
-                        {loadingEnviar ? "Status: analisando" : "Status: aprovado"}
-                      </span>
-
-                      {!loadingEnviar ? (
-                        <span
-                          className={`text-[11px] font-black uppercase px-3 py-1.5 rounded-full border ${
-                            smsStatus === "failed"
-                              ? "border-amber-200 bg-amber-50 text-amber-700"
-                              : smsStatus === "success"
-                              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                              : "border-[#d9e6f2] bg-[#f4f8fb] text-[#43546a]"
-                          }`}
-                        >
-                          {smsStatus === "failed"
-                            ? "SMS indisponível"
-                            : smsStatus === "success"
-                            ? "SMS enviado"
-                            : "Processado"}
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <div className="md:text-right">
-                    <div
-                      className={`inline-flex items-center justify-center w-20 h-20 rounded-full text-white shadow-xl ${
-                        loadingEnviar ? "bg-[#0072bc]" : "bg-green-600"
-                      }`}
-                    >
-                      {loadingEnviar ? (
-                        <Loader2 className="animate-spin" size={36} />
-                      ) : (
-                        <CheckCircle2 size={40} />
-                      )}
-                    </div>
-                  </div>
-                </div>
+          <div className="px-5 sm:px-8 py-6 space-y-8">
+            {/* Cliente */}
+            <section>
+              <div className="flex items-center gap-2 mb-3.5">
+                <User size={15} className="text-[#0072bc]" strokeWidth={1.75} />
+                <h2 className="text-sm font-semibold text-[#10233f]">
+                  Dados do cliente
+                </h2>
               </div>
-            )}
-
-            <div className="space-y-4">
-              <SectionTitle number="1" title="Identificação do Cliente" />
 
               {!pedidoSalvo ? (
                 <button
                   onClick={handleEnviarParaAnalise}
                   disabled={loadingEnviar}
-                  className="print:hidden w-full group relative overflow-hidden rounded-2xl border border-[#d9e6f2] bg-white shadow-sm hover:shadow-lg transition-all disabled:opacity-70"
-                  title="Salva no painel como APROVADO e tenta enviar SMS."
+                  className="print:hidden w-full mb-4 rounded-2xl border border-[#e4ebf3] bg-[#fafbfc] hover:bg-white hover:border-[#0072bc]/35 p-4 transition-all disabled:opacity-70 text-left group"
                 >
-                  <div className="absolute inset-0 bg-gradient-to-r from-[#0072bc]/0 via-[#0072bc]/10 to-[#0072bc]/0 opacity-0 group-hover:opacity-100 transition-opacity" />
-
-                  <div className="relative p-4 md:p-5 flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-11 h-11 rounded-2xl bg-[#0072bc] text-white flex items-center justify-center shadow-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-[#0072bc] text-white flex items-center justify-center flex-shrink-0">
                         {loadingEnviar ? (
-                          <Loader2 className="animate-spin" size={18} />
+                          <Loader2 className="animate-spin" size={16} />
                         ) : (
-                          <Send size={18} />
+                          <Send size={16} strokeWidth={1.75} />
                         )}
                       </div>
-
-                      <div className="text-left">
-                        <p className="text-xs md:text-sm font-black uppercase leading-tight text-[#10233f]">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-[#1a2332]">
                           Enviar para análise
                         </p>
-
-                        <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <p className="text-[11px] text-[#7a8b9e] mt-0.5">
+                          Consulta CPF, grava no painel e dispara WhatsApp
+                        </p>
+                        <div className="mt-1.5 flex flex-wrap gap-1.5">
                           <span
-                            className={`text-[10px] font-black uppercase px-2 py-1 rounded-full border ${
+                            className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
                               cpfIsRegular
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                : "bg-red-50 text-red-700 border-red-200"
+                                ? "bg-emerald-50 text-emerald-700"
+                                : "bg-red-50 text-red-600"
                             }`}
                           >
-                            CPF: {cpfErro ? "INVÁLIDO" : String(situacaoReceita).toUpperCase()}
+                            CPF{" "}
+                            {cpfErro
+                              ? "inválido"
+                              : String(situacaoReceita).toUpperCase()}
                           </span>
-
-                          <span className="text-[10px] font-black uppercase px-2 py-1 rounded-full border bg-[#f4f8fb] text-[#43546a] border-[#d9e6f2] flex items-center gap-1">
-                            <MessageSquare size={12} /> SMS
+                          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-[#f0f4f8] text-[#6b7c8f] flex items-center gap-1">
+                            <MessageSquare size={10} /> WhatsApp
                           </span>
-                        </div>
-
-                        <div className="mt-2 flex flex-wrap items-center gap-2">
-                          <span className="text-[10px] font-black uppercase px-2 py-1 rounded-full border bg-[#f4f8fb] text-[#43546a] border-[#d9e6f2]">
-                            Aprovador: {aprovadorNome || "—"}
-                          </span>
-
-                          <span className="text-[10px] font-black uppercase px-2 py-1 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200">
-                            Probabilidades altas
-                          </span>
-
-                          <span className="text-[10px] font-black uppercase px-2 py-1 rounded-full border bg-[#dff0fb] text-[#0072bc] border-[#b8dcf1]">
-                            {BEST_BID_TEXT}
-                          </span>
+                          {aprovadorNome ? (
+                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-[#f0f4f8] text-[#6b7c8f]">
+                              {aprovadorNome}
+                            </span>
+                          ) : null}
                         </div>
                       </div>
                     </div>
-
-                    <div className="flex items-center gap-2">
-                      <span className="hidden md:inline text-[10px] font-black uppercase text-[#8792a1]">
-                        #{numeroPedido || "------"}
-                      </span>
-
-                      <div className="w-9 h-9 rounded-full bg-[#10233f] text-white flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
-                        <ArrowLeft className="rotate-180" size={18} />
-                      </div>
+                    <div className="w-8 h-8 rounded-full bg-[#1a2332] text-white flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+                      <ArrowLeft className="rotate-180" size={14} />
                     </div>
                   </div>
                 </button>
               ) : (
-                <div className="print:hidden w-full rounded-2xl border border-green-500/20 bg-green-500/10 p-4">
-                  <div className="flex items-center gap-2 font-black uppercase text-xs text-green-600">
-                    <CheckCircle2 size={18} /> Enviado para análise
+                <div className="print:hidden mb-4 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4">
+                  <div className="flex items-center gap-2 text-emerald-700 text-xs font-semibold">
+                    <Check size={15} /> Enviado e aprovado no painel
                   </div>
-
-                  <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2">
-                    <div className="rounded-xl bg-white/80 border border-green-200 px-3 py-2 text-[11px] font-black uppercase text-green-700 text-center">
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-600 text-white">
                       Aprovado
-                    </div>
-
-                    <div
-                      className={`rounded-xl px-3 py-2 text-[11px] font-black uppercase text-center border ${
-                        smsStatus === "failed"
-                          ? "bg-amber-50 text-amber-700 border-amber-200"
-                          : smsStatus === "success"
-                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                          : "bg-[#f4f8fb] text-[#43546a] border-[#d9e6f2]"
+                    </span>
+                    <span
+                      className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
+                        waStatus === "failed"
+                          ? "bg-amber-100 text-amber-700"
+                          : waStatus === "success"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-white text-[#6b7c8f] border border-[#e4ebf3]"
                       }`}
                     >
-                      {smsStatus === "failed"
-                        ? "SMS caiu, mas segue aprovado"
-                        : smsStatus === "success"
-                        ? "SMS enviado"
-                        : "Em processamento"}
-                    </div>
+                      {waStatus === "failed"
+                        ? "WhatsApp não enviado (pedido segue ok)"
+                        : waStatus === "success"
+                        ? "WhatsApp enviado"
+                        : "Processado"}
+                    </span>
                   </div>
                 </div>
               )}
 
               {cpfErro ? (
-                <div className="print:hidden rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-bold text-red-700 flex items-start gap-2">
-                  <AlertTriangle size={16} className="mt-0.5 flex-shrink-0" />
+                <div className="print:hidden mb-4 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs text-red-600 flex items-start gap-2">
+                  <AlertTriangle size={14} className="mt-0.5 flex-shrink-0" />
                   <span>{cpfErro}</span>
                 </div>
               ) : null}
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-x-6 gap-y-4 text-xs">
-                <div className="md:col-span-2">
-                  <InfoLabel>Nome Completo</InfoLabel>
-                  <div className="font-mono font-bold text-base md:text-lg uppercase truncate border-b border-dotted border-[#b8c7d9] pb-1 w-full text-[#172033]">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-5 gap-y-4 text-sm">
+                <div className="sm:col-span-2">
+                  <p className="text-[10px] text-[#8a9aab] uppercase tracking-wider mb-0.5">
+                    Nome completo
+                  </p>
+                  <p className="font-semibold text-[#1a2332] uppercase truncate border-b border-dotted border-[#d0dae6] pb-1">
                     {nomeManual || "---"}
-                  </div>
+                  </p>
                 </div>
-
-                <div className="md:col-span-1">
-                  <InfoLabel>CPF</InfoLabel>
-                  <div className="font-mono font-bold text-base md:text-lg border-b border-dotted border-[#b8c7d9] pb-1 flex items-center gap-2 text-[#172033]">
-                    {dados.cpf}
-
+                <div>
+                  <p className="text-[10px] text-[#8a9aab] uppercase tracking-wider mb-0.5">
+                    CPF
+                  </p>
+                  <p className="font-mono font-medium text-[#1a2332] border-b border-dotted border-[#d0dae6] pb-1 flex items-center gap-1.5">
+                    {dados.cpf || "---"}
                     {cpfIsRegular && (
-                      <ShieldCheck
-                        size={14}
-                        className="text-green-600 print:hidden flex-shrink-0"
+                      <Check
+                        size={12}
+                        className="text-emerald-600 print:hidden"
                       />
                     )}
-
                     {cpfErro && (
                       <AlertTriangle
-                        size={14}
-                        className="text-red-600 print:hidden flex-shrink-0"
+                        size={12}
+                        className="text-red-500 print:hidden"
                       />
                     )}
-                  </div>
+                  </p>
                 </div>
-
-                <div className="md:col-span-1">
-                  <InfoLabel>Telefone</InfoLabel>
-                  <div className="font-mono font-bold text-base md:text-lg border-b border-dotted border-[#b8c7d9] pb-1 text-[#172033]">
+                <div>
+                  <p className="text-[10px] text-[#8a9aab] uppercase tracking-wider mb-0.5">
+                    Telefone
+                  </p>
+                  <p className="font-mono font-medium text-[#1a2332] border-b border-dotted border-[#d0dae6] pb-1">
                     {telefoneTela}
-                  </div>
+                  </p>
                 </div>
-
-                <div className="grid grid-cols-2 md:contents gap-4">
-                  <div className="md:col-span-1">
-                    <InfoLabel>Nascimento</InfoLabel>
-                    <div className="font-mono font-medium text-[#43546a] uppercase">
-                      {dataNascimento}
-                    </div>
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <InfoLabel>Filiação</InfoLabel>
-                    <div className="font-mono font-medium text-[#43546a] uppercase truncate">
-                      {nomeMae}
-                    </div>
-                  </div>
+                <div>
+                  <p className="text-[10px] text-[#8a9aab] uppercase tracking-wider mb-0.5">
+                    Nascimento
+                  </p>
+                  <p className="text-[#5a6d80]">{dataNascimento}</p>
                 </div>
-
-                <div className="md:col-span-1">
-                  <InfoLabel>Situação CPF</InfoLabel>
-                  <div
-                    className={`font-black uppercase text-[10px] px-2 py-0.5 rounded w-fit ${
+                <div className="sm:col-span-2">
+                  <p className="text-[10px] text-[#8a9aab] uppercase tracking-wider mb-0.5">
+                    Nome da mãe
+                  </p>
+                  <p className="text-[#5a6d80] uppercase truncate">{nomeMae}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-[#8a9aab] uppercase tracking-wider mb-0.5">
+                    Situação na Receita
+                  </p>
+                  <span
+                    className={`inline-block text-[10px] font-semibold uppercase px-2 py-0.5 rounded ${
                       cpfIsRegular
-                        ? "bg-green-100 text-green-700"
-                        : "bg-red-100 text-red-700"
+                        ? "bg-emerald-50 text-emerald-700"
+                        : "bg-red-50 text-red-600"
                     }`}
                   >
-                    {cpfErro ? "CPF INVÁLIDO" : String(situacaoReceita).toUpperCase()}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <SectionTitle number="2" title="Objeto do Contrato" />
-
-              <div className="flex flex-col md:flex-row gap-6 items-start border border-[#d9e6f2] rounded-2xl p-4 bg-[#f4f8fb] print:bg-white print:border-[#d9e6f2]">
-                {dados.imagem && (
-                  <div className="w-full md:w-32 h-32 md:h-20 bg-white rounded-xl border border-[#d9e6f2] flex items-center justify-center p-2 print:hidden overflow-hidden">
-                    <img
-                      src={dados.imagem}
-                      alt="Imagem do veículo"
-                      className="w-full h-full object-contain mix-blend-multiply"
-                    />
-                  </div>
-                )}
-
-                <div className="flex-1 grid grid-cols-2 gap-4 w-full">
-                  <div>
-                    <p className="text-[9px] font-black text-[#8792a1] uppercase tracking-widest">
-                      Modelo / Bem
-                    </p>
-
-                    <p className="text-lg md:text-xl font-black text-[#10233f] uppercase leading-tight mt-1">
-                      {dados.modelo}
-                    </p>
-
-                    <p className="text-[10px] text-[#566173] font-medium mt-1">
-                      CÓDIGO FIPE: REF-2026
-                    </p>
-                  </div>
-
-                  <div className="text-right">
-                    <p className="text-[9px] font-black text-[#8792a1] uppercase tracking-widest">
-                      Crédito
-                    </p>
-
-                    <p className="text-lg md:text-xl font-black text-[#10233f] mt-1">
-                      {formatMoney(calculoConsorcio.creditoContrato || dados.valor)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <SectionTitle number="3" title="Fluxo de Pagamento" />
-
-              <div className="bg-white border border-[#d9e6f2] rounded-2xl overflow-hidden">
-                <div className="flex justify-between items-center p-3 border-b border-[#e8f0f7]">
-                  <span className="text-xs font-bold text-[#566173] uppercase">
-                    Ato / Entrada
+                    {cpfErro
+                      ? "Inválido"
+                      : String(situacaoReceita).toUpperCase()}
                   </span>
+                </div>
+              </div>
+            </section>
 
-                  <div className="flex-1 border-b border-dotted border-[#b8c7d9] mx-4 relative top-1 hidden md:block"></div>
+            {/* Veículo */}
+            <section>
+              <div className="flex items-center gap-2 mb-3.5">
+                <Car size={15} className="text-[#0072bc]" strokeWidth={1.75} />
+                <h2 className="text-sm font-semibold text-[#10233f]">
+                  Bem / veículo
+                </h2>
+              </div>
 
-                  <span className="font-mono font-bold text-[#10233f]">
+              <div className="rounded-2xl border border-[#e4ebf3] bg-[#fafbfc] p-4">
+                <div className="flex flex-col sm:flex-row gap-4 items-start">
+                  {dados.imagem ? (
+                    <div className="w-full sm:w-32 h-28 sm:h-24 bg-white rounded-xl border border-[#e4ebf3] flex items-center justify-center overflow-hidden print:hidden flex-shrink-0">
+                      <img
+                        src={dados.imagem}
+                        alt=""
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                  ) : null}
+
+                  <div className="flex-1 w-full space-y-3">
+                    <div>
+                      <p className="text-[10px] text-[#8a9aab] uppercase tracking-wider">
+                        Modelo
+                      </p>
+                      <p className="text-base sm:text-lg font-semibold text-[#10233f] uppercase leading-snug mt-0.5">
+                        {dados.modelo}
+                      </p>
+                      {(dados.versionName || dados.colorName) && (
+                        <p className="text-[12px] text-[#6b7c8f] mt-0.5">
+                          {[dados.versionName, dados.colorName]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-1 border-t border-[#e8eef5]">
+                      <div>
+                        <p className="text-[10px] text-[#8a9aab] uppercase tracking-wider">
+                          Valor do bem
+                        </p>
+                        <p className="text-sm font-semibold text-[#1a2332] mt-0.5">
+                          {formatMoney(valorVeiculo)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-[#8a9aab] uppercase tracking-wider">
+                          Entrada
+                        </p>
+                        <p className="text-sm font-semibold text-[#1a2332] mt-0.5">
+                          {formatMoney(entradaCliente)}
+                        </p>
+                      </div>
+                      <div className="col-span-2 sm:col-span-1">
+                        <p className="text-[10px] text-[#8a9aab] uppercase tracking-wider">
+                          Crédito contratado
+                        </p>
+                        <p className="text-sm font-semibold text-[#0072bc] mt-0.5">
+                          {formatMoney(
+                            calculoConsorcio.creditoContrato || valorVeiculo
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* Pagamento */}
+            <section>
+              <div className="flex items-center gap-2 mb-3.5">
+                <CreditCard
+                  size={15}
+                  className="text-[#0072bc]"
+                  strokeWidth={1.75}
+                />
+                <h2 className="text-sm font-semibold text-[#10233f]">
+                  Condições de pagamento
+                </h2>
+              </div>
+
+              <div className="rounded-2xl border border-[#e4ebf3] overflow-hidden">
+                <div className="flex justify-between items-center px-4 py-3 border-b border-[#eef2f7]">
+                  <div>
+                    <span className="text-xs text-[#6b7c8f]">
+                      Ato / 1ª parcela
+                    </span>
+                    <p className="text-[10px] text-[#8a9aab]">
+                      {dados.modoParcela === "integral"
+                        ? "Parcela integral (categoria 100%)"
+                        : "Primeira parcela integral"}
+                    </p>
+                  </div>
+                  <span className="font-mono font-semibold text-[#1a2332]">
                     {formatMoney(atoEntrada)}
                   </span>
                 </div>
 
                 {lanceInfo.hasLance ? (
-                  <div className="flex justify-between items-center p-3 border-b border-[#e8f0f7]">
-                    <span className="text-xs font-bold text-[#566173] uppercase">
-                      Lance{" "}
-                      {lanceInfo.modo
-                        ? `(${
-                            lanceInfo.modo === "reduzir_parcela"
-                              ? "Reduzir Parcela"
-                              : "Reduzir Meses"
-                          })`
-                        : ""}
-                    </span>
-
-                    <div className="flex-1 border-b border-dotted border-[#b8c7d9] mx-4 relative top-1 hidden md:block"></div>
-
-                    <span className="font-mono font-bold text-[#10233f]">
+                  <div className="flex justify-between items-center px-4 py-3 border-b border-[#eef2f7]">
+                    <div>
+                      <span className="text-xs text-[#6b7c8f]">Lance</span>
+                      <p className="text-[10px] text-[#8a9aab]">
+                        {lanceInfo.modo === "reduzir_parcela"
+                          ? "Aplicado para reduzir parcela"
+                          : lanceInfo.modo === "reduzir_meses"
+                          ? "Aplicado para reduzir prazo"
+                          : "Valor ofertado"}
+                      </p>
+                    </div>
+                    <span className="font-mono font-semibold text-[#1a2332]">
                       {formatMoney(lanceInfo.lanceValor)}
                     </span>
                   </div>
                 ) : null}
 
-                <div className="flex justify-between items-center p-4 bg-[#dff0fb] print:bg-gray-100">
-                  <div className="flex flex-col">
-                    <span className="text-xs font-black uppercase text-[#10233f]">
-                      Parcelamento
-                    </span>
-
-                    <span className="text-[10px] font-bold text-[#566173]">
+                <div className="flex justify-between items-center px-4 py-4 bg-[#eef6fc]">
+                  <div>
+                    <p className="text-xs font-semibold text-[#10233f]">
+                      Parcelas seguintes
+                    </p>
+                    <p className="text-[11px] text-[#6b7c8f]">
                       Plano em {calculoConsorcio.prazoUsado} meses
-                    </span>
+                      {dados.quantidadeReduzidas > 0
+                        ? ` · ${dados.quantidadeReduzidas} reduzidas`
+                        : ""}
+                    </p>
                   </div>
-
                   <div className="text-right">
-                    <span className="block text-xl md:text-2xl font-black text-[#10233f]">
+                    <p className="text-xl font-semibold text-[#10233f] tracking-tight">
                       {formatMoney(parcelaReduzidaExibida)}
-                    </span>
-
-                    <span className="text-[9px] font-bold text-[#566173] uppercase">
+                    </p>
+                    <p className="text-[10px] text-[#6b7c8f]">
                       {dados.modoParcela === "integral"
-                        ? "Valor da Parcela Integral"
-                        : "Valor da Parcela Reduzida"}
-                    </span>
+                        ? "Valor da parcela"
+                        : "Parcela reduzida"}
+                    </p>
                   </div>
                 </div>
 
                 {promo.hasPromo && calculoConsorcio.desconto > 0 ? (
-                  <div className="flex justify-between items-center p-3 bg-white border-t border-[#e8f0f7]">
-                    <span className="text-[10px] font-bold text-[#8792a1] uppercase">
-                      Desconto aplicado{" "}
+                  <div className="flex justify-between items-center px-4 py-2.5 border-t border-[#eef2f7] bg-white">
+                    <span className="text-[11px] text-[#8a9aab]">
+                      Desconto comercial
                       {promo.discountPercent
-                        ? `(${promo.discountPercent}%)`
+                        ? ` (${promo.discountPercent}%)`
                         : ""}
                     </span>
-
-                    <span className="font-mono font-bold text-emerald-700 text-xs">
-                      - {formatMoney(calculoConsorcio.desconto)}
+                    <span className="font-mono text-xs font-semibold text-emerald-600">
+                      − {formatMoney(calculoConsorcio.desconto)}
                     </span>
                   </div>
                 ) : null}
               </div>
 
               {promo.hasPromo ? (
-                <div className="border border-[#d9e6f2] rounded-2xl p-3 bg-[#f4f8fb] print:bg-white">
-                  <p className="text-[9px] font-black text-[#8792a1] uppercase tracking-widest">
-                    Promoção aplicada
+                <div className="mt-3 rounded-xl border border-[#e4ebf3] bg-[#fafbfc] p-3.5">
+                  <p className="text-[10px] text-[#8a9aab] uppercase tracking-wider">
+                    Condição promocional
                   </p>
-
-                  <p className="text-xs font-black text-[#10233f] uppercase mt-1">
-                    {(promo.label || promo.codigo || "Promoção").trim()}
+                  <p className="text-xs font-semibold text-[#1a2332] mt-0.5">
+                    {(promo.label || promo.codigo || "Promoção aplicada").trim()}
                   </p>
-
                   {(promo.codigo || promo.obs) && (
-                    <p className="text-[10px] text-[#566173] mt-1">
+                    <p className="text-[11px] text-[#6b7c8f] mt-1">
                       {promo.codigo ? (
-                        <span className="font-mono font-bold">
+                        <span className="font-mono">
                           {promo.codigo.toUpperCase()}
                         </span>
                       ) : null}
-
-                      {promo.codigo && promo.obs ? " • " : null}
+                      {promo.codigo && promo.obs ? " — " : null}
                       {promo.obs}
                     </p>
                   )}
-
-                  <div className="mt-2 flex flex-wrap gap-2">
+                  <div className="mt-2 flex flex-wrap gap-1.5">
                     {promo.platingFree ? (
-                      <span className="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase">
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">
                         Emplacamento grátis
                       </span>
                     ) : null}
-
                     {promo.accessoriesFree ? (
-                      <span className="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase">
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">
                         Acessórios grátis
                       </span>
                     ) : null}
-
-                    {promo.discountPercent ? (
-                      <span className="px-2 py-1 rounded-full bg-white text-[#43546a] border border-[#d9e6f2] text-[10px] font-black uppercase">
-                        {promo.discountPercent}% off
-                      </span>
-                    ) : null}
-
-                    {promo.discountValue ? (
-                      <span className="px-2 py-1 rounded-full bg-white text-[#43546a] border border-[#d9e6f2] text-[10px] font-black uppercase">
-                        {formatMoney(promo.discountValue)} off
+                    {promo.freteFree ? (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">
+                        Frete grátis
                       </span>
                     ) : null}
                   </div>
                 </div>
               ) : null}
-            </div>
+            </section>
 
-            <div className="border-2 border-dashed border-[#b8c7d9] rounded-2xl p-4 min-h-[100px] md:min-h-[120px] bg-[#f4f8fb]/70 print:bg-white relative">
-              <p className="absolute top-2 left-3 text-[9px] font-black text-[#8792a1] uppercase bg-white px-1 tracking-widest">
-                Observações / Acessórios
-              </p>
+            {/* Observações */}
+            <section>
+              <div className="flex items-center gap-2 mb-3.5">
+                <FileText
+                  size={15}
+                  className="text-[#0072bc]"
+                  strokeWidth={1.75}
+                />
+                <h2 className="text-sm font-semibold text-[#10233f]">
+                  Observações
+                </h2>
+              </div>
 
-              {(promo.hasPromo || lanceInfo.hasLance) && (
-                <div className="pt-4 text-[10px] text-[#43546a] leading-relaxed">
+              <div className="rounded-2xl border border-dashed border-[#d0dae6] bg-[#fafbfc] p-4 min-h-[88px]">
+                <div className="text-[12px] text-[#5a6d80] space-y-1.5 leading-relaxed">
                   {lanceInfo.hasLance ? (
                     <p>
-                      • Lance aplicado:{" "}
-                      <span className="font-mono font-bold">
-                        {formatMoney(lanceInfo.lanceValor)}
-                      </span>{" "}
-                      | Prazo:{" "}
-                      <span className="font-mono font-bold">
-                        {calculoConsorcio.prazoUsado}x
-                      </span>{" "}
-                      | Parcela reduzida:{" "}
-                      <span className="font-mono font-bold">
-                        {formatMoney(parcelaReduzidaExibida)}
-                      </span>
+                      • Lance de {formatMoney(lanceInfo.lanceValor)}
+                      {lanceInfo.modo === "reduzir_parcela"
+                        ? " (redução de parcela)"
+                        : lanceInfo.modo === "reduzir_meses"
+                        ? " (redução de prazo)"
+                        : ""}
+                      . Prazo final: {calculoConsorcio.prazoUsado}x · parcela{" "}
+                      {formatMoney(parcelaReduzidaExibida)}.
                     </p>
                   ) : null}
 
                   {promo.hasPromo ? (
-                    <p className="mt-1">
-                      • Promoção:{" "}
-                      <span className="font-mono font-bold">
-                        {(promo.codigo || promo.label || "APLICADA").toUpperCase()}
-                      </span>
-                      {promo.platingFree ? " | Emplacamento grátis" : ""}
-                      {promo.accessoriesFree ? " | Acessórios grátis" : ""}
+                    <p>
+                      • Promoção{" "}
+                      {(promo.codigo || promo.label || "aplicada").toUpperCase()}
+                      {promo.platingFree ? " · emplacamento grátis" : ""}
+                      {promo.accessoriesFree ? " · acessórios grátis" : ""}
+                      {promo.freteFree ? " · frete grátis" : ""}
                       {promo.discountPercent
-                        ? ` | ${promo.discountPercent}% OFF`
+                        ? ` · ${promo.discountPercent}% de desconto`
                         : ""}
                       {promo.discountValue
-                        ? ` | ${formatMoney(promo.discountValue)} OFF`
+                        ? ` · ${formatMoney(promo.discountValue)} de desconto`
                         : ""}
+                      .
                     </p>
                   ) : null}
 
-                  <p className="mt-1">• {BEST_BID_TEXT}</p>
+                  <p className="text-[11px] text-[#8a9aab]">• {BEST_BID_TEXT}</p>
+
+                  {!lanceInfo.hasLance && !promo.hasPromo ? (
+                    <p className="text-[#a0aec0]">
+                      Sem condições adicionais registradas.
+                    </p>
+                  ) : null}
                 </div>
-              )}
-            </div>
+              </div>
+            </section>
           </div>
 
-          <div className="mt-auto p-6 md:p-10 pt-0 relative z-10">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16 items-end mb-8 pt-8 border-t border-[#d9e6f2]">
-              <div className="text-center order-2 md:order-1">
-                <p className="font-black text-xs uppercase mb-1 text-[#10233f]">
+          {/* Assinaturas */}
+          <div className="relative z-10 px-5 sm:px-8 pb-6 pt-2 mt-auto">
+            <div className="border-t border-[#eef2f7] pt-7 grid grid-cols-1 sm:grid-cols-2 gap-10 sm:gap-14">
+              <div className="text-center">
+                <div className="border-b border-[#c5d0dc] w-4/5 mx-auto mb-2 h-8" />
+                <p className="text-xs font-semibold text-[#10233f]">
                   Nacional Consórcio
                 </p>
-
-                <p className="text-[9px] text-[#566173] font-mono">
-                  CNPJ: 59.041.030/0001-99
+                <p className="text-[10px] text-[#8a9aab] font-mono mt-0.5">
+                  CNPJ 59.041.030/0001-99
                 </p>
+                {aprovadorNome ? (
+                  <p className="text-[10px] text-[#a0aec0] mt-1">
+                    Responsável: {aprovadorNome}
+                  </p>
+                ) : null}
               </div>
-
-              <div className="text-center order-1 md:order-2">
-                <div className="border-b border-[#10233f] mb-2 w-full md:w-3/4 mx-auto"></div>
-
-                <p className="font-bold text-xs uppercase mb-1 text-[#10233f]">
-                  {nomeManual || "Cliente Proponente"}
+              <div className="text-center">
+                <div className="border-b border-[#1a2332] w-4/5 mx-auto mb-2 h-8" />
+                <p className="text-xs font-semibold text-[#10233f] uppercase">
+                  {nomeManual || "Cliente proponente"}
                 </p>
-
-                <p className="text-[9px] text-[#566173] font-mono">
-                  CPF: {dados.cpf}
+                <p className="text-[10px] text-[#8a9aab] font-mono mt-0.5">
+                  CPF {dados.cpf || "---"}
                 </p>
               </div>
             </div>
 
-            <div className="flex flex-col md:flex-row items-center justify-between gap-4 md:gap-0">
-              <div className="text-[9px] text-[#8792a1] leading-tight max-w-md text-justify">
-              </div>
-
-              <div className="flex items-center gap-2 opacity-60 grayscale">
-                <div className="bg-white p-1 border border-[#d9e6f2] rounded-lg">
-                  <QrCode size={32} />
-                </div>
-              </div>
-            </div>
-
-            <div className="text-center mt-4 pt-2 border-t border-[#edf3f8]">
-              <p className="text-[9px] font-bold text-[#8792a1] uppercase tracking-widest">
-                Belém, {dataAtual} • Nacional Consórcio
+            <div className="mt-6 flex items-center justify-between gap-4">
+              <p className="text-[10px] text-[#a0aec0]">
+                Belém (PA), {dataAtual}
               </p>
+              <div className="opacity-35 grayscale print:opacity-45">
+                <QrCode size={28} strokeWidth={1.25} />
+              </div>
             </div>
           </div>
         </div>
@@ -1557,7 +1390,7 @@ function PedidoContent() {
 
 export default function PedidoPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#f4f8fb]" />}>
+    <Suspense fallback={<div className="min-h-screen bg-[#f7f9fc]" />}>
       <PedidoContent />
     </Suspense>
   );

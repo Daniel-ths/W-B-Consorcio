@@ -1,18 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { ChevronLeft } from "lucide-react";
 
-/* =========================================================
-   TIPOS (alinhados com o admin)
-========================================================= */
 type ColorVariant = {
   id: string;
   name: string;
-  internal?: string;
   extraPrice?: number;
   swatch: string;
-  image_url: string;
+  image_url?: string;
 };
 
 type VersionItem = {
@@ -21,12 +19,10 @@ type VersionItem = {
   subtitle?: string;
   price: number;
   note?: string;
-  cover_image_url?: string;
   fuel?: string;
   transmission?: string;
-  transmissionFull?: string;
-  torque?: string;
   power?: string;
+  torque?: string;
   trunk?: string;
   colors?: ColorVariant[];
 };
@@ -40,16 +36,6 @@ type VehicleRow = {
   versions?: VersionItem[] | null;
 };
 
-type HeroSlide = {
-  id: string;
-  title: string;
-  subtitle: string;
-  imageUrl: string;
-};
-
-/* =========================================================
-   IMAGENS FIXAS (você já tem cadastradas)
-========================================================= */
 const MODEL_IMAGES: Record<string, string> = {
   kicks:
     "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/kicks_frente.webp.ximg.l_4_m.smart.webp",
@@ -61,24 +47,159 @@ const MODEL_IMAGES: Record<string, string> = {
     "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/frontier_frente.webp.ximg.l_4_m.smart.webp",
 };
 
-function getModelImage(slug: string, modelName: string) {
-  const key = (slug || modelName || "")
+const MODEL_META: Record<
+  string,
+  { tagline: string; category: string; highlights: string[] }
+> = {
+  kicks: {
+    tagline: "Attitude to disrupt",
+    category: "SUV",
+    highlights: ["Safety Shield", "Multimídia", "Design moderno"],
+  },
+  kait: {
+    tagline: "Cabe tudo que é bom",
+    category: "SUV",
+    highlights: ["Espaço interno", "Custo-benefício", "Tecnologia"],
+  },
+  versa: {
+    tagline: "Sedã completo e sofisticado",
+    category: "Sedã",
+    highlights: ["Porta-malas amplo", "Conforto", "Eficiência"],
+  },
+  frontier: {
+    tagline: "Desenhada para fazer mais",
+    category: "Picape",
+    highlights: ["Capacidade de carga", "Robustez", "Trabalho e lazer"],
+  },
+  default: {
+    tagline: "Tecnologia e confiança Nissan",
+    category: "Modelo",
+    highlights: ["Garantia de fábrica", "Rede nacional", "Consórcio"],
+  },
+};
+
+const REAL_NISSAN_COLORS: Record<
+  string,
+  { name: string; swatch: string; extraPrice?: number }[]
+> = {
+  kicks: [
+    { name: "Branco Diamond", swatch: "#F5F5F0" },
+    { name: "Preto Premium", swatch: "#1A1A1A" },
+    { name: "Prata Classic", swatch: "#C0C0C0" },
+    { name: "Cinza Grafite", swatch: "#5A5A5A" },
+    { name: "Vermelho Scarlet", swatch: "#B91C1C", extraPrice: 1500 },
+    { name: "Azul Cascadia", swatch: "#1E3A5F", extraPrice: 1200 },
+  ],
+  kait: [
+    { name: "Branco Solid", swatch: "#FFFFFF" },
+    { name: "Preto Metálico", swatch: "#111111" },
+    { name: "Prata Lunar", swatch: "#B8B8B8" },
+    { name: "Cinza Storm", swatch: "#6B6B6B" },
+    { name: "Vermelho Passion", swatch: "#9B1B1B", extraPrice: 1000 },
+  ],
+  versa: [
+    { name: "Branco Pearl", swatch: "#F8F8F4" },
+    { name: "Preto Super Black", swatch: "#0D0D0D" },
+    { name: "Prata Brilliant", swatch: "#C5C5C5" },
+    { name: "Cinza Gun Metallic", swatch: "#4A4A4A" },
+    { name: "Azul Caspian", swatch: "#1B4F72", extraPrice: 1300 },
+    { name: "Vermelho Coulis", swatch: "#8B1A1A", extraPrice: 1300 },
+  ],
+  frontier: [
+    { name: "Branco Glacier", swatch: "#F2F2F0" },
+    { name: "Preto Magnetic", swatch: "#1C1C1C" },
+    { name: "Prata Brilliant", swatch: "#B0B0B0" },
+    { name: "Cinza Gun", swatch: "#555555" },
+    { name: "Azul Horizon", swatch: "#1A3C6E", extraPrice: 1800 },
+    { name: "Laranja Atomic", swatch: "#D35400", extraPrice: 2000 },
+  ],
+  default: [
+    { name: "Branco", swatch: "#F5F5F5" },
+    { name: "Preto", swatch: "#1A1A1A" },
+    { name: "Prata", swatch: "#C0C0C0" },
+    { name: "Cinza", swatch: "#6B6B6B" },
+  ],
+};
+
+const BENEFITS = [
+  {
+    title: "Consórcio Nissan",
+    text: "Planeje a compra com parcelas que cabem no bolso, sem juros de financiamento tradicional.",
+  },
+  {
+    title: "Safety Shield",
+    text: "Pacote de segurança ativa em vários modelos da linha, com assistências ao motorista.",
+  },
+  {
+    title: "Rede nacional",
+    text: "Atendimento e pós-venda em concessionárias Nissan em todo o Brasil.",
+  },
+  {
+    title: "Garantia de fábrica",
+    text: "Cobertura oficial Nissan conforme o modelo e a versão escolhida.",
+  },
+];
+
+function modelKey(slug: string, modelName: string) {
+  return (slug || modelName || "")
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]/g, "");
+}
 
+function getMeta(slug: string, modelName: string) {
+  const key = modelKey(slug, modelName);
+  if (key.includes("kicks")) return MODEL_META.kicks;
+  if (key.includes("kait")) return MODEL_META.kait;
+  if (key.includes("versa")) return MODEL_META.versa;
+  if (key.includes("frontier")) return MODEL_META.frontier;
+  return MODEL_META.default;
+}
+
+function getModelImage(slug: string, modelName: string) {
+  const key = modelKey(slug, modelName);
   if (key.includes("kicks")) return MODEL_IMAGES.kicks;
   if (key.includes("kait")) return MODEL_IMAGES.kait;
   if (key.includes("versa")) return MODEL_IMAGES.versa;
   if (key.includes("frontier")) return MODEL_IMAGES.frontier;
-
-  return MODEL_IMAGES.kicks; // fallback
+  return MODEL_IMAGES.kicks;
 }
 
-/* =========================================================
-   HELPERS
-========================================================= */
+function resolveColors(
+  vehicle: VehicleRow,
+  version: VersionItem | null
+): ColorVariant[] {
+  const fromDb = Array.isArray(version?.colors)
+    ? version!.colors.filter((c) => c && (c.name || c.swatch))
+    : [];
+
+  if (fromDb.length > 0) {
+    return fromDb.map((c, i) => ({
+      id: c.id || `db-${i}`,
+      name: c.name || `Cor ${i + 1}`,
+      swatch: c.swatch || "#CCCCCC",
+      extraPrice: Number(c.extraPrice || 0),
+      image_url: c.image_url || "",
+    }));
+  }
+
+  const key = modelKey(vehicle.slug, vehicle.model_name);
+  let palette = REAL_NISSAN_COLORS.default;
+  if (key.includes("kicks")) palette = REAL_NISSAN_COLORS.kicks;
+  else if (key.includes("kait")) palette = REAL_NISSAN_COLORS.kait;
+  else if (key.includes("versa")) palette = REAL_NISSAN_COLORS.versa;
+  else if (key.includes("frontier")) palette = REAL_NISSAN_COLORS.frontier;
+
+  return palette.map((c, i) => ({
+    id: `real-${key}-${i}`,
+    name: c.name,
+    swatch: c.swatch,
+    extraPrice: c.extraPrice || 0,
+    image_url: "",
+  }));
+}
+
 function formatPrice(value: number) {
   return value.toLocaleString("pt-BR", {
     style: "currency",
@@ -87,62 +208,16 @@ function formatPrice(value: number) {
   });
 }
 
-/* =========================================================
-   PÁGINA
-========================================================= */
 export default function ConsorcioPage() {
-  const HERO_DURATION = 7000;
-
-  const heroSlides: HeroSlide[] = useMemo(
-    () => [
-      {
-        id: "1",
-        title: "MONTE O SEU NISSAN",
-        subtitle:
-          "Escolha o modelo, a cor e a versão ideal para o seu consórcio.",
-        imageUrl:
-          "https://images.unsplash.com/photo-1606664515524-ed2f786a0bd6?auto=format&fit=crop&w=1920&q=90",
-      },
-      {
-        id: "2",
-        title: "NOVO NISSAN KAIT",
-        subtitle:
-          "Espaço, tecnologia e o melhor custo-benefício do segmento.",
-        imageUrl:
-          "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&fit=crop&w=1920&q=90",
-      },
-      {
-        id: "3",
-        title: "NISSAN FRONTIER 2026",
-        subtitle: "Força e robustez para o seu dia a dia.",
-        imageUrl:
-          "https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&w=1920&q=90",
-      },
-    ],
-    []
-  );
-
-  const [current, setCurrent] = useState(0);
-  const timer = useRef<number>();
-
-  // dados do Supabase
   const [vehicles, setVehicles] = useState<VehicleRow[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Builder state
   const [builderOpen, setBuilderOpen] = useState(false);
-  const [selectedVehicle, setSelectedVehicle] = useState<VehicleRow | null>(
-    null
-  );
-  const [selectedColor, setSelectedColor] = useState<ColorVariant | null>(
-    null
-  );
-  const [selectedVersion, setSelectedVersion] = useState<VersionItem | null>(
-    null
-  );
-  const [step, setStep] = useState(1); // 1=versão, 2=cor, 3=resumo
+  const [selectedVehicle, setSelectedVehicle] = useState<VehicleRow | null>(null);
+  const [selectedColor, setSelectedColor] = useState<ColorVariant | null>(null);
+  const [selectedVersion, setSelectedVersion] = useState<VersionItem | null>(null);
+  const [step, setStep] = useState(1);
 
-  // carrega veículos Nissan do Supabase
   useEffect(() => {
     async function load() {
       setLoading(true);
@@ -166,378 +241,390 @@ export default function ConsorcioPage() {
     load();
   }, []);
 
-  // hero timer
-  useEffect(() => {
-    timer.current = window.setTimeout(() => {
-      setCurrent((p) => (p + 1) % heroSlides.length);
-    }, HERO_DURATION);
-    return () => {
-      if (timer.current) clearTimeout(timer.current);
-    };
-  }, [current, heroSlides.length]);
+  const availableColors = useMemo(() => {
+    if (!selectedVehicle) return [];
+    return resolveColors(selectedVehicle, selectedVersion);
+  }, [selectedVehicle, selectedVersion]);
 
   function openBuilder(vehicle: VehicleRow) {
     const versions = Array.isArray(vehicle.versions) ? vehicle.versions : [];
     const firstVersion = versions[0] || null;
-    const firstColor =
-      firstVersion?.colors && firstVersion.colors.length > 0
-        ? firstVersion.colors[0]
-        : null;
+    const colors = resolveColors(vehicle, firstVersion);
 
     setSelectedVehicle(vehicle);
     setSelectedVersion(firstVersion);
-    setSelectedColor(firstColor);
+    setSelectedColor(colors[0] || null);
     setStep(1);
     setBuilderOpen(true);
   }
 
-  // cores da versão selecionada
-  const availableColors = useMemo(() => {
-    if (!selectedVersion) return [];
-    return Array.isArray(selectedVersion.colors)
-      ? selectedVersion.colors
-      : [];
-  }, [selectedVersion]);
-
-  // preço total = preço da versão + extra da cor
-  function calcTotal() {
-    if (!selectedVersion) return 0;
-    const colorExtra = selectedColor?.extraPrice || 0;
-    return Number(selectedVersion.price || 0) + Number(colorExtra);
+  function selectVersion(version: VersionItem) {
+    if (!selectedVehicle) return;
+    const colors = resolveColors(selectedVehicle, version);
+    setSelectedVersion(version);
+    setSelectedColor(colors[0] || null);
   }
 
-  // imagem do modelo (fixa ou da cor escolhida)
+  function calcTotal() {
+    if (!selectedVersion) return 0;
+    return Number(selectedVersion.price || 0) + Number(selectedColor?.extraPrice || 0);
+  }
+
   function getDisplayImage(vehicle: VehicleRow, color?: ColorVariant | null) {
     if (color?.image_url) return color.image_url;
     return getModelImage(vehicle.slug, vehicle.model_name);
   }
 
   return (
-    <main className="bg-white min-h-screen text-zinc-900 font-sans">
-      {/* ===================== HEADER ===================== */}
-      <header className="absolute top-0 left-0 right-0 z-50">
-        <div className="max-w-[1400px] mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="text-white text-2xl font-bold tracking-tight">
-            NISSAN
+    <main className="min-h-screen bg-zinc-50 text-zinc-900">
+      {/* Header */}
+      <header className="border-b border-zinc-200 bg-white">
+        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-3 px-4 sm:px-6">
+          <div className="flex items-center gap-3">
+            <Link
+              href="/"
+              className="inline-flex h-9 items-center gap-1.5 border border-zinc-200 bg-white px-2.5 text-[12px] font-medium text-zinc-700 hover:bg-zinc-50"
+            >
+              <ChevronLeft size={16} />
+              <span className="hidden sm:inline">Marcas</span>
+            </Link>
+            <span className="text-lg font-semibold tracking-tight">NISSAN</span>
           </div>
-          <div className="text-white/80 text-sm hidden sm:block">
-            Consórcio • Monte o seu
-          </div>
+          <span className="text-[12px] text-zinc-500">Consórcio · Monte o seu</span>
         </div>
       </header>
 
-      {/* ===================== HERO ===================== */}
-      <section className="relative h-[85vh] min-h-[600px] overflow-hidden">
-        {heroSlides.map((slide, index) => (
-          <div
-            key={slide.id}
-            className={`absolute inset-0 transition-opacity duration-1000 ${
-              current === index ? "opacity-100" : "opacity-0"
-            }`}
-          >
-            <div className="absolute inset-0 bg-[#0a1a14]">
-              <img
-                src={slide.imageUrl}
-                alt={slide.title}
-                className="w-full h-full object-cover opacity-90"
-              />
-              <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/40 to-transparent" />
-            </div>
-
-            <div className="absolute inset-0 flex items-center">
-              <div className="max-w-[1400px] mx-auto px-6 w-full">
-                <div className="max-w-lg">
-                  <h1 className="text-white text-4xl md:text-5xl font-bold tracking-tight mb-4">
-                    {slide.title}
-                  </h1>
-                  <p className="text-white/90 text-lg mb-8 leading-relaxed">
-                    {slide.subtitle}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
-
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-2">
-          {heroSlides.map((_, i) => (
-            <button
-              key={i}
-              onClick={() => setCurrent(i)}
-              className={`h-1.5 rounded-full transition-all ${
-                current === i ? "bg-white w-8" : "bg-white/40 w-2"
-              }`}
-            />
-          ))}
+      {/* Intro */}
+      <section className="border-b border-zinc-200 bg-white">
+        <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+          <p className="text-[12px] font-medium uppercase tracking-wider text-red-600">
+            Linha Nissan Brasil
+          </p>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">
+            Escolha o seu Nissan
+          </h1>
+          <p className="mt-2 max-w-2xl text-[13px] text-zinc-500">
+            Configure versão e cor para simular o consórcio. SUVs, sedãs e a
+            picape Frontier com a tecnologia e a segurança da marca.
+          </p>
         </div>
       </section>
 
-      {/* ===================== LINHA DE MODELOS ===================== */}
-      <section className="bg-white py-20">
-        <div className="max-w-[1200px] mx-auto px-6">
-          <div className="text-center mb-14">
-            <h2 className="text-3xl font-bold">Escolha o seu modelo</h2>
-            <p className="mt-2 text-zinc-500">
-              Clique em <strong>Monte o seu</strong> e configure o carro ideal
-            </p>
-          </div>
-
-          {loading ? (
-            <div className="text-center text-zinc-500 py-20">
-              Carregando modelos...
-            </div>
-          ) : vehicles.length === 0 ? (
-            <div className="text-center text-zinc-500 py-20">
-              Nenhum modelo Nissan disponível no momento.
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-12">
-              {vehicles.map((car) => {
-                const image = getModelImage(car.slug, car.model_name);
-                const price = Number(car.price_start || 0);
-                const tagline =
-                  car.versions?.[0]?.subtitle ||
-                  car.versions?.[0]?.note ||
-                  "";
-
-                return (
-                  <div key={car.id} className="text-center group">
-                    <div className="mb-6 h-36 flex items-center justify-center">
-                      <img
-                        src={image}
-                        alt={car.model_name}
-                        className="max-h-full max-w-full object-contain group-hover:scale-105 transition duration-500"
-                      />
-                    </div>
-
-                    <h3 className="text-[15px] font-bold tracking-wide uppercase">
-                      {car.model_name}
-                    </h3>
-
-                    {tagline ? (
-                      <p className="text-[13px] text-zinc-500 mt-1">
-                        {tagline}
-                      </p>
-                    ) : null}
-
-                    <p className="text-[13px] text-zinc-500 mt-3">
-                      A partir de
-                      <br />
-                      <span className="text-zinc-900 font-medium">
-                        {formatPrice(price)}
-                      </span>
-                    </p>
-
-                    <div className="mt-5">
-                      <button
-                        onClick={() => openBuilder(car)}
-                        className="w-full max-w-[180px] bg-black text-white text-[13px] font-semibold py-3 rounded-full hover:bg-zinc-800 transition"
-                      >
-                        MONTE O SEU
-                      </button>
-                    </div>
+      {/* Modelos */}
+      <section className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+        {loading ? (
+          <p className="py-16 text-center text-[13px] text-zinc-400">Carregando…</p>
+        ) : vehicles.length === 0 ? (
+          <p className="py-16 text-center text-[13px] text-zinc-400">
+            Nenhum modelo Nissan disponível.
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {vehicles.map((car) => {
+              const meta = getMeta(car.slug, car.model_name);
+              return (
+                <div
+                  key={car.id}
+                  className="flex flex-col border border-zinc-200 bg-white p-4"
+                >
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="bg-zinc-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-600">
+                      {meta.category}
+                    </span>
                   </div>
-                );
-              })}
-            </div>
-          )}
+
+                  <div className="mb-4 flex h-28 items-center justify-center">
+                    <img
+                      src={getModelImage(car.slug, car.model_name)}
+                      alt={car.model_name}
+                      className="max-h-full max-w-full object-contain"
+                      loading="lazy"
+                    />
+                  </div>
+
+                  <h2 className="text-[14px] font-semibold uppercase tracking-wide">
+                    {car.model_name}
+                  </h2>
+                  <p className="mt-0.5 text-[12px] text-zinc-500">{meta.tagline}</p>
+
+                  <ul className="mt-2 space-y-0.5">
+                    {meta.highlights.slice(0, 2).map((h) => (
+                      <li key={h} className="text-[11px] text-zinc-400">
+                        · {h}
+                      </li>
+                    ))}
+                  </ul>
+
+                  <p className="mt-3 text-[12px] text-zinc-500">
+                    A partir de{" "}
+                    <span className="font-medium text-zinc-900">
+                      {formatPrice(Number(car.price_start || 0))}
+                    </span>
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={() => openBuilder(car)}
+                    className="mt-4 w-full bg-zinc-900 py-2.5 text-[12px] font-semibold uppercase tracking-wide text-white hover:bg-zinc-800"
+                  >
+                    Monte o seu
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* Benefícios Nissan */}
+      <section className="border-t border-zinc-200 bg-white">
+        <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+          <h2 className="text-[16px] font-semibold">Por que Nissan</h2>
+          <p className="mt-1 text-[13px] text-zinc-500">
+            Diferenciais da marca no seu consórcio
+          </p>
+          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {BENEFITS.map((b) => (
+              <div key={b.title} className="border border-zinc-200 p-4">
+                <h3 className="text-[13px] font-semibold text-zinc-900">{b.title}</h3>
+                <p className="mt-1 text-[12px] leading-relaxed text-zinc-500">
+                  {b.text}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
-      {/* ===================== BUILDER MODAL ===================== */}
+      {/* Footer */}
+      <footer className="border-t border-zinc-200 bg-zinc-50">
+        <div className="mx-auto flex max-w-5xl flex-col items-start justify-between gap-3 px-4 py-6 sm:flex-row sm:items-center sm:px-6">
+          <p className="text-[12px] text-zinc-500">
+            Nissan · Consórcio · Valores de referência para simulação
+          </p>
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1 text-[12px] font-medium text-zinc-700 hover:text-zinc-900"
+          >
+            <ChevronLeft size={14} />
+            Voltar para seleção de marcas
+          </Link>
+        </div>
+      </footer>
+
+      {/* Builder */}
       {builderOpen && selectedVehicle && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/50"
             onClick={() => setBuilderOpen(false)}
           />
 
-          <div className="relative bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
-            {/* Header */}
-            <div className="sticky top-0 bg-white border-b px-6 py-5 flex items-center justify-between z-10">
+          <div className="relative max-h-[90vh] w-full max-w-lg overflow-y-auto bg-white">
+            <div className="sticky top-0 flex items-start justify-between gap-4 border-b border-zinc-200 bg-white px-5 py-4">
               <div>
-                <h3 className="text-xl font-bold">
+                <p className="text-[11px] uppercase tracking-wide text-zinc-400">
+                  {getMeta(selectedVehicle.slug, selectedVehicle.model_name).category}
+                </p>
+                <h3 className="text-[16px] font-semibold">
                   {selectedVehicle.model_name}
                 </h3>
-                <p className="text-sm text-zinc-500">
-                  Passo {step} de 3 • {formatPrice(calcTotal())}
+                <p className="text-[12px] text-zinc-500">
+                  Passo {step} de 3 · {formatPrice(calcTotal())}
                 </p>
               </div>
               <button
+                type="button"
                 onClick={() => setBuilderOpen(false)}
-                className="w-10 h-10 rounded-full bg-zinc-100 flex items-center justify-center hover:bg-zinc-200 transition"
+                className="text-[13px] font-medium text-zinc-500 hover:text-zinc-900"
               >
-                ✕
+                Fechar
               </button>
             </div>
 
-            <div className="p-6">
-              {/* Preview */}
-              <div className="flex justify-center mb-8">
+            <div className="p-5">
+              <div className="mb-6 flex justify-center">
                 <img
                   src={getDisplayImage(selectedVehicle, selectedColor)}
                   alt={selectedVehicle.model_name}
-                  className="h-40 object-contain"
+                  className="h-36 object-contain"
                 />
               </div>
 
-              {/* STEP 1 — VERSÃO */}
               {step === 1 && (
                 <div>
-                  <h4 className="font-semibold text-lg mb-4">
-                    Escolha a versão
-                  </h4>
-                  <div className="space-y-3">
+                  <h4 className="mb-3 text-[14px] font-semibold">Versão</h4>
+                  <div className="space-y-2">
                     {(selectedVehicle.versions || []).map((version) => (
                       <button
                         key={version.id}
-                        onClick={() => {
-                          setSelectedVersion(version);
-                          // reseta cor para a primeira da nova versão
-                          const first =
-                            version.colors && version.colors.length > 0
-                              ? version.colors[0]
-                              : null;
-                          setSelectedColor(first);
-                        }}
-                        className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 transition ${
+                        type="button"
+                        onClick={() => selectVersion(version)}
+                        className={`w-full border p-3 text-left ${
                           selectedVersion?.id === version.id
-                            ? "border-black bg-zinc-50"
+                            ? "border-zinc-900 bg-zinc-50"
                             : "border-zinc-200 hover:border-zinc-400"
                         }`}
                       >
-                        <div className="text-left">
-                          <span className="font-medium block">
-                            {version.title}
-                          </span>
-                          {version.subtitle ? (
-                            <span className="text-xs text-zinc-500">
-                              {version.subtitle}
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <span className="block text-[14px] font-medium">
+                              {version.title}
                             </span>
-                          ) : null}
+                            {version.subtitle && (
+                              <span className="text-[12px] text-zinc-500">
+                                {version.subtitle}
+                              </span>
+                            )}
+                          </div>
+                          <span className="shrink-0 text-[13px] text-zinc-600">
+                            {formatPrice(version.price || 0)}
+                          </span>
                         </div>
-                        <span className="text-sm text-zinc-500">
-                          {formatPrice(version.price || 0)}
+                        {(version.fuel ||
+                          version.transmission ||
+                          version.power) && (
+                          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-zinc-400">
+                            {version.fuel && <span>{version.fuel}</span>}
+                            {version.transmission && (
+                              <span>{version.transmission}</span>
+                            )}
+                            {version.power && <span>{version.power}</span>}
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                    {(selectedVehicle.versions || []).length === 0 && (
+                      <p className="text-[13px] text-zinc-500">
+                        Nenhuma versão cadastrada.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {step === 2 && (
+                <div>
+                  <h4 className="mb-3 text-[14px] font-semibold">Cor</h4>
+                  <p className="mb-3 text-[12px] text-zinc-500">
+                    {availableColors.some((c) => c.id.startsWith("real-"))
+                      ? "Paleta de referência Nissan"
+                      : "Cores cadastradas no sistema"}
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {availableColors.map((color) => (
+                      <button
+                        key={color.id}
+                        type="button"
+                        onClick={() => setSelectedColor(color)}
+                        className={`flex flex-col items-center gap-2 border p-3 ${
+                          selectedColor?.id === color.id
+                            ? "border-zinc-900 bg-zinc-50"
+                            : "border-zinc-200 hover:border-zinc-400"
+                        }`}
+                      >
+                        <div
+                          className="h-9 w-9 rounded-full border border-zinc-300 shadow-inner"
+                          style={{ backgroundColor: color.swatch || "#ddd" }}
+                        />
+                        <span className="text-center text-[12px] font-medium leading-tight">
+                          {color.name}
                         </span>
+                        {!!color.extraPrice && color.extraPrice > 0 && (
+                          <span className="text-[11px] text-zinc-500">
+                            + {formatPrice(color.extraPrice)}
+                          </span>
+                        )}
                       </button>
                     ))}
                   </div>
                 </div>
               )}
 
-              {/* STEP 2 — COR */}
-              {step === 2 && (
-                <div>
-                  <h4 className="font-semibold text-lg mb-4">Escolha a cor</h4>
-
-                  {availableColors.length === 0 ? (
-                    <p className="text-sm text-zinc-500">
-                      Nenhuma cor cadastrada para esta versão.
-                    </p>
-                  ) : (
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      {availableColors.map((color) => (
-                        <button
-                          key={color.id}
-                          onClick={() => setSelectedColor(color)}
-                          className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition ${
-                            selectedColor?.id === color.id
-                              ? "border-black bg-zinc-50"
-                              : "border-zinc-200 hover:border-zinc-400"
-                          }`}
-                        >
-                          <div
-                            className="w-10 h-10 rounded-full border border-zinc-300 shadow-inner"
-                            style={{
-                              backgroundColor: color.swatch || "#ddd",
-                            }}
-                          />
-                          <span className="text-sm font-medium text-center">
-                            {color.name}
-                          </span>
-                          {color.extraPrice ? (
-                            <span className="text-[11px] text-zinc-500">
-                              + {formatPrice(color.extraPrice)}
-                            </span>
-                          ) : null}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* STEP 3 — RESUMO */}
               {step === 3 && (
                 <div>
-                  <h4 className="font-semibold text-lg mb-6">
-                    Resumo da sua configuração
-                  </h4>
-
-                  <div className="bg-zinc-50 rounded-2xl p-5 space-y-3 text-sm">
-                    <div className="flex justify-between">
+                  <h4 className="mb-4 text-[14px] font-semibold">Resumo</h4>
+                  <div className="space-y-2 border border-zinc-200 bg-zinc-50 p-4 text-[13px]">
+                    <div className="flex justify-between gap-4">
                       <span className="text-zinc-500">Modelo</span>
-                      <span className="font-medium">
+                      <span className="text-right font-medium">
                         {selectedVehicle.model_name}
                       </span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex justify-between gap-4">
+                      <span className="text-zinc-500">Categoria</span>
+                      <span className="text-right font-medium">
+                        {
+                          getMeta(selectedVehicle.slug, selectedVehicle.model_name)
+                            .category
+                        }
+                      </span>
+                    </div>
+                    <div className="flex justify-between gap-4">
                       <span className="text-zinc-500">Versão</span>
-                      <span className="font-medium">
+                      <span className="text-right font-medium">
                         {selectedVersion?.title || "—"}
                       </span>
                     </div>
-                    <div className="flex justify-between">
+                    <div className="flex justify-between gap-4">
                       <span className="text-zinc-500">Cor</span>
-                      <span className="font-medium">
+                      <span className="flex items-center gap-2 font-medium">
+                        {selectedColor && (
+                          <span
+                            className="inline-block h-3.5 w-3.5 rounded-full border border-zinc-300"
+                            style={{ backgroundColor: selectedColor.swatch }}
+                          />
+                        )}
                         {selectedColor?.name || "—"}
                       </span>
                     </div>
-                    <div className="border-t pt-3 flex justify-between text-base">
+                    <div className="flex justify-between border-t border-zinc-200 pt-2 text-[14px]">
                       <span className="font-semibold">Total estimado</span>
-                      <span className="font-bold text-lg">
-                        {formatPrice(calcTotal())}
-                      </span>
+                      <span className="font-semibold">{formatPrice(calcTotal())}</span>
                     </div>
                   </div>
-
-                  <p className="text-xs text-zinc-400 mt-4 text-center">
-                    Valores de referência para simulação de consórcio. Consulte
-                    condições com o vendedor.
+                  <p className="mt-3 text-center text-[11px] text-zinc-400">
+                    Valores de referência · Consulte condições com o vendedor
                   </p>
                 </div>
               )}
 
-              {/* Navegação */}
-              <div className="mt-8 flex gap-3">
+              <div className="mt-6 flex gap-2">
                 {step > 1 && (
                   <button
+                    type="button"
                     onClick={() => setStep((s) => s - 1)}
-                    className="flex-1 py-3.5 rounded-full border border-zinc-300 font-semibold hover:bg-zinc-50 transition"
+                    className="flex-1 border border-zinc-300 py-3 text-[13px] font-medium hover:bg-zinc-50"
                   >
                     Voltar
                   </button>
                 )}
-
                 {step < 3 ? (
                   <button
+                    type="button"
                     onClick={() => setStep((s) => s + 1)}
                     disabled={step === 1 && !selectedVersion}
-                    className="flex-1 py-3.5 rounded-full bg-black text-white font-semibold hover:bg-zinc-800 transition disabled:opacity-50"
+                    className="flex-1 bg-zinc-900 py-3 text-[13px] font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
                   >
                     Continuar
                   </button>
                 ) : (
                   <button
+                    type="button"
                     onClick={() => {
-                      alert(
-                        `Configuração salva!\n\n${selectedVehicle.model_name}\nVersão: ${selectedVersion?.title}\nCor: ${selectedColor?.name || "—"}\nTotal: ${formatPrice(calcTotal())}`
-                      );
+                      console.log({
+                        brand: "nissan",
+                        model: selectedVehicle.model_name,
+                        version: selectedVersion?.title,
+                        color: selectedColor?.name,
+                        swatch: selectedColor?.swatch,
+                        total: calcTotal(),
+                      });
                       setBuilderOpen(false);
                     }}
-                    className="flex-1 py-3.5 rounded-full bg-red-600 text-white font-semibold hover:bg-red-700 transition"
+                    className="flex-1 bg-red-600 py-3 text-[13px] font-medium text-white hover:bg-red-700"
                   >
-                    Salvar configuração
+                    Confirmar
                   </button>
                 )}
               </div>
@@ -545,20 +632,6 @@ export default function ConsorcioPage() {
           </div>
         </div>
       )}
-
-      {/* WhatsApp */}
-      <a
-        href="#"
-        className="fixed bottom-6 right-6 z-40 w-14 h-14 bg-[#25D366] rounded-full flex items-center justify-center shadow-lg hover:scale-105 transition"
-      >
-        <svg
-          className="w-7 h-7 text-white"
-          fill="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.85 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-        </svg>
-      </a>
     </main>
   );
 }

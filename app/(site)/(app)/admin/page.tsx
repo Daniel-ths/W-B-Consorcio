@@ -1,37 +1,26 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
-
 import {
-  LayoutDashboard,
-  Search,
-  CheckCircle2,
-  XCircle,
-  Clock,
-  CarFront,
-  Loader2,
-  TrendingUp,
-  Users,
-  Wallet,
-  LogOut,
-  ArrowRight,
-  Plus,
-  FileText,
-  Trash2,
   Check,
-  Phone,
+  XCircle,
+  Trash2,
   Eye,
-  X,
+  Loader2,
+  Phone,
+  LogOut,
+  Search,
   CalendarRange,
   ArrowUpDown,
-  BadgeCheck,
   ChevronDown,
   ChevronUp,
-  UserSearch,
+  Plus,
   Database,
+  Wallet,
+  FileText,
 } from "lucide-react";
 
 const onlyDigits = (v: any) => String(v || "").replace(/\D/g, "");
@@ -50,80 +39,67 @@ const toWhatsDigits = (phoneLike: any) => {
 const normalizeSellerDisplayName = (sale: any) => {
   const detailsSeller = cleanText(sale?.details?.vendedor_digitado);
   const rootSeller = cleanText(sale?.seller_name);
-
   if (detailsSeller) return detailsSeller.toUpperCase();
   if (rootSeller && !isEmailLike(rootSeller)) return rootSeller.toUpperCase();
-
   return "—";
 };
 
-const buildSaleIdentityKey = (sale: any) => {
-  const clientCpf = onlyDigits(sale?.client_cpf || "");
-  const clientPhone = onlyDigits(sale?.client_phone || "");
-  const clientName = lowerText(sale?.client_name || "");
-  const carName = lowerText(sale?.car_name || "");
-  const total = Number(sale?.total_price || 0).toFixed(2);
+function formatMoney(val: number) {
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(Number(val || 0));
+}
 
-  const created = sale?.created_at ? new Date(sale.created_at) : null;
-  const minuteKey =
-    created && !Number.isNaN(created.getTime())
-      ? created.toISOString().slice(0, 16)
-      : "";
+function StatusBadge({ status }: { status: string }) {
+  const styles =
+    status === "Aprovado"
+      ? "bg-emerald-50 text-emerald-700"
+      : status === "Recusado"
+      ? "bg-red-50 text-red-700"
+      : "bg-amber-50 text-amber-800";
 
-  return [clientCpf || clientPhone || clientName, clientName, carName, total, minuteKey].join(
-    "|"
+  return (
+    <span className={`inline-block px-2 py-0.5 text-[11px] font-medium ${styles}`}>
+      {status}
+    </span>
   );
-};
+}
 
-const saleScore = (sale: any) => {
-  let score = 0;
+function ActionCard({
+  href,
+  icon,
+  title,
+  description,
+  tone = "slate",
+}: {
+  href: string;
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  tone?: "slate" | "blue" | "emerald" | "amber" | "indigo";
+}) {
+  const toneMap = {
+    slate: "border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-900",
+    blue: "border-blue-100 bg-blue-50 hover:bg-blue-100 text-blue-900",
+    emerald: "border-emerald-100 bg-emerald-50 hover:bg-emerald-100 text-emerald-900",
+    amber: "border-amber-100 bg-amber-50 hover:bg-amber-100 text-amber-900",
+    indigo: "border-indigo-100 bg-indigo-50 hover:bg-indigo-100 text-indigo-900",
+  };
 
-  const detailsSeller = cleanText(sale?.details?.vendedor_digitado);
-  const rootSeller = cleanText(sale?.seller_name);
-
-  if (detailsSeller) score += 100;
-  if (rootSeller && !isEmailLike(rootSeller)) score += 50;
-  if (sale?.client_email) score += 10;
-  if (sale?.approved_at) score += 5;
-  if (sale?.approved_by_name) score += 2;
-
-  return score;
-};
-
-const dedupeSales = (rows: any[]) => {
-  const map = new Map<string, any>();
-
-  for (const row of rows) {
-    const key = buildSaleIdentityKey(row);
-    const current = map.get(key);
-
-    if (!current) {
-      map.set(key, row);
-      continue;
-    }
-
-    const currentScore = saleScore(current);
-    const rowScore = saleScore(row);
-
-    if (rowScore > currentScore) {
-      map.set(key, row);
-      continue;
-    }
-
-    if (rowScore === currentScore) {
-      const currentCreated = new Date(current?.created_at || 0).getTime();
-      const rowCreated = new Date(row?.created_at || 0).getTime();
-
-      if (rowCreated > currentCreated) {
-        map.set(key, row);
-      }
-    }
-  }
-
-  return Array.from(map.values()).sort(
-    (a, b) => new Date(b?.created_at || 0).getTime() - new Date(a?.created_at || 0).getTime()
+  return (
+    <Link
+      href={href}
+      className={`rounded-xl border p-4 transition ${toneMap[tone]}`}
+    >
+      <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-white/80">
+        {icon}
+      </div>
+      <h3 className="text-[13px] font-semibold">{title}</h3>
+      <p className="mt-1 text-[12px] opacity-80">{description}</p>
+    </Link>
   );
-};
+}
 
 function ModalDetalhes({
   sale,
@@ -149,116 +125,75 @@ function ModalDetalhes({
     }
   };
 
-  const formatMoney = (val: number) =>
-    new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-    }).format(Number(val || 0));
-
-  const statusColor =
-    sale?.status === "Aprovado"
-      ? "bg-green-50 text-green-800 border-green-200"
-      : sale?.status === "Recusado"
-      ? "bg-red-50 text-red-800 border-red-200"
-      : "bg-yellow-50 text-yellow-800 border-yellow-200";
-
+  const sellerDisplayName = useMemo(() => normalizeSellerDisplayName(sale), [sale]);
   const sellerEmailLabel = useMemo(() => {
     const email = String(sale?.profiles?.email || "").trim();
     if (!email || !email.includes("@")) return "—";
     return email.split("@")[0].toUpperCase();
   }, [sale]);
 
-  const sellerDisplayName = useMemo(() => normalizeSellerDisplayName(sale), [sale]);
-
   if (!sale) return null;
 
   const waDigits = toWhatsDigits(sale.client_phone);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 print:p-0">
-      <div
-        className="absolute inset-0 bg-black/50"
-        onClick={onClose}
-        aria-hidden="true"
-      />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
 
-      <div className="relative w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl">
-        <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-6">
+      <div className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto bg-white">
+        <div className="flex items-start justify-between gap-4 border-b border-zinc-200 px-5 py-4">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-              Detalhes da Proposta
-            </p>
-            <h2 className="flex items-center gap-2 text-lg font-black text-slate-900">
-              <CarFront size={18} />
+            <p className="text-[12px] text-zinc-500">Proposta</p>
+            <h2 className="mt-0.5 text-lg font-semibold text-zinc-900">
               {sale.car_name || "—"}
             </h2>
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              <span
-                className={`inline-flex items-center rounded-full border px-3 py-1 text-[10px] font-black uppercase ${statusColor}`}
-              >
-                {sale.status}
-              </span>
-              <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[10px] font-black uppercase text-slate-700">
-                Tipo: {sale.interest_type || "—"}
-              </span>
-              <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-[10px] font-black uppercase text-slate-700">
-                Total: {formatMoney(Number(sale.total_price) || 0)}
+              <StatusBadge status={sale.status} />
+              <span className="text-[12px] text-zinc-500">
+                {sale.interest_type || "—"} · {formatMoney(Number(sale.total_price) || 0)}
               </span>
             </div>
           </div>
-
           <button
             onClick={onClose}
-            className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 hover:bg-slate-50"
-            title="Fechar"
+            className="text-[13px] font-medium text-zinc-500 hover:text-zinc-900"
           >
-            <X size={18} />
+            Fechar
           </button>
         </div>
 
-        <div className="space-y-4 p-6">
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-              <h3 className="mb-3 flex items-center gap-2 border-b border-slate-200 pb-2 text-xs font-black uppercase tracking-widest text-slate-400">
-                <Users size={14} /> Cliente
-              </h3>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="col-span-2 min-w-0">
-                  <p className="text-[10px] font-bold uppercase text-slate-400">Nome</p>
-                  <p className="truncate text-sm font-bold text-slate-900">
-                    {sale.client_name || "—"}
-                  </p>
+        <div className="space-y-5 p-5">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            <div>
+              <p className="mb-2 text-[12px] font-medium text-zinc-500">Cliente</p>
+              <div className="space-y-2 text-[14px]">
+                <div>
+                  <p className="text-[12px] text-zinc-500">Nome</p>
+                  <p className="font-medium text-zinc-900">{sale.client_name || "—"}</p>
                 </div>
-
-                <div className="min-w-0">
-                  <p className="text-[10px] font-bold uppercase text-slate-400">CPF</p>
-                  <p className="truncate font-mono text-sm text-slate-700">
-                    {sale.client_cpf || "—"}
-                  </p>
+                <div>
+                  <p className="text-[12px] text-zinc-500">CPF</p>
+                  <p className="font-mono text-zinc-700">{sale.client_cpf || "—"}</p>
                 </div>
-
-                <div className="min-w-0">
-                  <p className="text-[10px] font-bold uppercase text-slate-400">Telefone</p>
-                  <p className="truncate font-mono text-sm text-slate-700">
-                    {sale.client_phone || "—"}
-                  </p>
+                <div>
+                  <p className="text-[12px] text-zinc-500">Telefone</p>
+                  <p className="font-mono text-zinc-700">{sale.client_phone || "—"}</p>
                   {waDigits && (
                     <a
                       href={`https://wa.me/${waDigits}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="mt-1 inline-flex items-center gap-1 rounded bg-green-100 px-2 py-0.5 text-[10px] font-bold uppercase text-green-700 hover:text-green-900"
+                      className="mt-1 inline-flex items-center gap-1 text-[12px] font-medium text-emerald-700 hover:underline"
                     >
-                      <Phone size={10} /> WhatsApp
+                      <Phone size={12} />
+                      Abrir WhatsApp
                     </a>
                   )}
                 </div>
-
-                <div className="col-span-2">
-                  <p className="text-[10px] font-bold uppercase text-slate-400">Criado em</p>
-                  <p className="text-sm font-medium text-slate-700">
-                    {new Date(sale.created_at).toLocaleDateString("pt-BR")} às{" "}
+                <div>
+                  <p className="text-[12px] text-zinc-500">Criado em</p>
+                  <p className="text-zinc-700">
+                    {new Date(sale.created_at).toLocaleDateString("pt-BR")}{" "}
                     {new Date(sale.created_at).toLocaleTimeString("pt-BR", {
                       hour: "2-digit",
                       minute: "2-digit",
@@ -268,99 +203,68 @@ function ModalDetalhes({
               </div>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-              <h3 className="mb-3 flex items-center gap-2 border-b border-slate-200 pb-2 text-xs font-black uppercase tracking-widest text-slate-400">
-                <CarFront size={14} /> Proposta
-              </h3>
-
-              <div className="space-y-3">
+            <div>
+              <p className="mb-2 text-[12px] font-medium text-zinc-500">Proposta</p>
+              <div className="space-y-2 text-[14px]">
                 <div>
-                  <p className="text-[10px] font-bold uppercase text-slate-400">Veículo</p>
-                  <p className="text-lg font-black text-slate-900">{sale.car_name || "—"}</p>
+                  <p className="text-[12px] text-zinc-500">Veículo</p>
+                  <p className="font-medium text-zinc-900">{sale.car_name || "—"}</p>
                 </div>
-
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-[10px] font-bold uppercase text-slate-400">Tipo</p>
-                    <span className="rounded bg-black px-2 py-1 text-[10px] font-bold uppercase text-white">
-                      {sale.interest_type || "—"}
-                    </span>
-                  </div>
-
-                  <div className="text-right">
-                    <p className="text-[10px] font-bold uppercase text-slate-400">Valor</p>
-                    <p className="text-sm font-black text-slate-900">
-                      {formatMoney(Number(sale.total_price) || 0)}
-                    </p>
-                  </div>
+                <div>
+                  <p className="text-[12px] text-zinc-500">Tipo</p>
+                  <p className="text-zinc-700">{sale.interest_type || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-[12px] text-zinc-500">Valor</p>
+                  <p className="font-medium text-zinc-900">
+                    {formatMoney(Number(sale.total_price) || 0)}
+                  </p>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <div className="rounded-2xl border border-slate-200 bg-white p-5">
-              <h3 className="mb-3 flex items-center gap-2 border-b border-slate-100 pb-2 text-xs font-black uppercase tracking-widest text-slate-400">
-                <CheckCircle2 size={14} /> Vendedor
-              </h3>
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-sm font-bold text-white">
-                  {sellerDisplayName !== "—" ? sellerDisplayName.substring(0, 2) : "VD"}
-                </div>
-                <div className="min-w-0 leading-tight">
-                  <p className="truncate text-sm font-bold text-slate-900">
-                    {sellerDisplayName}
-                  </p>
-                  <p className="truncate font-mono text-[10px] text-slate-500">
-                    {sellerEmailLabel}
-                  </p>
-                </div>
-              </div>
+          <div className="grid grid-cols-1 gap-5 border-t border-zinc-100 pt-5 sm:grid-cols-2">
+            <div>
+              <p className="mb-2 text-[12px] font-medium text-zinc-500">Vendedor</p>
+              <p className="text-[14px] font-medium text-zinc-900">{sellerDisplayName}</p>
+              <p className="text-[12px] text-zinc-500">{sellerEmailLabel}</p>
             </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-white p-5">
-              <h3 className="mb-3 flex items-center gap-2 border-b border-slate-100 pb-2 text-xs font-black uppercase tracking-widest text-slate-400">
-                <BadgeCheck size={14} /> Processamento
-              </h3>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <p className="text-[10px] font-bold uppercase text-slate-400">Processado por</p>
-                  <p className="text-sm font-bold text-slate-900">
-                    {sale.approved_by_name || "Sistema"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase text-slate-400">Data</p>
-                  <p className="text-sm font-medium text-slate-700">
-                    {sale.approved_at
-                      ? new Date(sale.approved_at).toLocaleString("pt-BR")
-                      : "—"}
-                  </p>
-                </div>
-              </div>
+            <div>
+              <p className="mb-2 text-[12px] font-medium text-zinc-500">Processamento</p>
+              <p className="text-[14px] font-medium text-zinc-900">
+                {sale.approved_by_name || "Sistema"}
+              </p>
+              <p className="text-[12px] text-zinc-500">
+                {sale.approved_at
+                  ? new Date(sale.approved_at).toLocaleString("pt-BR")
+                  : "—"}
+              </p>
             </div>
           </div>
         </div>
 
-        <div className="sticky bottom-0 flex flex-col gap-3 border-t border-gray-100 bg-gray-50 p-6 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-2 border-t border-zinc-200 bg-zinc-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap gap-2">
             {sale.status !== "Aprovado" && (
               <button
                 onClick={() => handleAction("Aprovado")}
                 disabled={isProcessing}
-                className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2.5 text-xs font-bold uppercase text-white transition-colors hover:bg-green-700 disabled:opacity-60"
+                className="inline-flex h-9 items-center gap-1.5 bg-emerald-600 px-4 text-[12px] font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
               >
-                {isProcessing ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                {isProcessing ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Check size={14} />
+                )}
                 Aprovar
               </button>
             )}
-
             {sale.status !== "Recusado" && (
               <button
                 onClick={() => handleAction("Recusado")}
                 disabled={isProcessing}
-                className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-xs font-bold uppercase text-white transition-colors hover:bg-red-700 disabled:opacity-60"
+                className="inline-flex h-9 items-center gap-1.5 bg-red-600 px-4 text-[12px] font-medium text-white hover:bg-red-700 disabled:opacity-50"
               >
                 {isProcessing ? (
                   <Loader2 size={14} className="animate-spin" />
@@ -372,7 +276,7 @@ function ModalDetalhes({
             )}
           </div>
 
-          <div className="flex items-center justify-end gap-3">
+          <div className="flex gap-2">
             <button
               onClick={async () => {
                 if (!confirm("Excluir esta proposta permanentemente?")) return;
@@ -380,15 +284,18 @@ function ModalDetalhes({
                 onClose();
               }}
               disabled={isDeleting}
-              className="flex items-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2.5 text-xs font-bold uppercase text-red-600 transition-colors hover:bg-red-50 disabled:opacity-60"
+              className="inline-flex h-9 items-center gap-1.5 border border-red-200 bg-white px-4 text-[12px] font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
             >
-              {isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+              {isDeleting ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Trash2 size={14} />
+              )}
               Excluir
             </button>
-
             <button
               onClick={onClose}
-              className="rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-xs font-bold uppercase text-slate-700 transition-colors hover:bg-gray-100"
+              className="h-9 border border-zinc-200 bg-white px-4 text-[12px] font-medium text-zinc-700 hover:bg-zinc-50"
             >
               Fechar
             </button>
@@ -399,100 +306,54 @@ function ModalDetalhes({
   );
 }
 
-function ActionCard({
-  href,
-  icon,
-  title,
-  description,
-  tone = "slate",
-}: {
-  href: string;
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  tone?: "slate" | "blue" | "emerald" | "amber" | "indigo";
-}) {
-  const toneMap = {
-    slate: "border-slate-200 bg-white hover:bg-slate-50 text-slate-900",
-    blue: "border-blue-100 bg-blue-50 hover:bg-blue-100 text-blue-800",
-    emerald: "border-emerald-100 bg-emerald-50 hover:bg-emerald-100 text-emerald-800",
-    amber: "border-amber-100 bg-amber-50 hover:bg-amber-100 text-amber-800",
-    indigo: "border-indigo-100 bg-indigo-50 hover:bg-indigo-100 text-indigo-800",
-  };
-
-  return (
-    <Link
-      href={href}
-      className={`rounded-2xl border p-4 transition-all ${toneMap[tone]}`}
-    >
-      <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-white/70 shadow-sm">
-        {icon}
-      </div>
-      <h3 className="text-sm font-black uppercase">{title}</h3>
-      <p className="mt-1 text-xs font-medium opacity-80">{description}</p>
-    </Link>
-  );
-}
+type SortKey = "created_at" | "total_price" | "client_name";
 
 export default function AdminDashboard() {
   const router = useRouter();
 
   const [sales, setSales] = useState<any[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
-const [transactionsExpanded, setTransactionsExpanded] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [dateFrom, setDateFrom] = useState<string>("");
-  const [dateTo, setDateTo] = useState<string>("");
+  const [todayList, setTodayList] = useState<any[]>([]);
+  const [kpis, setKpis] = useState({
+    total: 0,
+    approved: 0,
+    refused: 0,
+    revenue: 0,
+  });
 
-  const [sortKey, setSortKey] = useState<
-    "created_at" | "total_price" | "status" | "client_name"
-  >("created_at");
+  const [transactionsExpanded, setTransactionsExpanded] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+
+  const [sortKey, setSortKey] = useState<SortKey>("created_at");
   const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
   const [page, setPage] = useState(1);
   const pageSize = 12;
 
   const [selectedSale, setSelectedSale] = useState<any>(null);
-
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
-
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  const formatCurrency = (val: number) =>
-    new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-    }).format(Number(val || 0));
-
   const todayLabel = useMemo(() => new Date().toLocaleDateString("pt-BR"), []);
-
-  const isWithinDateRange = (createdAt: string) => {
-    const d = new Date(createdAt);
-    if (dateFrom) {
-      const from = new Date(dateFrom + "T00:00:00");
-      if (d < from) return false;
-    }
-    if (dateTo) {
-      const to = new Date(dateTo + "T23:59:59");
-      if (d > to) return false;
-    }
-    return true;
-  };
-
-  const toggleSort = (key: typeof sortKey) => {
-    if (sortKey === key) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-      return;
-    }
-    setSortKey(key);
-    setSortDir("desc");
-  };
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
   const getTodayRangeISO = () => {
     const now = new Date();
     const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    const end = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      23,
+      59,
+      59,
+      999
+    );
     return { startISO: start.toISOString(), endISO: end.toISOString() };
   };
 
@@ -504,16 +365,58 @@ const [transactionsExpanded, setTransactionsExpanded] = useState(false);
     const iso = `${y}-${m}-${d}`;
     setDateFrom(iso);
     setDateTo(iso);
+    setPage(1);
   };
 
-  const fetchSales = async () => {
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("desc");
+    }
+    setPage(1);
+  };
+
+  const applyFilters = (query: any) => {
+    if (dateFrom) query = query.gte("created_at", `${dateFrom}T00:00:00`);
+    if (dateTo) query = query.lte("created_at", `${dateTo}T23:59:59.999`);
+
+    const term = searchTerm.trim();
+    if (term) {
+      const t = term.replace(/,/g, "");
+      query = query.or(
+        `client_name.ilike.%${t}%,car_name.ilike.%${t}%,client_cpf.ilike.%${t}%,seller_name.ilike.%${t}%`
+      );
+    }
+
+    return query;
+  };
+
+  const fetchSalesPage = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("sales")
-        .select(`*, profiles:seller_id (email)`)
-        .order("created_at", { ascending: false });
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
 
+      let query = supabase
+        .from("sales")
+        .select(`*, profiles:seller_id (email)`, { count: "exact" });
+
+      query = applyFilters(query);
+
+      const orderColumn =
+        sortKey === "total_price"
+          ? "total_price"
+          : sortKey === "client_name"
+          ? "client_name"
+          : "created_at";
+
+      query = query
+        .order(orderColumn, { ascending: sortDir === "asc", nullsFirst: false })
+        .range(from, to);
+
+      const { data, error, count } = await query;
       if (error) throw error;
 
       const rows = (data || []).map((r: any) => ({
@@ -521,178 +424,121 @@ const [transactionsExpanded, setTransactionsExpanded] = useState(false);
         status: cleanText(r?.status) || "Aprovado",
       }));
 
-      setSales(dedupeSales(rows));
+      setSales(rows);
+      setTotalCount(count ?? 0);
     } catch (err) {
       console.error("Erro ao buscar vendas:", err);
+      setSales([]);
+      setTotalCount(0);
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, pageSize, searchTerm, dateFrom, dateTo, sortKey, sortDir]);
+
+  const fetchSummary = useCallback(async () => {
+    try {
+      const { startISO, endISO } = getTodayRangeISO();
+
+      let kpiQuery = supabase
+        .from("sales")
+        .select("status, total_price, created_at", { count: "exact" });
+
+      kpiQuery = applyFilters(kpiQuery);
+
+      const { data: kpiRows, error: kpiError, count } = await kpiQuery;
+      if (kpiError) throw kpiError;
+
+      const rows = kpiRows || [];
+      const approved = rows.filter((s) => cleanText(s.status) === "Aprovado").length;
+      const refused = rows.filter((s) => cleanText(s.status) === "Recusado").length;
+      const revenue = rows.reduce((acc, s) => acc + (Number(s.total_price) || 0), 0);
+
+      setKpis({
+        total: count ?? rows.length,
+        approved,
+        refused,
+        revenue,
+      });
+
+      const { data: todayData, error: todayError } = await supabase
+        .from("sales")
+        .select(`*, profiles:seller_id (email)`)
+        .gte("created_at", startISO)
+        .lte("created_at", endISO)
+        .order("created_at", { ascending: false })
+        .limit(10);
+
+      if (todayError) throw todayError;
+
+      setTodayList(
+        (todayData || []).map((r: any) => ({
+          ...r,
+          status: cleanText(r?.status) || "Aprovado",
+        }))
+      );
+    } catch (err) {
+      console.error("Erro ao buscar resumo:", err);
+    }
+  }, [searchTerm, dateFrom, dateTo]);
 
   useEffect(() => {
-    fetchSales();
-  }, []);
+    const t = window.setTimeout(() => {
+      setSearchTerm(searchInput);
+      setPage(1);
+    }, 350);
+    return () => window.clearTimeout(t);
+  }, [searchInput]);
 
-  const openSale = async (sale: any) => {
-    setSelectedSale(sale);
+  useEffect(() => {
+    fetchSalesPage();
+  }, [fetchSalesPage]);
+
+  useEffect(() => {
+    fetchSummary();
+  }, [fetchSummary]);
+
+  const refreshAll = async () => {
+    await Promise.all([fetchSalesPage(), fetchSummary()]);
   };
 
-  const StatusBadge = ({ status }: { status: string }) => {
-    let styles = "bg-gray-100 text-gray-600";
-    let icon = <Clock size={12} />;
-
-    if (status === "Aprovado") {
-      styles = "bg-green-100 text-green-700 border-green-200";
-      icon = <CheckCircle2 size={12} />;
-    } else if (status === "Recusado") {
-      styles = "bg-red-100 text-red-700 border-red-200";
-      icon = <XCircle size={12} />;
-    } else if (status === "Aguardando Aprovação") {
-      styles = "bg-yellow-100 text-yellow-800 border-yellow-200";
-      icon = <Clock size={12} />;
-    }
-
-    return (
-      <span
-        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${styles}`}
-      >
-        {icon} {status}
-      </span>
-    );
-  };
-
-const filteredBase = useMemo(() => {
-  const term = searchTerm.trim().toLowerCase();
-
-  return sales
-    .filter((sale) => {
-      const matchesDate = isWithinDateRange(sale.created_at);
-      const sellerDisplay = normalizeSellerDisplayName(sale).toLowerCase();
-
-      const matchesSearch =
-        !term ||
-        sale.client_name?.toLowerCase().includes(term) ||
-        sale.car_name?.toLowerCase().includes(term) ||
-        sellerDisplay.includes(term) ||
-        sale.profiles?.email?.toLowerCase().includes(term) ||
-        sale.client_cpf?.toLowerCase().includes(term);
-
-      return matchesDate && matchesSearch;
-    })
-    .sort((a, b) => {
-      const dir = sortDir === "asc" ? 1 : -1;
-
-      if (sortKey === "created_at") {
-        return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir;
-      }
-      if (sortKey === "total_price") {
-        return ((Number(a.total_price) || 0) - (Number(b.total_price) || 0)) * dir;
-      }
-      return String(a.client_name || "").localeCompare(
-        String(b.client_name || ""),
-        "pt-BR"
-      ) * dir;
-    });
-}, [sales, searchTerm, dateFrom, dateTo, sortKey, sortDir]);
-
-useEffect(() => {
-  setPage(1);
-}, [searchTerm, dateFrom, dateTo, sortKey, sortDir]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredBase.length / pageSize));
-
-  const filteredSales = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return filteredBase.slice(start, start + pageSize);
-  }, [filteredBase, page]);
-
-  const kpis = useMemo(() => {
-    const rows = filteredBase;
-
-    const total = rows.length;
-    const approved = rows.filter((s) => s.status === "Aprovado");
-    const refused = rows.filter((s) => s.status === "Recusado");
-    const revenue = rows.reduce((acc, s) => acc + (Number(s.total_price) || 0), 0);
-
-    const { startISO, endISO } = getTodayRangeISO();
-    const todaySales = rows.filter((s) => {
-      const created = new Date(s.created_at).toISOString();
-      return created >= startISO && created <= endISO;
-    });
-
-    const approvedToday = todaySales.filter((s) => s.status === "Aprovado").length;
-    const refusedToday = todaySales.filter((s) => s.status === "Recusado").length;
-    const conversion = total ? (approved.length / total) * 100 : 0;
-
-    return {
-      total,
-      approved: approved.length,
-      refused: refused.length,
-      revenue,
-      conversion,
-      approvedToday,
-      refusedToday,
-    };
-  }, [filteredBase]);
-
-  const todaySection = useMemo(() => {
-    const { startISO, endISO } = getTodayRangeISO();
-    const todayAll = sales
-      .filter((s) => {
-        const created = new Date(s.created_at).toISOString();
-        return created >= startISO && created <= endISO;
-      })
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-    const totalToday = todayAll.length;
-    const approvedToday = todayAll.filter((s) => s.status === "Aprovado").length;
-
-    return { list: todayAll, totalToday, approvedToday };
-  }, [sales]);
-
-  const updateStatus = async (saleId: string, newStatus: string) => {
+  const updateStatus = async (id: string, status: string) => {
+    setIsUpdating(id);
     try {
-      setIsUpdating(saleId);
+      const { error } = await supabase
+        .from("sales")
+        .update({
+          status,
+          approved_at: new Date().toISOString(),
+        })
+        .eq("id", id);
 
-      const payload: any = { status: newStatus };
-
-      if (newStatus === "Aprovado") {
-        payload.approved_at = new Date().toISOString();
-        payload.approved_by_name = cleanText(payload.approved_by_name) || "Sistema";
-      }
-
-      if (newStatus === "Recusado") {
-        payload.approved_at = new Date().toISOString();
-        payload.approved_by_name = "Admin";
-      }
-
-      const { error } = await supabase.from("sales").update(payload).eq("id", saleId);
       if (error) throw error;
-
-      setSales((prev) => dedupeSales(prev.map((s) => (s.id === saleId ? { ...s, ...payload } : s))));
-      if (selectedSale?.id === saleId) setSelectedSale((prev: any) => ({ ...prev, ...payload }));
-      alert(`Status atualizado para: ${newStatus}`);
-    } catch (error: any) {
-      alert("Erro: " + (error?.message || "falha ao atualizar"));
+      await refreshAll();
+      setSelectedSale((prev: any) =>
+        prev?.id === id ? { ...prev, status, approved_at: new Date().toISOString() } : prev
+      );
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao atualizar status.");
     } finally {
       setIsUpdating(null);
     }
   };
 
-  const deleteSale = async (saleId: string) => {
-    setIsDeleting(saleId);
+  const deleteSale = async (id: string) => {
+    setIsDeleting(id);
     try {
-      const { error } = await supabase.from("sales").delete().eq("id", saleId);
+      const { error } = await supabase.from("sales").delete().eq("id", id);
       if (error) throw error;
-
-      setSales((prev) => prev.filter((s) => s.id !== saleId));
       setSelectedIds((prev) => {
         const next = new Set(prev);
-        next.delete(saleId);
+        next.delete(id);
         return next;
       });
-    } catch (error: any) {
-      alert("Erro: " + (error?.message || "falha ao excluir"));
+      await refreshAll();
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao excluir.");
     } finally {
       setIsDeleting(null);
     }
@@ -712,349 +558,260 @@ useEffect(() => {
   const selectAllOnPage = () => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      filteredSales.forEach((s) => next.add(s.id));
+      sales.forEach((s) => next.add(s.id));
       return next;
     });
   };
 
-  const bulkUpdate = async (status: "Aprovado" | "Recusado") => {
-    const ids = Array.from(selectedIds);
-    if (ids.length === 0) return alert("Selecione ao menos 1 item.");
-    if (!confirm(`Aplicar status "${status}" em ${ids.length} propostas?`)) return;
+  const bulkUpdate = async (status: string) => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`${status} ${selectedIds.size} proposta(s)?`)) return;
 
-    for (const id of ids) await updateStatus(id as any, status);
-    clearSelection();
+    const ids = Array.from(selectedIds);
+    try {
+      const { error } = await supabase
+        .from("sales")
+        .update({ status, approved_at: new Date().toISOString() })
+        .in("id", ids);
+      if (error) throw error;
+      clearSelection();
+      await refreshAll();
+    } catch (err) {
+      console.error(err);
+      alert("Erro no lote.");
+    }
   };
 
   const bulkDelete = async () => {
-    const ids = Array.from(selectedIds);
-    if (ids.length === 0) return alert("Selecione ao menos 1 item.");
-    if (!confirm(`Excluir permanentemente ${ids.length} propostas?`)) return;
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Excluir ${selectedIds.size} proposta(s) permanentemente?`)) return;
 
-    for (const id of ids) await deleteSale(id as any);
-    clearSelection();
+    const ids = Array.from(selectedIds);
+    try {
+      const { error } = await supabase.from("sales").delete().in("id", ids);
+      if (error) throw error;
+      clearSelection();
+      await refreshAll();
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao excluir lote.");
+    }
   };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    router.refresh();
-    router.replace("/login");
+    router.push("/login");
   };
 
+  const todayApproved = todayList.filter((s) => s.status === "Aprovado").length;
+
   return (
-    <div className="min-h-screen bg-slate-50 pb-20 font-sans text-slate-900">
-      {selectedSale && (
-        <ModalDetalhes
-          sale={selectedSale}
-          onClose={() => setSelectedSale(null)}
-          onUpdateStatus={updateStatus}
-          onDelete={deleteSale}
-          isDeleting={isDeleting === selectedSale.id}
-        />
-      )}
-
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white px-6 py-4">
-        <div className="mx-auto flex max-w-7xl items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-black p-2 text-[#f2e14c]">
-              <LayoutDashboard size={20} />
-            </div>
-            <div>
-              <h1 className="text-lg font-black uppercase tracking-tight">Admin Dashboard</h1>
-              <p className="text-xs font-bold text-gray-400">
-                WBCNAC • {todayLabel}
-              </p>
-            </div>
+    <div className="min-h-screen bg-zinc-50">
+      <header className="border-b border-zinc-200 bg-white">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 md:px-6">
+          <div>
+            <p className="text-[12px] text-zinc-500">Administração</p>
+            <h1 className="text-lg font-semibold text-zinc-900">Painel de propostas</h1>
           </div>
-
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => router.push("/vendedor/dashboard")}
-              className="hidden items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600 transition-all hover:bg-white hover:text-black md:flex"
-            >
-              <ArrowRight size={14} /> Visão Vendedor
-            </button>
-
+            <span className="hidden text-[12px] text-zinc-500 sm:inline">{todayLabel}</span>
             <button
               onClick={handleLogout}
-              className="flex items-center gap-2 px-2 text-xs font-bold text-red-600 hover:text-red-700"
+              className="inline-flex h-9 items-center gap-1.5 border border-zinc-200 bg-white px-3 text-[12px] font-medium text-zinc-700 hover:bg-zinc-50"
             >
-              <LogOut size={16} /> Sair
+              <LogOut size={14} />
+              Sair
             </button>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-6 py-8">
-        <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div className="rounded-lg bg-green-50 p-2 text-green-600">
-                <Wallet size={18} />
-              </div>
-              <span className="text-[10px] font-black uppercase text-slate-400">Receita</span>
-            </div>
-            <p className="mt-2 text-xs font-bold uppercase text-slate-500">Total</p>
-            <h3 className="text-xl font-black text-slate-900">
-              {new Intl.NumberFormat("pt-BR", {
-                notation: "compact",
-                style: "currency",
-                currency: "BRL",
-              }).format(kpis.revenue)}
-            </h3>
-          </div>
-
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div className="rounded-lg bg-blue-50 p-2 text-blue-600">
-                <Users size={18} />
-              </div>
-              <span className="text-[10px] font-black uppercase text-slate-400">Propostas</span>
-            </div>
-            <p className="mt-2 text-xs font-bold uppercase text-slate-500">Total</p>
-            <h3 className="text-2xl font-black text-slate-900">{kpis.total}</h3>
-          </div>
-
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div className="rounded-lg bg-purple-50 p-2 text-purple-600">
-                <TrendingUp size={18} />
-              </div>
-              <span className="text-[10px] font-black uppercase text-slate-400">Conversão</span>
-            </div>
-            <p className="mt-2 text-xs font-bold uppercase text-slate-500">Aprovadas</p>
-            <h3 className="text-2xl font-black text-slate-900">{kpis.conversion.toFixed(0)}%</h3>
-          </div>
-
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div className="rounded-lg bg-emerald-50 p-2 text-emerald-700">
-                <CheckCircle2 size={18} />
-              </div>
-              <span className="text-[10px] font-black uppercase text-slate-400">Aprovadas</span>
-            </div>
-            <p className="mt-2 text-xs font-bold uppercase text-slate-500">Total</p>
-            <h3 className="text-2xl font-black text-slate-900">{kpis.approved}</h3>
-          </div>
-
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div className="rounded-lg bg-amber-50 p-2 text-amber-700">
-                <CalendarRange size={18} />
-              </div>
-              <span className="text-[10px] font-black uppercase text-slate-400">Hoje</span>
-            </div>
-            <p className="mt-2 text-xs font-bold uppercase text-slate-500">Pedidos</p>
-            <h3 className="text-2xl font-black text-slate-900">{todaySection.totalToday}</h3>
-            <p className="mt-1 text-[11px] font-bold text-slate-500">
-              Aprovadas: <span className="text-slate-900">{todaySection.approvedToday}</span>
-            </p>
-          </div>
+      <main className="mx-auto max-w-6xl space-y-6 px-4 py-6 md:px-6">
+        {/* 6 atalhos */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-6">
+          <ActionCard
+            href="/vendedor/clientes-consultados"
+            icon={<Database size={18} />}
+            title="Clientes"
+            description="Ver clientes salvos após consulta de CPF"
+            tone="indigo"
+          />
+          <ActionCard
+            href="/admin/consulta-dias"
+            icon={<CalendarRange size={18} />}
+            title="Pedidos"
+            description="Filtrar desempenho por período"
+            tone="slate"
+          />
+          <ActionCard
+            href="/admin/alterarvalor"
+            icon={<Wallet size={18} />}
+            title="Valores"
+            description="Ajustar faixas e valores do sistema"
+            tone="amber"
+          />
+          <ActionCard
+            href="/admin/cars/choose-brand"
+            icon={<Plus size={18} />}
+            title="Veículo"
+            description="Adicionar ou editar veículos"
+            tone="blue"
+          />
+          <ActionCard
+            href="/admin/reports"
+            icon={<FileText size={18} />}
+            title="Relatórios"
+            description="Visualizar relatórios e análises"
+            tone="slate"
+          />
+          <ActionCard
+            href="/admin/financeiro"
+            icon={<FileText size={18} />}
+            title="Financeiro"
+            description="Controle"
+            tone="slate"
+          />
         </div>
 
-        <div className="mb-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h2 className="text-sm font-black uppercase tracking-wide text-slate-900">
-                Ações rápidas
-              </h2>
-              <p className="text-xs font-medium text-slate-500">
-                Atalhos principais do painel administrativo
-              </p>
+        {/* KPIs */}
+        <div className="grid grid-cols-2 gap-px bg-zinc-200 md:grid-cols-4">
+          {[
+            { label: "Total filtrado", value: String(kpis.total) },
+            { label: "Aprovadas", value: String(kpis.approved) },
+            { label: "Recusadas", value: String(kpis.refused) },
+            { label: "Receita", value: formatMoney(kpis.revenue) },
+          ].map((k) => (
+            <div key={k.label} className="bg-white px-4 py-3">
+              <p className="text-[12px] text-zinc-500">{k.label}</p>
+              <p className="mt-1 text-lg font-semibold text-zinc-900">{k.value}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* filtros */}
+        <div className="bg-white p-4">
+          <div className="flex flex-col gap-3">
+            <div className="relative">
+              <Search
+                size={16}
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"
+              />
+              <input
+                type="text"
+                placeholder="Buscar cliente, veículo, vendedor ou CPF…"
+                className="h-10 w-full border border-zinc-200 bg-white pl-9 pr-3 text-[14px] outline-none focus:border-zinc-400"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+              />
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+              <div className="flex items-center gap-2 border border-zinc-200 px-3 py-2">
+                <CalendarRange size={14} className="text-zinc-400" />
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => {
+                    setDateFrom(e.target.value);
+                    setPage(1);
+                  }}
+                  className="bg-transparent text-[12px] text-zinc-700 outline-none"
+                />
+                <span className="text-zinc-300">–</span>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => {
+                    setDateTo(e.target.value);
+                    setPage(1);
+                  }}
+                  className="bg-transparent text-[12px] text-zinc-700 outline-none"
+                />
+              </div>
+
               <button
                 onClick={setFilterToToday}
-                className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                className="h-9 border border-zinc-200 px-3 text-[12px] font-medium text-zinc-700 hover:bg-zinc-50"
               >
-                <CalendarRange size={14} /> Filtrar Hoje
+                Hoje
               </button>
 
-              <button
-                onClick={fetchSales}
-                className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100"
-              >
-                <Loader2 size={14} className={loading ? "animate-spin" : ""} />
-                Atualizar
-              </button>
+              {(dateFrom || dateTo) && (
+                <button
+                  onClick={() => {
+                    setDateFrom("");
+                    setDateTo("");
+                    setPage(1);
+                  }}
+                  className="text-[12px] text-zinc-500 underline underline-offset-2 hover:text-zinc-900"
+                >
+                  Limpar datas
+                </button>
+              )}
+
+              {(["created_at", "total_price", "client_name"] as const).map((key) => {
+                const labels = {
+                  created_at: "Data",
+                  total_price: "Valor",
+                  client_name: "Cliente",
+                };
+                const active = sortKey === key;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => toggleSort(key)}
+                    className={`inline-flex h-9 items-center gap-1.5 px-3 text-[12px] font-medium ${
+                      active
+                        ? "bg-zinc-900 text-white"
+                        : "border border-zinc-200 text-zinc-600 hover:bg-zinc-50"
+                    }`}
+                  >
+                    <ArrowUpDown size={13} />
+                    {labels[key]}
+                    {active ? (sortDir === "asc" ? " ↑" : " ↓") : ""}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-6">
-
-            <ActionCard
-              href="/vendedor/clientes-consultados"
-              icon={<Database size={18} />}
-              title="Clientes"
-              description="Ver clientes salvos após consulta de CPF"
-              tone="indigo"
-            />
-
-            <ActionCard
-              href="/admin/consulta-dias"
-              icon={<CalendarRange size={18} />}
-              title="Pedidos"
-              description="Filtrar desempenho por período"
-              tone="slate"
-            />
-
-            <ActionCard
-              href="/admin/alterarvalor"
-              icon={<Wallet size={18} />}
-              title="Valores"
-              description="Ajustar faixas e valores do sistema"
-              tone="amber"
-            />
-
-            <ActionCard
-              href="/admin/cars/choose-brand"
-              icon={<Plus size={18} />}
-              title="Veículo"
-              description="Adicionar ou editar veículos"
-              tone="blue"
-            />
-
-            <ActionCard
-              href="/admin/reports"
-              icon={<FileText size={18} />}
-              title="Relatórios"
-              description="Visualizar relatórios e análises"
-              tone="slate"
-            />
-                        <ActionCard
-              href="/admin/financeiro"
-              icon={<FileText size={18} />}
-              title="Financeiro"
-              description="Controle"
-              tone="slate"
-            />
-          </div>
-        </div>
-
-        <div className="mb-6 space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-<div className="flex flex-col gap-3">
-  <div className="relative w-full">
-    <Search
-      className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-      size={18}
-    />
-    <input
-      type="text"
-      placeholder="Buscar cliente, veículo, vendedor ou CPF..."
-      className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-10 pr-4 text-sm font-medium transition-all focus:border-black focus:outline-none"
-      value={searchTerm}
-      onChange={(e) => setSearchTerm(e.target.value)}
-    />
-  </div>
-
-  <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-    <div className="flex w-full flex-col gap-2 md:flex-row md:flex-wrap md:items-center">
-      <div className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 md:w-auto">
-        <CalendarRange size={16} className="text-slate-400" />
-        <input
-          type="date"
-          value={dateFrom}
-          onChange={(e) => setDateFrom(e.target.value)}
-          className="bg-transparent text-xs font-bold text-slate-700 outline-none"
-          title="Data inicial"
-        />
-        <span className="text-slate-300">—</span>
-        <input
-          type="date"
-          value={dateTo}
-          onChange={(e) => setDateTo(e.target.value)}
-          className="bg-transparent text-xs font-bold text-slate-700 outline-none"
-          title="Data final"
-        />
-      </div>
-
-      {(dateFrom || dateTo) && (
-        <button
-          onClick={() => {
-            setDateFrom("");
-            setDateTo("");
-          }}
-          className="text-xs font-bold text-slate-500 underline decoration-dotted underline-offset-4 hover:text-black"
-        >
-          Limpar datas
-        </button>
-      )}
-
-      <button
-        onClick={() => toggleSort("created_at")}
-        className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold uppercase ${
-          sortKey === "created_at"
-            ? "border-black bg-black text-white"
-            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-        }`}
-      >
-        <ArrowUpDown size={14} /> Data {sortKey === "created_at" ? `(${sortDir})` : ""}
-      </button>
-
-      <button
-        onClick={() => toggleSort("total_price")}
-        className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold uppercase ${
-          sortKey === "total_price"
-            ? "border-black bg-black text-white"
-            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-        }`}
-      >
-        <ArrowUpDown size={14} /> Valor {sortKey === "total_price" ? `(${sortDir})` : ""}
-      </button>
-
-      <button
-        onClick={() => toggleSort("client_name")}
-        className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold uppercase ${
-          sortKey === "client_name"
-            ? "border-black bg-black text-white"
-            : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-        }`}
-      >
-        <ArrowUpDown size={14} /> Cliente {sortKey === "client_name" ? `(${sortDir})` : ""}
-      </button>
-    </div>
-  </div>
-</div>
-
           {selectedIds.size > 0 && (
-            <div className="flex flex-col items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 md:flex-row">
-              <div className="text-xs font-black uppercase text-slate-600">
-                Selecionados: <span className="text-slate-900">{selectedIds.size}</span>
-              </div>
-
-              <div className="flex flex-wrap justify-end gap-2">
+            <div className="mt-4 flex flex-col gap-2 border-t border-zinc-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-[12px] text-zinc-600">
+                Selecionados:{" "}
+                <span className="font-medium text-zinc-900">{selectedIds.size}</span>
+              </p>
+              <div className="flex flex-wrap gap-2">
                 <button
                   onClick={selectAllOnPage}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold uppercase hover:bg-slate-50"
+                  className="h-8 border border-zinc-200 px-3 text-[11px] font-medium hover:bg-zinc-50"
                 >
                   Selecionar página
                 </button>
-
                 <button
                   onClick={() => bulkUpdate("Aprovado")}
-                  className="rounded-lg bg-green-600 px-3 py-2 text-xs font-bold uppercase text-white hover:bg-green-700"
+                  className="inline-flex h-8 items-center gap-1 bg-emerald-600 px-3 text-[11px] font-medium text-white hover:bg-emerald-700"
                 >
+                  <Check size={12} />
                   Aprovar lote
                 </button>
-
                 <button
                   onClick={() => bulkUpdate("Recusado")}
-                  className="rounded-lg bg-red-600 px-3 py-2 text-xs font-bold uppercase text-white hover:bg-red-700"
+                  className="inline-flex h-8 items-center gap-1 bg-red-600 px-3 text-[11px] font-medium text-white hover:bg-red-700"
                 >
+                  <XCircle size={12} />
                   Recusar lote
                 </button>
-
                 <button
                   onClick={bulkDelete}
-                  className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold uppercase text-white hover:bg-black"
+                  className="inline-flex h-8 items-center gap-1 bg-zinc-900 px-3 text-[11px] font-medium text-white hover:bg-black"
                 >
+                  <Trash2 size={12} />
                   Excluir lote
                 </button>
-
                 <button
                   onClick={clearSelection}
-                  className="text-xs font-bold uppercase text-slate-600 underline decoration-dotted underline-offset-4 hover:text-black"
+                  className="text-[11px] text-zinc-500 underline underline-offset-2"
                 >
                   Limpar seleção
                 </button>
@@ -1063,149 +820,116 @@ useEffect(() => {
           )}
         </div>
 
-        <div className="mb-8 rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b border-slate-100 p-4">
-            <div>
-              <h3 className="text-sm font-black uppercase tracking-wide text-slate-900">
-                Pedidos do Dia
-              </h3>
-              <p className="text-xs text-slate-500">
-                {todaySection.totalToday} pedidos hoje
-              </p>
-            </div>
+        {/* pedidos do dia */}
+        <div className="bg-white">
+          <div className="border-b border-zinc-200 px-4 py-3">
+            <h2 className="text-[14px] font-semibold text-zinc-900">Pedidos de hoje</h2>
+            <p className="text-[12px] text-zinc-500">
+              {todayList.length} na lista · {todayApproved} aprovado(s)
+            </p>
           </div>
 
-          <div className="p-4">
-            <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-[10px] font-bold uppercase text-slate-500">Total Hoje</p>
-                <p className="text-2xl font-black text-slate-900">{todaySection.totalToday}</p>
-              </div>
-
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-[10px] font-bold uppercase text-slate-500">Aprovadas</p>
-                <p className="text-2xl font-black text-slate-900">{todaySection.approvedToday}</p>
-              </div>
-
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-[10px] font-bold uppercase text-slate-500">Receita Filtrada</p>
-                <p className="text-xl font-black text-slate-900">
-                  {new Intl.NumberFormat("pt-BR", {
-                    notation: "compact",
-                    style: "currency",
-                    currency: "BRL",
-                  }).format(kpis.revenue)}
-                </p>
-              </div>
-            </div>
-
-            {todaySection.list.length === 0 ? (
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-8 text-center text-sm font-medium text-slate-400">
-                Sem propostas por enquanto.
-              </div>
-            ) : (
-              <div className="overflow-x-auto rounded-xl border border-slate-200">
-                <table className="w-full text-left">
-                  <thead className="border-b border-slate-200 bg-slate-50 text-[10px] font-semibold uppercase text-slate-500">
-                    <tr>
-                      <th className="min-w-[180px] px-4 py-3">Cliente</th>
-                      <th className="min-w-[220px] px-4 py-3">Veículo</th>
-                      <th className="px-4 py-3 text-center">Status</th>
-                      <th className="px-4 py-3 text-right">Valor</th>
-                      <th className="px-4 py-3 text-right">Hora</th>
+          {todayList.length === 0 ? (
+            <p className="px-4 py-8 text-center text-[13px] text-zinc-400">
+              Sem propostas por enquanto.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-[13px]">
+                <thead className="border-b border-zinc-200 bg-zinc-50 text-[11px] text-zinc-500">
+                  <tr>
+                    <th className="px-4 py-2.5 font-medium">Cliente</th>
+                    <th className="px-4 py-2.5 font-medium">Veículo</th>
+                    <th className="px-4 py-2.5 text-center font-medium">Status</th>
+                    <th className="px-4 py-2.5 text-right font-medium">Valor</th>
+                    <th className="px-4 py-2.5 text-right font-medium">Hora</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-100">
+                  {todayList.map((sale: any) => (
+                    <tr
+                      key={sale.id}
+                      onClick={() => setSelectedSale(sale)}
+                      className="cursor-pointer hover:bg-zinc-50"
+                    >
+                      <td className="px-4 py-2.5">
+                        <p className="max-w-[200px] truncate font-medium text-zinc-900">
+                          {sale.client_name}
+                        </p>
+                        <p className="font-mono text-[11px] text-zinc-400">
+                          {sale.client_cpf}
+                        </p>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <p className="max-w-[220px] truncate text-zinc-800">{sale.car_name}</p>
+                        <p className="text-[11px] text-zinc-400">
+                          {normalizeSellerDisplayName(sale)}
+                        </p>
+                      </td>
+                      <td className="px-4 py-2.5 text-center">
+                        <StatusBadge status={sale.status} />
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-medium text-zinc-900">
+                        {formatMoney(Number(sale.total_price) || 0)}
+                      </td>
+                      <td className="px-4 py-2.5 text-right text-zinc-600">
+                        {new Date(sale.created_at).toLocaleTimeString("pt-BR", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {todaySection.list.slice(0, 10).map((sale: any) => (
-                      <tr
-                        key={sale.id}
-                        onClick={() => openSale(sale)}
-                        className="cursor-pointer hover:bg-slate-50"
-                      >
-                        <td className="px-4 py-3">
-                          <p className="max-w-[260px] truncate text-xs font-bold uppercase text-slate-900">
-                            {sale.client_name}
-                          </p>
-                          <p className="max-w-[260px] truncate font-mono text-[10px] text-slate-400">
-                            {sale.client_cpf}
-                          </p>
-                        </td>
-                        <td className="px-4 py-3">
-                          <p className="max-w-[320px] truncate text-xs font-bold text-slate-800">
-                            {sale.car_name}
-                          </p>
-                          <p className="text-[10px] text-slate-400">
-                            Vendedor: {normalizeSellerDisplayName(sale)}
-                          </p>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <StatusBadge status={sale.status} />
-                        </td>
-                        <td className="px-4 py-3 text-right text-xs font-black text-slate-900">
-                          {formatCurrency(Number(sale.total_price) || 0)}
-                        </td>
-                        <td className="px-4 py-3 text-right text-xs font-bold text-slate-600">
-                          {new Date(sale.created_at).toLocaleTimeString("pt-BR", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        {/* transações */}
+        <div className="bg-white">
           <button
             onClick={() => setTransactionsExpanded((v) => !v)}
-            className="flex w-full items-center justify-between border-b border-slate-100 p-4 text-left"
+            className="flex w-full items-center justify-between border-b border-zinc-200 px-4 py-3 text-left"
           >
             <div>
-              <h3 className="font-bold text-slate-800">Transações</h3>
-              <p className="text-xs text-slate-500">
-                {filteredBase.length} resultado(s)
+              <h2 className="text-[14px] font-semibold text-zinc-900">Transações</h2>
+              <p className="text-[12px] text-zinc-500">
+                {totalCount} resultado(s) · página {page} de {totalPages}
               </p>
             </div>
-
-            <div className="flex items-center gap-2 text-slate-500">
-              <span className="text-xs font-bold uppercase">
-                {transactionsExpanded ? "Recolher" : "Expandir"}
-              </span>
-              {transactionsExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-            </div>
+            <span className="inline-flex items-center gap-1 text-[12px] text-zinc-500">
+              {transactionsExpanded ? "Recolher" : "Expandir"}
+              {transactionsExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </span>
           </button>
 
           {transactionsExpanded && (
             <>
               {loading ? (
-                <div className="flex flex-col items-center justify-center p-12 text-slate-400">
-                  <Loader2 className="mb-2 animate-spin" size={32} />
-                  <p className="text-xs font-bold uppercase">Carregando...</p>
+                <div className="flex items-center justify-center gap-2 px-4 py-10 text-[13px] text-zinc-400">
+                  <Loader2 size={18} className="animate-spin" />
+                  Carregando…
                 </div>
-              ) : filteredBase.length === 0 ? (
-                <div className="p-12 text-center text-slate-400">
-                  <p className="text-sm font-medium">Nenhuma proposta encontrada.</p>
-                </div>
+              ) : sales.length === 0 ? (
+                <p className="px-4 py-10 text-center text-[13px] text-zinc-400">
+                  Nenhuma proposta encontrada.
+                </p>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left">
-                    <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase text-slate-500">
+                  <table className="w-full text-left text-[13px]">
+                    <thead className="border-b border-zinc-200 bg-zinc-50 text-[11px] text-zinc-500">
                       <tr>
-                        <th className="w-[40px] px-6 py-4 text-center">Sel.</th>
-                        <th className="min-w-[200px] px-6 py-4">Cliente</th>
-                        <th className="min-w-[220px] px-6 py-4">Veículo</th>
-                        <th className="px-6 py-4 text-center">Status</th>
-                        <th className="px-6 py-4 text-right">Valor</th>
-                        <th className="px-6 py-4 text-right">Ações</th>
+                        <th className="w-10 px-4 py-2.5 text-center font-medium">Sel.</th>
+                        <th className="px-4 py-2.5 font-medium">Cliente</th>
+                        <th className="px-4 py-2.5 font-medium">Veículo</th>
+                        <th className="px-4 py-2.5 text-center font-medium">Status</th>
+                        <th className="px-4 py-2.5 text-right font-medium">Valor</th>
+                        <th className="px-4 py-2.5 text-right font-medium">Ações</th>
                       </tr>
                     </thead>
-
-                    <tbody className="divide-y divide-slate-100">
-                      {filteredSales.map((sale) => {
+                    <tbody className="divide-y divide-zinc-100">
+                      {sales.map((sale) => {
                         const checked = selectedIds.has(sale.id);
                         const waDigits = toWhatsDigits(sale.client_phone);
                         const sellerDisplayName = normalizeSellerDisplayName(sale);
@@ -1213,26 +937,23 @@ useEffect(() => {
                         return (
                           <tr
                             key={sale.id}
-                            onClick={() => openSale(sale)}
-                            className="group cursor-pointer transition-colors hover:bg-slate-50"
+                            onClick={() => setSelectedSale(sale)}
+                            className="cursor-pointer hover:bg-zinc-50"
                           >
                             <td
-                              className="px-6 py-4 text-center"
+                              className="px-4 py-2.5 text-center"
                               onClick={(e) => e.stopPropagation()}
                             >
                               <input
                                 type="checkbox"
                                 checked={checked}
                                 onChange={() => toggleSelect(sale.id)}
-                                className="h-4 w-4 accent-black"
+                                className="h-4 w-4 accent-zinc-900"
                               />
                             </td>
-
-                            <td className="px-6 py-4">
-                              <p className="text-sm font-bold uppercase text-slate-900">
-                                {sale.client_name}
-                              </p>
-                              <div className="mt-1 flex items-center gap-1 text-[10px] text-slate-400">
+                            <td className="px-4 py-2.5">
+                              <p className="font-medium text-zinc-900">{sale.client_name}</p>
+                              <div className="mt-0.5 flex items-center gap-2 text-[11px] text-zinc-400">
                                 <span className="font-mono">{sale.client_cpf}</span>
                                 {waDigits && (
                                   <a
@@ -1240,105 +961,98 @@ useEffect(() => {
                                     target="_blank"
                                     rel="noreferrer"
                                     onClick={(e) => e.stopPropagation()}
-                                    className="ml-2 text-green-600 hover:text-green-800"
-                                    title="WhatsApp"
+                                    className="inline-flex items-center gap-0.5 text-emerald-600 hover:underline"
                                   >
-                                    <Phone size={12} />
+                                    <Phone size={11} />
+                                    WhatsApp
                                   </a>
                                 )}
                               </div>
                             </td>
-
-                            <td className="px-6 py-4 text-xs font-medium text-slate-600">
-                              <div className="flex flex-col">
-                                <span className="font-bold text-slate-800">{sale.car_name}</span>
-                                <span className="text-[9px] text-slate-400">
-                                  Vendedor: {sellerDisplayName}
-                                </span>
-                                <span className="text-[9px] text-slate-400">
-                                  {new Date(sale.created_at).toLocaleDateString("pt-BR")}{" "}
-                                  {new Date(sale.created_at).toLocaleTimeString("pt-BR", {
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  })}
-                                </span>
-                              </div>
+                            <td className="px-4 py-2.5">
+                              <p className="font-medium text-zinc-800">{sale.car_name}</p>
+                              <p className="text-[11px] text-zinc-400">
+                                {sellerDisplayName} ·{" "}
+                                {new Date(sale.created_at).toLocaleDateString("pt-BR")}{" "}
+                                {new Date(sale.created_at).toLocaleTimeString("pt-BR", {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </p>
                             </td>
-
-                            <td className="px-6 py-4 text-center">
+                            <td className="px-4 py-2.5 text-center">
                               <StatusBadge status={sale.status} />
                             </td>
-
-                            <td className="px-6 py-4 text-right text-sm font-bold text-slate-800">
-                              {formatCurrency(Number(sale.total_price) || 0)}
+                            <td className="px-4 py-2.5 text-right font-medium text-zinc-900">
+                              {formatMoney(Number(sale.total_price) || 0)}
                             </td>
-
-                            <td className="px-6 py-4 text-right">
-                              <div className="flex items-center justify-end gap-2 opacity-100 transition-opacity md:opacity-0 group-hover:opacity-100">
+                            <td
+                              className="px-4 py-2.5 text-right"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <div className="flex items-center justify-end gap-1">
                                 <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    openSale(sale);
-                                  }}
-                                  className="rounded-lg border border-blue-100 bg-blue-50 p-2 text-blue-600 transition-all hover:bg-blue-100"
-                                  title="Ver Detalhes"
+                                  onClick={() => setSelectedSale(sale)}
+                                  className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-zinc-600 hover:bg-zinc-100"
+                                  title="Ver detalhes"
                                 >
-                                  <Eye size={14} />
+                                  <Eye size={13} />
+                                  Ver
                                 </button>
 
                                 {sale.status !== "Aprovado" && (
                                   <button
-                                    onClick={async (e) => {
-                                      e.stopPropagation();
+                                    onClick={async () => {
                                       if (!confirm("Aprovar esta proposta?")) return;
                                       await updateStatus(sale.id, "Aprovado");
                                     }}
                                     disabled={isUpdating === sale.id}
-                                    className="rounded-lg border border-green-100 bg-green-50 p-2 text-green-600 transition-all hover:bg-green-100"
+                                    className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
                                     title="Aprovar"
                                   >
                                     {isUpdating === sale.id ? (
-                                      <Loader2 size={14} className="animate-spin" />
+                                      <Loader2 size={13} className="animate-spin" />
                                     ) : (
-                                      <Check size={14} />
+                                      <Check size={13} />
                                     )}
+                                    Aprovar
                                   </button>
                                 )}
 
                                 {sale.status !== "Recusado" && (
                                   <button
-                                    onClick={async (e) => {
-                                      e.stopPropagation();
+                                    onClick={async () => {
                                       if (!confirm("Recusar esta proposta?")) return;
                                       await updateStatus(sale.id, "Recusado");
                                     }}
                                     disabled={isUpdating === sale.id}
-                                    className="rounded-lg border border-red-100 bg-red-50 p-2 text-red-600 transition-all hover:bg-red-100"
+                                    className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
                                     title="Recusar"
                                   >
                                     {isUpdating === sale.id ? (
-                                      <Loader2 size={14} className="animate-spin" />
+                                      <Loader2 size={13} className="animate-spin" />
                                     ) : (
-                                      <XCircle size={14} />
+                                      <XCircle size={13} />
                                     )}
+                                    Recusar
                                   </button>
                                 )}
 
                                 <button
-                                  onClick={async (e) => {
-                                    e.stopPropagation();
-                                    if (!confirm("Excluir esta transação permanentemente?")) return;
+                                  onClick={async () => {
+                                    if (!confirm("Excluir permanentemente?")) return;
                                     await deleteSale(sale.id);
                                   }}
                                   disabled={isDeleting === sale.id}
-                                  className="rounded-lg bg-slate-100 p-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500"
+                                  className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-zinc-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
                                   title="Excluir"
                                 >
                                   {isDeleting === sale.id ? (
-                                    <Loader2 size={14} className="animate-spin" />
+                                    <Loader2 size={13} className="animate-spin" />
                                   ) : (
-                                    <Trash2 size={14} />
+                                    <Trash2 size={13} />
                                   )}
+                                  Excluir
                                 </button>
                               </div>
                             </td>
@@ -1350,29 +1064,24 @@ useEffect(() => {
                 </div>
               )}
 
-              {!loading && filteredBase.length > 0 && (
-                <div className="flex flex-col items-center justify-between gap-3 border-t border-slate-100 p-4 md:flex-row">
-                  <div className="text-[11px] font-bold text-slate-400">
-                    Mostrando{" "}
-                    <span className="text-slate-800">
-                      {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, filteredBase.length)}
-                    </span>{" "}
-                    de <span className="text-slate-800">{filteredBase.length}</span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
+              {!loading && totalCount > 0 && (
+                <div className="flex flex-col items-center justify-between gap-3 border-t border-zinc-200 px-4 py-3 sm:flex-row">
+                  <p className="text-[12px] text-zinc-500">
+                    {(page - 1) * pageSize + 1}–
+                    {Math.min(page * pageSize, totalCount)} de {totalCount}
+                  </p>
+                  <div className="flex gap-2">
                     <button
                       onClick={() => setPage((p) => Math.max(1, p - 1))}
-                      disabled={page === 1}
-                      className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold uppercase text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+                      disabled={page === 1 || loading}
+                      className="h-8 border border-zinc-200 px-3 text-[12px] font-medium text-zinc-600 hover:bg-zinc-50 disabled:opacity-40"
                     >
                       Anterior
                     </button>
-
                     <button
                       onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                      disabled={page === totalPages}
-                      className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold uppercase text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+                      disabled={page === totalPages || loading}
+                      className="h-8 border border-zinc-200 px-3 text-[12px] font-medium text-zinc-600 hover:bg-zinc-50 disabled:opacity-40"
                     >
                       Próxima
                     </button>
@@ -1383,6 +1092,16 @@ useEffect(() => {
           )}
         </div>
       </main>
+
+      {selectedSale && (
+        <ModalDetalhes
+          sale={selectedSale}
+          onClose={() => setSelectedSale(null)}
+          onUpdateStatus={updateStatus}
+          onDelete={deleteSale}
+          isDeleting={isDeleting === selectedSale.id}
+        />
+      )}
     </div>
   );
 }

@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   LogIn,
   Search,
+  ArrowLeft,
 } from "lucide-react";
 import HyundaiVehiclesMenu from "./HyundaiVehiclesMenu";
 import MobileCatalogModalHyundai from "@/components/hyundai/MobileCatalogModalHyundai";
@@ -40,6 +41,8 @@ export default function HyundaiNavbar() {
   const [avatarUrl, setAvatarUrl] = useState("");
 
   const currentUserIdRef = useRef<string | null>(null);
+
+  const isBrandsPage = pathname === "/" || pathname === "";
 
   useEffect(() => {
     setVehiclesOpen(false);
@@ -194,6 +197,18 @@ export default function HyundaiNavbar() {
             <Menu size={20} />
           </button>
 
+          {/* Desktop: Voltar para marcas */}
+          {!isBrandsPage && (
+            <Link
+              href="/"
+              onClick={() => setVehiclesOpen(false)}
+              className="hidden items-center gap-2 rounded-full border border-gray-200 bg-white px-3.5 py-2 text-xs font-bold uppercase tracking-widest text-gray-600 transition-all hover:border-gray-300 hover:bg-gray-50 hover:text-black lg:flex"
+            >
+              <ArrowLeft size={14} />
+              Marcas
+            </Link>
+          )}
+
           <Link
             href="/hyundai"
             onClick={() => setVehiclesOpen(false)}
@@ -219,6 +234,21 @@ export default function HyundaiNavbar() {
           </nav>
 
           <div className="ml-auto flex items-center gap-2 lg:hidden">
+            {/* Mobile: Voltar para marcas */}
+            {!isBrandsPage && (
+              <Link
+                href="/"
+                onClick={() => {
+                  setVehiclesOpen(false);
+                  setSidebarOpen(false);
+                }}
+                className="flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-600 transition-all hover:bg-gray-50"
+              >
+                <ArrowLeft size={12} />
+                Marcas
+              </Link>
+            )}
+
             <button
               type="button"
               onClick={() => setMobileCatalogOpen(true)}
@@ -431,10 +461,32 @@ export default function HyundaiNavbar() {
               <LogIn size={16} /> Entrar / Cadastrar
             </Link>
           )}
+
+          {/* Sidebar: Voltar para marcas */}
+          {!isBrandsPage && (
+            <div className="space-y-4">
+              <p className="border-b border-gray-100 pb-2 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                Navegação
+              </p>
+
+              <Link
+                href="/"
+                onClick={() => setSidebarOpen(false)}
+                className="group flex w-full items-center gap-4 text-sm font-bold uppercase tracking-wide text-gray-900 transition-colors hover:text-[#00A3C8]"
+              >
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-50 text-gray-400 transition-colors group-hover:bg-black group-hover:text-white">
+                  <ArrowLeft size={18} />
+                </span>
+                Voltar para Marcas
+              </Link>
+            </div>
+          )}
         </div>
 
         <div className="border-t border-gray-100 p-6 text-center">
-          <p className="text-[10px] font-medium text-gray-400">© 2026 WBCNAC Digital</p>
+          <p className="text-[10px] font-medium text-gray-400">
+            © 2026 WBCNAC Digital
+          </p>
         </div>
       </aside>
 
