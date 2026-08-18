@@ -1,16 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  sendWhatsAppTemplate,
+  sendWhatsAppTemplateGupshup,
   normalizePhoneBR,
-} from "@/lib/vonage-whatsapp";
+} from "@/lib/gupshup-whatsapp";
 
-/**
- * Template aprovado:
- * {{1}} nome
- * {{2}} veículo
- * {{3}} valor da adesão  (sem "R$" — o template já tem "R$ {{3}}")
- * {{4}} protocolo
- */
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -23,55 +16,45 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Preferir array já montado pelo frontend
     let templateParams: string[] = Array.isArray(body.templateParams)
       ? body.templateParams.map(String)
       : [];
 
-    // Fallback se o frontend não mandar templateParams
     if (templateParams.length === 0) {
-      const nome =
-        body.customerName || body.nome || body.nomeCompleto || "Cliente";
-      const veiculo =
-        body.vehicleName || body.modeloVeiculo || body.veiculo || "Veículo";
-      const valorAdesao = String(
-        body.valorAdesao || body.adesao || body.valor || "0,00"
-      ).replace(/^R\$\s?/i, ""); // evita "R$ R$"
-      const protocolo =
-        body.protocolNumber || body.protocolo || body.applicationId || "------";
-
-      templateParams = [nome, veiculo, valorAdesao, protocolo];
+      templateParams = [
+        body.customerName || body.nome || "Cliente",
+        body.vehicleName || body.modeloVeiculo || "Veículo",
+        String(body.valorAdesao || body.valor || "0,00").replace(
+          /^R\$\s?/i,
+          ""
+        ),
+        body.protocolNumber || body.protocolo || "------",
+      ];
     }
 
-    // Segurança: template exige exatamente 4 variáveis
-    if (templateParams.length !== 4) {
-      return NextResponse.json(
-        {
-          error:
-            "templateParams deve ter 4 itens: [nome, veiculo, valorAdesao, protocolo]",
-          received: templateParams.length,
-          templateParams,
-        },
-        { status: 400 }
-      );
-    }
+    while (templateParams.length < 4) templateParams.push("—");
+    templateParams = templateParams.slice(0, 4);
 
-    const result = await sendWhatsAppTemplate({
+    const result = await sendWhatsAppTemplateGupshup({
       to: normalizePhoneBR(number),
-      variables: templateParams,
+      params: templateParams,
     });
 
     return NextResponse.json({
       ok: true,
+      provider: "gupshup",
       to: normalizePhoneBR(number),
       templateParams,
       result,
     });
   } catch (err: any) {
-    console.error("[whatsapp/enviar]", err);
+    console.error("[whatsapp/enviar][gupshup]", err?.data || err);
     return NextResponse.json(
-      { error: err?.message || "Falha WhatsApp" },
-      { status: 500 }
+      {
+        error: err?.message || "Falha WhatsApp Gupshup",
+        details: err?.data || null,
+      },
+      { status: err?.status || 500 }
     );
   }
 }
