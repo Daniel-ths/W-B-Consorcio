@@ -33,33 +33,25 @@ const maskPhoneBRNumber = (digitsOnly: string) => {
 
 const formatPhoneForDisplay = (digitsE164: string) => {
   const digits = String(digitsE164 || "").replace(/\D/g, "");
-
   if (!digits.startsWith("55")) return "---";
-
   const national = digits.slice(2);
   if (national.length !== 10 && national.length !== 11) return "---";
-
   const ddd = national.slice(0, 2);
   const number = national.slice(2);
-
   return `${PHONE_PREFIX_DISPLAY}${ddd} ${maskPhoneBRNumber(number)}`;
 };
 
 function sanitizePhoneFromOtherPage(input: string): string | null {
   if (!input) return null;
-
   const digits = String(input).replace(/\D/g, "");
 
   if (digits.startsWith("55")) {
     const national = digits.slice(2);
-
     if (national.length === 10 || national.length === 11) return `55${national}`;
-
     if ((national.length === 8 || national.length === 9) && DEFAULT_DDD) {
       const ddd = String(DEFAULT_DDD).replace(/\D/g, "").slice(0, 2);
       if (ddd.length === 2) return `55${ddd}${national}`;
     }
-
     return null;
   }
 
@@ -82,7 +74,6 @@ const cleanCpf = (cpf: string) => String(cpf || "").replace(/\D/g, "");
 
 const isValidCpf = (cpf: string) => {
   const digits = cleanCpf(cpf);
-
   if (digits.length !== 11) return false;
   if (/(\d)\1{10}/.test(digits)) return false;
 
@@ -96,7 +87,6 @@ const isValidCpf = (cpf: string) => {
   for (let i = 0; i < 10; i++) sum += Number(digits[i]) * (11 - i);
   check = 11 - (sum % 11);
   if (check >= 10) check = 0;
-
   return check === Number(digits[10]);
 };
 
@@ -106,11 +96,7 @@ const CPF_INVALID_MESSAGE =
 const roundVolkswagenCreditUp = (credit: number) => {
   const value = safeNumber(credit);
   if (!value || value <= 0) return 0;
-
-  if (value >= 100000) {
-    return Math.ceil(value / 20000) * 20000;
-  }
-
+  if (value >= 100000) return Math.ceil(value / 20000) * 20000;
   return value;
 };
 
@@ -166,10 +152,7 @@ function builderOrderToContractData(order: BuilderOrderPayload | null) {
     0;
 
   const imagem =
-    order.vehicle_image ||
-    order.color?.image ||
-    order.version?.image ||
-    "";
+    order.vehicle_image || order.color?.image || order.version?.image || "";
 
   return {
     modelo,
@@ -185,16 +168,18 @@ function builderOrderToContractData(order: BuilderOrderPayload | null) {
 const BEST_BID_TEXT =
   "Melhor momento para ofertar lance: entre a 7ª e a 8ª parcela.";
 
-/** Parâmetros do template WhatsApp: {{1}} nome, {{2}} protocolo, {{3}} veículo */
+/** {{1}} nome | {{2}} veículo | {{3}} adesão | {{4}} protocolo */
 function buildWhatsAppTemplateParams(
   nomeCliente: string,
-  protocolo: string,
-  veiculo: string
+  veiculo: string,
+  valorAdesao: string,
+  protocolo: string
 ) {
   return [
     nomeCliente || "Cliente",
-    protocolo || "------",
     veiculo || "Veículo",
+    valorAdesao || "0,00",
+    protocolo || "------",
   ];
 }
 
@@ -222,9 +207,7 @@ function PedidoContent() {
           localStorage.getItem("wb_analysis_order") ||
           localStorage.getItem("wb_builder_order");
 
-        if (cached && active) {
-          setBuilderOrder(JSON.parse(cached));
-        }
+        if (cached && active) setBuilderOrder(JSON.parse(cached));
       } catch {}
 
       if (!pedidoId) return;
@@ -254,9 +237,7 @@ function PedidoContent() {
               image: (data as any).vehicle_image,
               price: 0,
             },
-            totals: {
-              total: safeNumber((data as any).total_value),
-            },
+            totals: { total: safeNumber((data as any).total_value) },
           };
 
           setBuilderOrder(payload);
@@ -268,7 +249,6 @@ function PedidoContent() {
     }
 
     loadBuilderOrder();
-
     return () => {
       active = false;
     };
@@ -304,8 +284,7 @@ function PedidoContent() {
         searchParams.get("demais_parcelas_reduzidas")
       ),
       quantidadeReduzidas: safeNumber(searchParams.get("quantidade_reduzidas")),
-      imagem:
-        searchParams.get("imagem") || builderContractData?.imagem || "",
+      imagem: searchParams.get("imagem") || builderContractData?.imagem || "",
       nome: searchParams.get("nome") || "",
       telefone: searchParams.get("telefone") || "",
       taxaAdmTotal:
@@ -334,7 +313,6 @@ function PedidoContent() {
     const lanceValor = safeNumber(searchParams.get("lance_valor"));
     const prazoFinalStr = searchParams.get("prazo_final");
     const parcelaFinal = safeNumber(searchParams.get("parcela_final"));
-
     const prazoFinal = prazoFinalStr ? parseInt(prazoFinalStr, 10) : 0;
     const hasLance = Number.isFinite(lanceValor) && lanceValor > 0;
 
@@ -354,11 +332,9 @@ function PedidoContent() {
     const codigo = (searchParams.get("cupom_codigo") || "").trim();
     const label = (searchParams.get("cupom_label") || "").trim();
     const obs = (searchParams.get("cupom_obs") || "").trim();
-
     const accessoriesFree = searchParams.get("cupom_acessorios_gratis") === "1";
     const platingFree = searchParams.get("cupom_emplacamento_gratis") === "1";
     const freteFree = searchParams.get("cupom_frete_gratis") === "1";
-
     const discountPercent = safeNumber(
       searchParams.get("cupom_desconto_percent")
     );
@@ -407,10 +383,8 @@ function PedidoContent() {
         : creditoContrato;
 
     const valorCategoria = creditoUsadoParaFallback * (1 + dados.taxaAdmTotal);
-
     const parcelaIntegralFallback =
       prazoUsado > 0 ? valorCategoria / prazoUsado : 0;
-
     const parcelaReduzidaFallback =
       prazoUsado > 0
         ? (valorCategoria * REDUZIDA_PERCENT_CATEGORIA) / prazoUsado
@@ -441,7 +415,6 @@ function PedidoContent() {
         : parcelaReduzida || parcelaEscolhida;
 
     let desconto = 0;
-
     if (promo.hasPromo) {
       if (dados.descontoTotalValor > 0) {
         desconto = dados.descontoTotalValor;
@@ -452,13 +425,11 @@ function PedidoContent() {
           creditoContrato ||
           dados.valor ||
           0;
-
         if (promo.discountPercent > 0) {
           desconto = (base * promo.discountPercent) / 100;
         } else if (promo.discountValue > 0) {
           desconto = promo.discountValue;
         }
-
         desconto = Math.max(0, Math.min(desconto, base));
       }
     }
@@ -474,13 +445,15 @@ function PedidoContent() {
     };
   }, [dados, lanceInfo, promo]);
 
-  const atoEntrada = useMemo(() => {
-    return safeNumber(calculoConsorcio.parcelaIntegral);
-  }, [calculoConsorcio.parcelaIntegral]);
+  const atoEntrada = useMemo(
+    () => safeNumber(calculoConsorcio.parcelaIntegral),
+    [calculoConsorcio.parcelaIntegral]
+  );
 
-  const parcelaReduzidaExibida = useMemo(() => {
-    return safeNumber(calculoConsorcio.parcelaContrato);
-  }, [calculoConsorcio.parcelaContrato]);
+  const parcelaReduzidaExibida = useMemo(
+    () => safeNumber(calculoConsorcio.parcelaContrato),
+    [calculoConsorcio.parcelaContrato]
+  );
 
   const valorVeiculo = safeNumber(dados.valor);
   const entradaCliente = safeNumber(dados.entrada);
@@ -489,7 +462,7 @@ function PedidoContent() {
   const [, setVerificando] = useState(false);
 
   const [loadingEnviar, setLoadingEnviar] = useState(false);
-  const [pedidoSalvo, setPedidoSalvo] = useState(false);
+  const [enviado, setEnviado] = useState(false);
   const [waStatus, setWaStatus] = useState<"idle" | "success" | "failed">(
     "idle"
   );
@@ -511,12 +484,10 @@ function PedidoContent() {
       setCpfErro("");
       return;
     }
-
     if (!cpfFormatoValido) {
       setCpfErro(CPF_INVALID_MESSAGE);
       return;
     }
-
     setCpfErro("");
   }, [dados.cpf, cpfFormatoValido]);
 
@@ -525,6 +496,12 @@ function PedidoContent() {
       style: "currency",
       currency: "BRL",
     }).format(val);
+
+  const formatMoneyPlain = (val: number) =>
+    new Intl.NumberFormat("pt-BR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(safeNumber(val));
 
   const [numeroPedido, setNumeroPedido] = useState<string>("");
   const [aprovadorNome, setAprovadorNome] = useState<string>("");
@@ -552,11 +529,9 @@ function PedidoContent() {
         const {
           data: { user },
         } = await supabase.auth.getUser();
-
         if (!user) return;
 
         let nome = user.email || "";
-
         const { data: profile } = await supabase
           .from("profiles")
           .select("full_name")
@@ -573,7 +548,6 @@ function PedidoContent() {
         setAprovadorNome(String(nome || "").toUpperCase());
       } catch {}
     })();
-
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -604,6 +578,11 @@ function PedidoContent() {
         headers: { "Content-Type": "application/json" },
       });
 
+      if (response.status === 429) {
+        console.warn("[cpf] 429 — seguindo sem API");
+        return { ok: false as const, data: null };
+      }
+
       const data = await response.json().catch(() => ({}));
 
       if (response.ok && data && !data.error) {
@@ -626,23 +605,13 @@ function PedidoContent() {
       const msg =
         data?.error ||
         data?.message ||
-        "Não foi possível validar esse CPF. Confira os dados e tente novamente.";
+        "Não foi possível validar esse CPF.";
 
       setCpfErro(String(msg));
-
-      if (!silent) {
-        alert(`❌ ${msg}`);
-      }
-
+      if (!silent) alert(`❌ ${msg}`);
       return { ok: false as const, data: null };
     } catch {
-      const msg =
-        "Não foi possível validar o CPF agora. Verifique sua conexão e tente novamente.";
-
-      setCpfErro(msg);
-
-      if (!silent) alert(msg);
-
+      if (!silent) alert("Erro ao consultar CPF. Segindo mesmo assim.");
       return { ok: false as const, data: null };
     } finally {
       setLoadingValidacao(false);
@@ -657,26 +626,21 @@ function PedidoContent() {
 
   const dataNascimento =
     apiData?.nascimento || apiData?.data_nascimento || "---";
-
   const nomeMae = apiData?.mae || apiData?.nome_mae || "---";
-
-  const enderecoComplexo =
-    apiData?.response?.content?.pesquisa_enderecos?.conteudo?.[0];
-
-  const enderecoSimples = apiData?.uf ? { estado: apiData.uf } : null;
-
-  const endereco = enderecoComplexo || enderecoSimples || {};
 
   const cpfIsRegular =
     cpfFormatoValido &&
     String(situacaoReceita || "PENDENTE").toUpperCase() === "REGULAR";
 
-  /** Envia WhatsApp via Vonage (template) para o cliente */
   async function enviarWhatsApp(nomeCliente: string) {
-    if (!telefoneDigits) return false;
+    if (!telefoneDigits) {
+      console.warn("[whatsapp] telefone ausente");
+      return false;
+    }
 
     const protocolo = numeroPedido || "------";
     const veiculo = dados.modelo || dados.vehicleName || "Veículo";
+    const valorAdesao = formatMoneyPlain(atoEntrada);
 
     try {
       const resp = await fetch("/api/whatsapp/enviar", {
@@ -689,22 +653,21 @@ function PedidoContent() {
           vehicleName: veiculo,
           templateParams: buildWhatsAppTemplateParams(
             nomeCliente || "Cliente",
-            protocolo,
-            veiculo
+            veiculo,
+            valorAdesao,
+            protocolo
           ),
         }),
       });
 
       const text = await resp.text();
       let json: any = null;
-
       try {
         json = text ? JSON.parse(text) : null;
       } catch {}
 
       if (!resp.ok || json?.error) {
-        console.warn("[whatsapp] HTTP:", resp.status);
-        console.warn("[whatsapp] body:", json ?? text);
+        console.warn("[whatsapp] HTTP:", resp.status, json ?? text);
         return false;
       }
 
@@ -716,118 +679,15 @@ function PedidoContent() {
     }
   }
 
-  const salvarNoBanco = async () => {
-    if (!nomeManual) {
-      alert("Preencha/consulte os dados do cliente antes de enviar.");
-      return { ok: false as const };
-    }
-
-    if (!telefoneDigits) {
-      alert(
-        "📵 Telefone inválido/ausente. Ele deve vir da página anterior com DDD."
-      );
-      return { ok: false as const };
-    }
-
-    if (!isValidCpf(dados.cpf)) {
-      setCpfErro(CPF_INVALID_MESSAGE);
-      alert(CPF_INVALID_MESSAGE);
-      return { ok: false as const };
-    }
-
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      const payload = {
-        protocol: numeroPedido,
-        status: "aprovado",
-        tipo: dados.tipo,
-        cpf: cleanCpf(dados.cpf),
-        nome: nomeManual,
-        telefone: telefoneDigits,
-        modelo: dados.modelo,
-        vehicle_name: dados.vehicleName || dados.modelo,
-        version_name: dados.versionName || "",
-        color_name: dados.colorName || "",
-        vehicle_slug: dados.vehicleSlug || "",
-        vehicle_image: dados.imagem || "",
-        valor: valorVeiculo,
-        entrada: entradaCliente,
-        parcela: parcelaReduzidaExibida,
-        prazo: calculoConsorcio.prazoUsado,
-        total: dados.total || calculoConsorcio.creditoContrato,
-        total_value: valorVeiculo,
-        credito_contrato: calculoConsorcio.creditoContrato,
-        ato_entrada: atoEntrada,
-        modo_parcela: dados.modoParcela || "",
-        codigo_tabela: dados.codigoTabela || "",
-        origem: dados.origem || "",
-        aprovador: aprovadorNome || user?.email || "",
-        aprovador_id: user?.id || null,
-        situacao_receita: situacaoReceita,
-        data_nascimento: dataNascimento,
-        nome_mae: nomeMae,
-        endereco: endereco,
-        lance: lanceInfo.hasLance
-          ? {
-              valor: lanceInfo.lanceValor,
-              modo: lanceInfo.modo,
-              prazo_final: lanceInfo.prazoFinal,
-              parcela_final: lanceInfo.parcelaFinal,
-            }
-          : null,
-        promo: promo.hasPromo ? promo : null,
-        builder_payload: builderOrder || null,
-        payload: builderOrder || null,
-      };
-
-      const { error } = await supabase.from("pedidos").insert(payload);
-
-      if (error) {
-        // fallback: tenta outra tabela comum no projeto
-        const { error: err2 } = await supabase
-          .from("contract_orders")
-          .insert({
-            ...payload,
-            total_value: valorVeiculo,
-          });
-
-        if (err2) {
-          console.error("[salvar] erro:", error, err2);
-          alert("Não foi possível salvar o pedido no painel.");
-          return { ok: false as const };
-        }
-      }
-
-      setPedidoSalvo(true);
-      return { ok: true as const };
-    } catch (e) {
-      console.error("[salvar] exceção:", e);
-      alert("Erro ao salvar o pedido. Tente novamente.");
-      return { ok: false as const };
-    }
-  };
-
   const handleEnviarParaAnalise = async () => {
-    if (loadingEnviar || pedidoSalvo) return;
+    if (loadingEnviar || enviado) return;
 
     setLoadingEnviar(true);
     setWaStatus("idle");
 
     try {
-      // 1) Consulta CPF (silencioso se já tiver dados)
-      if (!apiData) {
-        const cpfRes = await consultarCpf({ silent: true });
-        if (!cpfRes.ok && !nomeManual) {
-          alert("Consulte/valide o CPF antes de enviar.");
-          return;
-        }
-      }
-
-      if (!nomeManual) {
-        alert("Preencha o nome do cliente antes de enviar.");
+      if (!nomeManual && !dados.nome) {
+        alert("Informe o nome do cliente.");
         return;
       }
 
@@ -836,19 +696,22 @@ function PedidoContent() {
         return;
       }
 
-      // 2) Salva no banco
-      const saveRes = await salvarNoBanco();
-      if (!saveRes.ok) return;
+      // CPF opcional — 429 não trava
+      if (!apiData && isValidCpf(dados.cpf)) {
+        await consultarCpf({ silent: true });
+      }
 
-      // 3) Dispara WhatsApp (não bloqueia o pedido se falhar)
-      const waOk = await enviarWhatsApp(nomeManual);
+      const nomeFinal = nomeManual || dados.nome || "Cliente";
+      const waOk = await enviarWhatsApp(nomeFinal);
+
       setWaStatus(waOk ? "success" : "failed");
+      setEnviado(true);
 
       if (waOk) {
-        alert("✅ Pedido enviado e WhatsApp disparado para o cliente!");
+        alert("✅ WhatsApp enviado com sucesso!");
       } else {
         alert(
-          "✅ Pedido salvo no painel.\n⚠️ WhatsApp não foi enviado (confira a API / template)."
+          "⚠️ Não foi possível enviar o WhatsApp.\nConfira o console (F12) e se o número está no sandbox."
         );
       }
     } finally {
@@ -862,72 +725,55 @@ function PedidoContent() {
 
   return (
     <div className="min-h-screen bg-[#f7f9fc] text-[#1a2332]">
-      {/* Barra superior */}
-      <div className="print:hidden sticky top-0 z-40 bg-white/90 backdrop-blur border-b border-[#e4ebf3]">
-        <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between gap-3">
+      <div className="print:hidden sticky top-0 z-30 border-b border-[#e4ebf3] bg-white/90 backdrop-blur">
+        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <button
             type="button"
             onClick={() => router.back()}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#5a6d80] hover:text-[#1a2332]"
+            className="inline-flex items-center gap-2 text-sm text-[#5a6d80] hover:text-[#10233f]"
           >
             <ArrowLeft size={16} />
             Voltar
           </button>
-
-          <div className="text-center">
-            <p className="text-[10px] uppercase tracking-widest text-[#8a9aab]">
-              Contrato / pedido
-            </p>
-            <p className="text-sm font-semibold text-[#10233f]">
-              Nº {numeroPedido || "------"}
-            </p>
-          </div>
-
           <button
             type="button"
             onClick={handlePrint}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#5a6d80] hover:text-[#1a2332]"
+            className="inline-flex items-center gap-2 rounded-xl border border-[#e4ebf3] bg-white px-3 py-2 text-xs font-medium text-[#1a2332] hover:bg-[#f7f9fc]"
           >
-            <Printer size={16} />
+            <Printer size={14} />
             Imprimir
           </button>
         </div>
       </div>
 
       <main className="max-w-3xl mx-auto px-4 py-6 sm:py-8">
-        <div className="bg-white rounded-3xl border border-[#e4ebf3] shadow-sm overflow-hidden relative">
-          {/* Cabeçalho do documento */}
-          <div className="px-5 sm:px-8 pt-7 pb-5 border-b border-[#eef2f7]">
-            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+        <div className="bg-white border border-[#e4ebf3] rounded-3xl shadow-sm overflow-hidden relative">
+          <div className="relative z-10 px-5 sm:px-8 pt-6 pb-4 border-b border-[#eef2f7]">
+            <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-[10px] uppercase tracking-[0.2em] text-[#8a9aab]">
-                  Nacional Consórcio
+                <p className="text-[11px] uppercase tracking-wider text-[#8a9aab]">
+                  Nacional Consórcios
                 </p>
                 <h1 className="text-xl sm:text-2xl font-semibold text-[#10233f] mt-1">
-                  Proposta de adesão
+                  Proposta de consórcio
                 </h1>
-                <p className="text-[12px] text-[#6b7c8f] mt-1">
-                  {dados.tipo} · Belém (PA), {dataAtual || "—"}
+                <p className="text-xs text-[#6b7c8f] mt-1">
+                  Protocolo{" "}
+                  <span className="font-mono font-semibold text-[#10233f]">
+                    #{numeroPedido || "------"}
+                  </span>
                 </p>
               </div>
-
-              {pedidoSalvo ? (
-                <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 text-emerald-700 px-3 py-1.5 text-xs font-semibold">
-                  <div className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center">
-                    {loadingEnviar ? (
-                      <Loader2 size={12} className="animate-spin" />
-                    ) : (
-                      <Check size={12} />
-                    )}
-                  </div>
-                  Aprovado no painel
-                </div>
-              ) : null}
+              <div className="text-right">
+                <span className="inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-semibold px-2.5 py-1">
+                  Aprovado
+                </span>
+                <p className="text-[11px] text-[#8a9aab] mt-2">{dataAtual}</p>
+              </div>
             </div>
           </div>
 
-          <div className="px-5 sm:px-8 py-6 space-y-8">
-            {/* Cliente */}
+          <div className="relative z-10 px-5 sm:px-8 py-6 space-y-8">
             <section>
               <div className="flex items-center gap-2 mb-3.5">
                 <User size={15} className="text-[#0072bc]" strokeWidth={1.75} />
@@ -936,7 +782,7 @@ function PedidoContent() {
                 </h2>
               </div>
 
-              {!pedidoSalvo ? (
+              {!enviado ? (
                 <button
                   onClick={handleEnviarParaAnalise}
                   disabled={loadingEnviar}
@@ -953,10 +799,10 @@ function PedidoContent() {
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-[#1a2332]">
-                          Enviar para análise
+                          Enviar WhatsApp ao cliente
                         </p>
                         <p className="text-[11px] text-[#7a8b9e] mt-0.5">
-                          Consulta CPF, grava no painel e dispara WhatsApp
+                          Dispara a mensagem de aprovação (template Vonage)
                         </p>
                         <div className="mt-1.5 flex flex-wrap gap-1.5">
                           <span
@@ -990,23 +836,20 @@ function PedidoContent() {
               ) : (
                 <div className="print:hidden mb-4 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4">
                   <div className="flex items-center gap-2 text-emerald-700 text-xs font-semibold">
-                    <Check size={15} /> Enviado e aprovado no painel
+                    <Check size={15} /> Processo concluído
                   </div>
                   <div className="mt-2 flex flex-wrap gap-1.5">
-                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-600 text-white">
-                      Aprovado
-                    </span>
                     <span
                       className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
                         waStatus === "failed"
                           ? "bg-amber-100 text-amber-700"
                           : waStatus === "success"
-                          ? "bg-emerald-100 text-emerald-700"
+                          ? "bg-emerald-600 text-white"
                           : "bg-white text-[#6b7c8f] border border-[#e4ebf3]"
                       }`}
                     >
                       {waStatus === "failed"
-                        ? "WhatsApp não enviado (pedido segue ok)"
+                        ? "WhatsApp não enviado"
                         : waStatus === "success"
                         ? "WhatsApp enviado"
                         : "Processado"}
@@ -1038,16 +881,7 @@ function PedidoContent() {
                   <p className="font-mono font-medium text-[#1a2332] border-b border-dotted border-[#d0dae6] pb-1 flex items-center gap-1.5">
                     {dados.cpf || "---"}
                     {cpfIsRegular && (
-                      <Check
-                        size={12}
-                        className="text-emerald-600 print:hidden"
-                      />
-                    )}
-                    {cpfErro && (
-                      <AlertTriangle
-                        size={12}
-                        className="text-red-500 print:hidden"
-                      />
+                      <Check size={12} className="text-emerald-600 print:hidden" />
                     )}
                   </p>
                 </div>
@@ -1082,15 +916,12 @@ function PedidoContent() {
                         : "bg-red-50 text-red-600"
                     }`}
                   >
-                    {cpfErro
-                      ? "Inválido"
-                      : String(situacaoReceita).toUpperCase()}
+                    {cpfErro ? "Inválido" : String(situacaoReceita).toUpperCase()}
                   </span>
                 </div>
               </div>
             </section>
 
-            {/* Veículo */}
             <section>
               <div className="flex items-center gap-2 mb-3.5">
                 <Car size={15} className="text-[#0072bc]" strokeWidth={1.75} />
@@ -1119,13 +950,6 @@ function PedidoContent() {
                       <p className="text-base sm:text-lg font-semibold text-[#10233f] uppercase leading-snug mt-0.5">
                         {dados.modelo}
                       </p>
-                      {(dados.versionName || dados.colorName) && (
-                        <p className="text-[12px] text-[#6b7c8f] mt-0.5">
-                          {[dados.versionName, dados.colorName]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </p>
-                      )}
                     </div>
 
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-1 border-t border-[#e8eef5]">
@@ -1161,7 +985,6 @@ function PedidoContent() {
               </div>
             </section>
 
-            {/* Pagamento */}
             <section>
               <div className="flex items-center gap-2 mb-3.5">
                 <CreditCard
@@ -1177,37 +1000,12 @@ function PedidoContent() {
               <div className="rounded-2xl border border-[#e4ebf3] overflow-hidden">
                 <div className="flex justify-between items-center px-4 py-3 border-b border-[#eef2f7]">
                   <div>
-                    <span className="text-xs text-[#6b7c8f]">
-                      Ato / 1ª parcela
-                    </span>
-                    <p className="text-[10px] text-[#8a9aab]">
-                      {dados.modoParcela === "integral"
-                        ? "Parcela integral (categoria 100%)"
-                        : "Primeira parcela integral"}
-                    </p>
+                    <span className="text-xs text-[#6b7c8f]">Ato / 1ª parcela</span>
                   </div>
                   <span className="font-mono font-semibold text-[#1a2332]">
                     {formatMoney(atoEntrada)}
                   </span>
                 </div>
-
-                {lanceInfo.hasLance ? (
-                  <div className="flex justify-between items-center px-4 py-3 border-b border-[#eef2f7]">
-                    <div>
-                      <span className="text-xs text-[#6b7c8f]">Lance</span>
-                      <p className="text-[10px] text-[#8a9aab]">
-                        {lanceInfo.modo === "reduzir_parcela"
-                          ? "Aplicado para reduzir parcela"
-                          : lanceInfo.modo === "reduzir_meses"
-                          ? "Aplicado para reduzir prazo"
-                          : "Valor ofertado"}
-                      </p>
-                    </div>
-                    <span className="font-mono font-semibold text-[#1a2332]">
-                      {formatMoney(lanceInfo.lanceValor)}
-                    </span>
-                  </div>
-                ) : null}
 
                 <div className="flex justify-between items-center px-4 py-4 bg-[#eef6fc]">
                   <div>
@@ -1216,79 +1014,17 @@ function PedidoContent() {
                     </p>
                     <p className="text-[11px] text-[#6b7c8f]">
                       Plano em {calculoConsorcio.prazoUsado} meses
-                      {dados.quantidadeReduzidas > 0
-                        ? ` · ${dados.quantidadeReduzidas} reduzidas`
-                        : ""}
                     </p>
                   </div>
                   <div className="text-right">
                     <p className="text-xl font-semibold text-[#10233f] tracking-tight">
                       {formatMoney(parcelaReduzidaExibida)}
                     </p>
-                    <p className="text-[10px] text-[#6b7c8f]">
-                      {dados.modoParcela === "integral"
-                        ? "Valor da parcela"
-                        : "Parcela reduzida"}
-                    </p>
                   </div>
                 </div>
-
-                {promo.hasPromo && calculoConsorcio.desconto > 0 ? (
-                  <div className="flex justify-between items-center px-4 py-2.5 border-t border-[#eef2f7] bg-white">
-                    <span className="text-[11px] text-[#8a9aab]">
-                      Desconto comercial
-                      {promo.discountPercent
-                        ? ` (${promo.discountPercent}%)`
-                        : ""}
-                    </span>
-                    <span className="font-mono text-xs font-semibold text-emerald-600">
-                      − {formatMoney(calculoConsorcio.desconto)}
-                    </span>
-                  </div>
-                ) : null}
               </div>
-
-              {promo.hasPromo ? (
-                <div className="mt-3 rounded-xl border border-[#e4ebf3] bg-[#fafbfc] p-3.5">
-                  <p className="text-[10px] text-[#8a9aab] uppercase tracking-wider">
-                    Condição promocional
-                  </p>
-                  <p className="text-xs font-semibold text-[#1a2332] mt-0.5">
-                    {(promo.label || promo.codigo || "Promoção aplicada").trim()}
-                  </p>
-                  {(promo.codigo || promo.obs) && (
-                    <p className="text-[11px] text-[#6b7c8f] mt-1">
-                      {promo.codigo ? (
-                        <span className="font-mono">
-                          {promo.codigo.toUpperCase()}
-                        </span>
-                      ) : null}
-                      {promo.codigo && promo.obs ? " — " : null}
-                      {promo.obs}
-                    </p>
-                  )}
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {promo.platingFree ? (
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">
-                        Emplacamento grátis
-                      </span>
-                    ) : null}
-                    {promo.accessoriesFree ? (
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">
-                        Acessórios grátis
-                      </span>
-                    ) : null}
-                    {promo.freteFree ? (
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">
-                        Frete grátis
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-              ) : null}
             </section>
 
-            {/* Observações */}
             <section>
               <div className="flex items-center gap-2 mb-3.5">
                 <FileText
@@ -1300,54 +1036,14 @@ function PedidoContent() {
                   Observações
                 </h2>
               </div>
-
-              <div className="rounded-2xl border border-dashed border-[#d0dae6] bg-[#fafbfc] p-4 min-h-[88px]">
-                <div className="text-[12px] text-[#5a6d80] space-y-1.5 leading-relaxed">
-                  {lanceInfo.hasLance ? (
-                    <p>
-                      • Lance de {formatMoney(lanceInfo.lanceValor)}
-                      {lanceInfo.modo === "reduzir_parcela"
-                        ? " (redução de parcela)"
-                        : lanceInfo.modo === "reduzir_meses"
-                        ? " (redução de prazo)"
-                        : ""}
-                      . Prazo final: {calculoConsorcio.prazoUsado}x · parcela{" "}
-                      {formatMoney(parcelaReduzidaExibida)}.
-                    </p>
-                  ) : null}
-
-                  {promo.hasPromo ? (
-                    <p>
-                      • Promoção{" "}
-                      {(promo.codigo || promo.label || "aplicada").toUpperCase()}
-                      {promo.platingFree ? " · emplacamento grátis" : ""}
-                      {promo.accessoriesFree ? " · acessórios grátis" : ""}
-                      {promo.freteFree ? " · frete grátis" : ""}
-                      {promo.discountPercent
-                        ? ` · ${promo.discountPercent}% de desconto`
-                        : ""}
-                      {promo.discountValue
-                        ? ` · ${formatMoney(promo.discountValue)} de desconto`
-                        : ""}
-                      .
-                    </p>
-                  ) : null}
-
-                  <p className="text-[11px] text-[#8a9aab]">• {BEST_BID_TEXT}</p>
-
-                  {!lanceInfo.hasLance && !promo.hasPromo ? (
-                    <p className="text-[#a0aec0]">
-                      Sem condições adicionais registradas.
-                    </p>
-                  ) : null}
-                </div>
+              <div className="rounded-2xl border border-dashed border-[#d0dae6] bg-[#fafbfc] p-4">
+                <p className="text-[11px] text-[#8a9aab]">• {BEST_BID_TEXT}</p>
               </div>
             </section>
           </div>
 
-          {/* Assinaturas */}
-          <div className="relative z-10 px-5 sm:px-8 pb-6 pt-2 mt-auto">
-            <div className="border-t border-[#eef2f7] pt-7 grid grid-cols-1 sm:grid-cols-2 gap-10 sm:gap-14">
+          <div className="relative z-10 px-5 sm:px-8 pb-6 pt-2">
+            <div className="border-t border-[#eef2f7] pt-7 grid grid-cols-1 sm:grid-cols-2 gap-10">
               <div className="text-center">
                 <div className="border-b border-[#c5d0dc] w-4/5 mx-auto mb-2 h-8" />
                 <p className="text-xs font-semibold text-[#10233f]">
@@ -1356,11 +1052,6 @@ function PedidoContent() {
                 <p className="text-[10px] text-[#8a9aab] font-mono mt-0.5">
                   CNPJ 59.041.030/0001-99
                 </p>
-                {aprovadorNome ? (
-                  <p className="text-[10px] text-[#a0aec0] mt-1">
-                    Responsável: {aprovadorNome}
-                  </p>
-                ) : null}
               </div>
               <div className="text-center">
                 <div className="border-b border-[#1a2332] w-4/5 mx-auto mb-2 h-8" />
@@ -1372,12 +1063,11 @@ function PedidoContent() {
                 </p>
               </div>
             </div>
-
             <div className="mt-6 flex items-center justify-between gap-4">
               <p className="text-[10px] text-[#a0aec0]">
                 Belém (PA), {dataAtual}
               </p>
-              <div className="opacity-35 grayscale print:opacity-45">
+              <div className="opacity-35 grayscale">
                 <QrCode size={28} strokeWidth={1.25} />
               </div>
             </div>
