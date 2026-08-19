@@ -1,94 +1,281 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useEffect, useMemo, useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import {
   ArrowLeft,
   Loader2,
-  Landmark,
+  Banknote,
   ChevronRight,
   ExternalLink,
-  ShieldCheck,
-  DollarSign,
+  Car,
   X,
-  Tag,
-  CheckCircle2,
+  Ticket,
+  Check,
   AlertCircle,
+  Percent,
+  Calendar,
+  Info,
 } from "lucide-react";
 
-// =====================================================
-// VOLKSWAGEN AUTO - SEM TABELA DE CRÉDITOS NA TELA
-// =====================================================
+// =========================
+// VISUAL
+// =========================
+const BRAND_BLUE = "#0072bc";
+const BRAND_NAVY = "#10233f";
 
-const SANTANDER_URL =
+// =========================
+// REGRAS DO CONSÓRCIO VOLKSWAGEN
+// =========================
+const CONSORCIO_MAX_MESES = 80;
+
+const TAXA_ADM_TOTAL = 0.21;
+const TAXA_ANTECIPACAO = 0;
+const TAXA_SEGURO_VIDA = 0.000616;
+const FUNDO_RESERVA = 0.03;
+const RATEIO_GRUPO = 110;
+const PARTICIPANTES_GRUPO = 900;
+
+const CONSORCIO_PRAZOS = [24, 36, 50, 60, 70, 80];
+
+type ConsorcioPrazo = 24 | 36 | 50 | 60 | 70 | 80;
+
+type VolkswagenInstallmentPlan = {
+  code: string;
+  credit: number;
+  plans: {
+    months: ConsorcioPrazo;
+    firstInstallment: number;
+    reducedInstallment: number;
+  }[];
+};
+
+const vw = (
+  code: string,
+  credit: number,
+  rows: [ConsorcioPrazo, number, number][]
+): VolkswagenInstallmentPlan => ({
+  code,
+  credit,
+  plans: rows.map(([months, firstInstallment, reducedInstallment]) => ({
+    months,
+    firstInstallment,
+    reducedInstallment,
+  })),
+});
+
+const VOLKSWAGEN_CONSORCIO_TABLE: VolkswagenInstallmentPlan[] = [
+  vw("WV003", 45000, [
+    [80, 731.54, 586.69],
+    [70, 831.18, 668.65],
+    [60, 954.04, 792.03],
+    [50, 1150.84, 913.29],
+    [36, 1584.04, 1242.16],
+    [24, 2353.04, 1857.23],
+  ]),
+  vw("WV004", 50000, [
+    [80, 812.82, 651.88],
+    [70, 923.53, 742.94],
+    [60, 1060.04, 868.03],
+    [50, 1278.71, 1014.71],
+    [36, 1760.04, 1380.18],
+    [24, 2614.49, 2063.58],
+  ]),
+  vw("WV005", 55000, [
+    [80, 894.1, 717.07],
+    [70, 1015.89, 813.57],
+    [60, 1178.27, 942.23],
+    [50, 1406.6, 1122.35],
+    [36, 1936.05, 1522.2],
+    [24, 2883.27, 2293.16],
+  ]),
+  vw("WV006", 60000, [
+    [80, 975.38, 782.25],
+    [70, 1108.24, 887.31],
+    [60, 1272.5, 1046.19],
+    [50, 1534.47, 1217.44],
+    [36, 2112.05, 1656.22],
+    [24, 3136.04, 2495.5],
+  ]),
+  vw("WV007", 65000, [
+    [80, 1056.67, 847.45],
+    [70, 1200.59, 961.49],
+    [60, 1392.5, 1113.54],
+    [50, 1661.17, 1326.42],
+    [36, 2288.05, 1823.12],
+    [24, 3407.5, 2710.1],
+  ]),
+  vw("WV008", 70000, [
+    [80, 1137.95, 912.64],
+    [70, 1292.94, 1042.22],
+    [60, 1484.74, 1187.65],
+    [50, 1789.05, 1420.48],
+    [36, 2464.05, 1961.84],
+    [24, 3668.95, 2906.33],
+  ]),
+  vw("WV009", 75000, [
+    [80, 1219.23, 977.82],
+    [70, 1385.3, 1109.41],
+    [60, 1606.73, 1298.46],
+    [50, 1916.73, 1530.48],
+    [36, 2640.05, 2103.13],
+    [24, 3931.73, 3127.04],
+  ]),
+  vw("WV010", 80000, [
+    [80, 1300.51, 1043.01],
+    [70, 1477.65, 1182.56],
+    [60, 1697.55, 1373.12],
+    [50, 2044.6, 1643.77],
+    [36, 2816.05, 2218.96],
+    [24, 4190.5, 3313.98],
+  ]),
+  vw("WV011", 85000, [
+    [80, 1381.79, 1108.2],
+    [70, 1570.01, 1257.33],
+    [60, 1820.56, 1465.51],
+    [50, 2172.29, 1734.54],
+    [36, 2992.07, 2384.99],
+    [24, 4455.96, 3543.98],
+  ]),
+  vw("WV012", 90000, [
+    [80, 1463.07, 1173.39],
+    [70, 1662.36, 1331.29],
+    [60, 1924.42, 1541.79],
+    [50, 2300.16, 1838.98],
+    [36, 3168.05, 2527.03],
+    [24, 4723.46, 3753.1],
+  ]),
+  vw("WV013", 100000, [
+    [80, 1625.64, 1303.76],
+    [70, 1847.06, 1478.18],
+    [60, 2120.08, 1713.38],
+    [50, 2555.9, 2038.9],
+    [36, 3520.1, 2789.05],
+    [24, 5230.2, 4161.5],
+  ]),
+  vw("WV014", 110000, [
+    [80, 1788.2, 1434.13],
+    [70, 2031.78, 1626.25],
+    [60, 2346.72, 1875.98],
+    [50, 2811.62, 2246.77],
+    [36, 3872.1, 3063.52],
+    [24, 5783.52, 4597.21],
+  ]),
+  vw("WV015", 120000, [
+    [80, 1950.77, 1564.52],
+    [70, 2216.48, 1775.05],
+    [60, 2570.77, 2055.77],
+    [50, 3066.77, 2448.77],
+    [36, 4224.1, 3355.77],
+    [24, 6290.77, 5003.27],
+  ]),
+  vw("WV016", 130000, [
+    [80, 2113.33, 1694.89],
+    [70, 2401.19, 1924.61],
+    [60, 2776.77, 2241.1],
+    [50, 3322.57, 2656.9],
+    [36, 4576.13, 3573.77],
+    [24, 6813.23, 5324.8],
+  ]),
+  vw("WV017", 140000, [
+    [80, 2275.9, 1825.27],
+    [70, 2585.9, 2070.9],
+    [60, 2994.32, 2399.32],
+    [50, 3577.9, 2856.9],
+    [36, 4928.21, 3962.11],
+    [24, 7330.23, 5802.15],
+  ]),
+  vw("WV018", 150000, [
+    [80, 2438.46, 1955.65],
+    [70, 2770.6, 2218.82],
+    [60, 3212.46, 2569.72],
+    [50, 3833.54, 3060.96],
+    [36, 5280.11, 4270.21],
+    [24, 7866.46, 6243.99],
+  ]),
+  vw("WV019", 160000, [
+    [80, 2601.03, 2086.03],
+    [70, 2955.31, 2367.44],
+    [60, 3412.46, 2745.16],
+    [50, 4089.46, 3260.96],
+    [36, 5632.13, 4407.21],
+    [24, 8396.46, 6545.09],
+  ]),
+  vw("WV020", 170000, [
+    [80, 2763.59, 2216.4],
+    [70, 3140.02, 2514.66],
+    [60, 3641.92, 2921.46],
+    [50, 4345.59, 3459.09],
+    [36, 5984.14, 4786.17],
+    [24, 8911.92, 7087.96],
+  ]),
+  vw("WV021", 180000, [
+    [80, 2926.15, 2346.78],
+    [70, 3324.72, 2662.77],
+    [60, 3857.3, 3087.5],
+    [50, 4601.59, 3690.09],
+    [36, 6336.17, 5094.14],
+    [24, 9432.74, 7366.79],
+  ]),
+  vw("WV022", 190000, [
+    [80, 3088.72, 2477.15],
+    [70, 3509.43, 2810.5],
+    [60, 4070.38, 3254.9],
+    [50, 4855.72, 3877.22],
+    [36, 6688.16, 5323.15],
+    [24, 9960.38, 7921.84],
+  ]),
+  vw("WV023", 200000, [
+    [80, 3251.28, 2607.53],
+    [70, 3694.13, 2955.9],
+    [60, 4278.38, 3420.57],
+    [50, 5111.9, 4083.38],
+    [36, 7040.16, 5628.17],
+    [24, 10465.38, 8248.63],
+  ]),
+  vw("WV024", 210000, [
+    [80, 3413.84, 2737.91],
+    [70, 3878.84, 3106.34],
+    [60, 4498.84, 3579.59],
+    [50, 5366.84, 4235.34],
+    [36, 7392.18, 5809.09],
+    [24, 11008.84, 8755.72],
+  ]),
+  vw("WV025", 220000, [
+    [80, 3576.41, 2868.28],
+    [70, 4063.54, 3253.92],
+    [60, 4700.84, 3774.83],
+    [50, 5622.84, 4483.84],
+    [36, 7744.2, 6086.14],
+    [24, 11468.84, 8755.72],
+  ]),
+  vw("WV026", 230000, [
+    [80, 3738.97, 2998.66],
+    [70, 4248.26, 3402.19],
+    [60, 4927.31, 3917.33],
+    [50, 5877.97, 4693.47],
+    [36, 8096.19, 6451.06],
+    [24, 12057.31, 9598.6],
+  ]),
+  vw("WV028", 240000, [
+    [80, 3901.54, 3129.04],
+    [70, 4432.96, 3550.46],
+    [60, 5141.54, 4108.61],
+    [50, 6133.54, 4897.54],
+    [36, 8448.19, 6796.08],
+    [24, 12513.54, 10056.58],
+  ]),
+];
+
+// =========================
+// FINANCIAMENTO
+// =========================
+const TAXA_FINANCIAMENTO_MERCADO = 0.022;
+const SANTANDER_FINANCIAMENTOS_URL =
   "https://www.cliente.santanderfinanciamentos.com.br/originacaocliente/?mathts=nonpaid#/dados-pessoais";
 
-const CONTRACT_ROUTE = "/vendedor/contrato";
-
-// FINANCIAMENTO
-const TAXA_FINANCIAMENTO_MERCADO = 0.022; // 2.2% a.m
-const FINANCIAMENTO_PRAZOS = [12, 24, 36, 48, 60];
-
-const VW_ADMIN_TAX_PERCENT = 21;
-const VW_FUNDO_RESERVA_PERCENT = 3;
-const VW_SEGURO_PERCENT_LABEL = "0,061% a.m";
-const VW_GRUPO_LABEL = "Grupo 1130/1131/1132";
-const VW_AUTO_PRAZOS = [80, 70, 60, 50, 36, 24] as const;
-
-// Faixas de crédito da Tabela Normal Auto.
-// Regra: sempre arredondar para CIMA quando o valor ficar entre duas faixas.
-// Exemplo: 143.000 usa 150.000; 140.000 usa 140.000.
-const VW_AUTO_CREDIT_BUCKETS = [
-  45000,
-  50000,
-  55000,
-  60000,
-  65000,
-  70000,
-  75000,
-  80000,
-  85000,
-  90000,
-  100000,
-  110000,
-  120000,
-  130000,
-  140000,
-  150000,
-  160000,
-  170000,
-  180000,
-  190000,
-  200000,
-  210000,
-  220000,
-  230000,
-  240000,
-] as const;
-
-type VwPrazo = (typeof VW_AUTO_PRAZOS)[number];
-type PlanMode = "essencial" | "convencional";
 type LanceMode = "reduzir_parcela" | "reduzir_meses";
-
-const VW_PLANO_CODES: Record<PlanMode, string> = {
-  convencional: "40000",
-  essencial: "40001",
-};
-
-type PaymentParams = {
-  tipo: "CONSORCIO" | "FINANCIAMENTO";
-  entrada: number;
-  modelo: string;
-  valor: number;
-  imagem: string;
-  pedido: string;
-  origem: string;
-  vehicleSlug: string;
-  vehicleName: string;
-  versionName: string;
-  colorName: string;
-};
 
 type CouponEffect = {
   accessoriesFree?: boolean;
@@ -108,6 +295,37 @@ type Coupon = {
   effects: CouponEffect;
 };
 
+const COUPONS: Coupon[] = [
+  {
+    code: "FRETE100",
+    label: "Frete grátis",
+    description: "Libera o frete sem custo na venda.",
+    sellerOnly: true,
+    effects: { freteFree: true, note: "Frete 100% grátis." },
+  },
+  {
+    code: "PLACA100",
+    label: "Placa grátis",
+    description: "Libera o emplacamento sem custo na venda.",
+    sellerOnly: true,
+    effects: { platingFree: true, note: "Emplacamento 100% grátis." },
+  },
+  {
+    code: "WBCVIP",
+    label: "VIP: frete + placa grátis",
+    description: "Libera frete e emplacamento sem custo na venda.",
+    sellerOnly: true,
+    effects: {
+      freteFree: true,
+      platingFree: true,
+      note: "Frete + emplacamento 100% grátis.",
+    },
+  },
+];
+
+// =========================
+// TYPES
+// =========================
 type BuilderOrderPayload = {
   source?: string;
   status?: string;
@@ -117,17 +335,6 @@ type BuilderOrderPayload = {
   vehicle_title?: string;
   vehicle_description?: string;
   vehicle_image?: string;
-  client?: {
-    name?: string;
-    cpf?: string;
-    email?: string;
-    phone?: string;
-  };
-  seller?: {
-    name?: string;
-    id?: string | null;
-    email?: string | null;
-  };
   version?: {
     id?: string;
     name?: string;
@@ -145,17 +352,6 @@ type BuilderOrderPayload = {
     hex?: string;
     versionId?: string;
   } | null;
-  motor?: {
-    id?: string;
-    name?: string;
-    description?: string;
-    price?: number;
-    power?: string;
-    fuel?: string;
-    transmission?: string;
-    traction?: string;
-  };
-  interior?: any;
   kits?: any[];
   accessories?: any[];
   totals?: {
@@ -163,124 +359,74 @@ type BuilderOrderPayload = {
     color?: number;
     kits?: number;
     accessories?: number;
-    interior?: number;
     total?: number;
-    monthly_108?: number;
+    monthly_80?: number;
   };
-  payment?: any;
 };
 
-const VW_AUTO_PERCENTUAL_PARCELA: Record<PlanMode, Record<VwPrazo, number>> = {
-  essencial: {
-    80: 1694.89 / 130000,
-    70: 1922.97 / 130000,
-    60: 2227.06 / 130000,
-    50: 2652.83 / 130000,
-    36: 3646.26 / 130000,
-    24: 5420.21 / 130000,
-  },
-  convencional: {
-    80: 2113.33 / 130000,
-    70: 2401.19 / 130000,
-    60: 2785.0 / 130000,
-    50: 3322.33 / 130000,
-    36: 4576.11 / 130000,
-    24: 6815.0 / 130000,
-  },
-};
-
-const COUPONS: Coupon[] = [
-  {
-    code: "FRETE100",
-    label: "Frete grátis",
-    description:
-      "Libera o frete sem custo na venda. Os acessórios permanecem com preço normal.",
-    sellerOnly: true,
-    effects: { freteFree: true, note: "Frete 100% grátis." },
-  },
-  {
-    code: "PLACA100",
-    label: "Placa grátis",
-    description:
-      "Libera o emplacamento sem custo na venda. Os acessórios permanecem com preço normal.",
-    sellerOnly: true,
-    effects: { platingFree: true, note: "Emplacamento 100% grátis." },
-  },
-  {
-    code: "WBCVIP",
-    label: "VIP: frete + placa grátis",
-    description:
-      "Libera frete e emplacamento sem custo na venda. Os acessórios permanecem com preço normal.",
-    sellerOnly: true,
-    effects: {
-      freteFree: true,
-      platingFree: true,
-      note: "Frete + emplacamento 100% grátis.",
-    },
-  },
-];
-
-function round2(n: number) {
-  return Math.round((n + Number.EPSILON) * 100) / 100;
-}
-
-function safeNumber(v: any) {
-  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
-  const normalized = String(v || "0")
-    .replace(/R\$/g, "")
-    .replace(/\./g, "")
-    .replace(",", ".")
-    .trim();
-  const n = parseFloat(normalized);
-  return Number.isFinite(n) ? n : 0;
-}
-
-function formatMoney(value: number) {
+// =========================
+// HELPERS
+// =========================
+const formatMoney = (val: number) => {
+  if (!isFinite(val)) return "R$ 0,00";
   return new Intl.NumberFormat("pt-BR", {
     style: "currency",
     currency: "BRL",
-  }).format(safeNumber(value));
-}
+  }).format(val);
+};
 
-function formatBRLInput(value: number) {
-  return formatMoney(value).replace(/^R\$\s?/, "");
-}
+const formatBRLInput = (value: number) => {
+  const v = isFinite(value) ? value : 0;
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  })
+    .format(v)
+    .replace(/^R\$\s?/, "");
+};
 
-function parseDigitsToBRLNumber(raw: string) {
+const parseDigitsToBRLNumber = (raw: string) => {
   const digits = (raw || "").replace(/\D/g, "");
   const cents = digits ? parseInt(digits, 10) : 0;
   return cents / 100;
-}
+};
 
-function roundUpVwAutoCredit(credit: number) {
-  const safeCredit = Math.max(0, safeNumber(credit));
+const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
-  if (safeCredit <= 0) return VW_AUTO_CREDIT_BUCKETS[0];
+const safeNumber = (v: any) => {
+  const n = typeof v === "number" ? v : parseFloat(String(v || "0"));
+  return Number.isFinite(n) ? n : 0;
+};
 
-  const bucket = VW_AUTO_CREDIT_BUCKETS.find((value) => value >= safeCredit);
+const normalizeVolkswagenCredit = (credit: number) => {
+  const value = safeNumber(credit);
+  if (!value || value <= 0) return 0;
+  return value;
+};
 
-  // Se passar do último crédito da tabela, usa a última faixa disponível.
-  return bucket || VW_AUTO_CREDIT_BUCKETS[VW_AUTO_CREDIT_BUCKETS.length - 1];
-}
+const findClosestVolkswagenPlan = (credit: number) => {
+  if (!credit || credit <= 0) return VOLKSWAGEN_CONSORCIO_TABLE[0];
 
-function calcVwAutoInstallment(credit: number, months: VwPrazo, mode: PlanMode) {
-  const factor = VW_AUTO_PERCENTUAL_PARCELA[mode][months];
-  const tableCredit = roundUpVwAutoCredit(credit);
+  const sortedTable = [...VOLKSWAGEN_CONSORCIO_TABLE].sort(
+    (a, b) => a.credit - b.credit
+  );
 
-  return round2(tableCredit * factor);
-}
+  const exactCredit = normalizeVolkswagenCredit(credit);
+  const nextPlan = sortedTable.find((plan) => plan.credit >= exactCredit);
 
-function getFactor(months: VwPrazo, mode: PlanMode) {
-  return VW_AUTO_PERCENTUAL_PARCELA[mode][months];
-}
+  return nextPlan || sortedTable[sortedTable.length - 1];
+};
 
-function getPlanLabel(mode: PlanMode) {
-  return mode === "essencial" ? "Plano Essencial" : "Plano Convencional";
-}
-
-function getPlanDescription(mode: PlanMode) {
-  return mode === "essencial" ? "" : "";
-}
+const getVolkswagenInstallmentByPrazo = (
+  tablePlan: VolkswagenInstallmentPlan,
+  prazo: number
+) => {
+  return (
+    tablePlan.plans.find((p) => p.months === prazo) ||
+    tablePlan.plans.find((p) => p.months === 80) ||
+    tablePlan.plans[0]
+  );
+};
 
 function builderOrderToInitialData(order: BuilderOrderPayload | null) {
   if (!order) return null;
@@ -288,7 +434,7 @@ function builderOrderToInitialData(order: BuilderOrderPayload | null) {
   const modelo =
     order.version?.name ||
     [order.vehicle_name, order.color?.name].filter(Boolean).join(" - ") ||
-    "Volkswagen Selecionado";
+    "Veículo Selecionado";
 
   const valor =
     safeNumber(order.totals?.total) ||
@@ -302,11 +448,6 @@ function builderOrderToInitialData(order: BuilderOrderPayload | null) {
     modelo,
     valor,
     imagem,
-    cliente: order.client?.name || "Cliente",
-    cpf: order.client?.cpf || "",
-    telefone: order.client?.phone || "",
-    email: order.client?.email || "",
-    vendedor: order.seller?.name || "",
     vehicleSlug: order.vehicle_slug || "",
     vehicleName: order.vehicle_name || "",
     versionName: order.version?.name || "",
@@ -319,9 +460,11 @@ function findCoupon(
   sellerId?: string | null
 ): { ok: true; coupon: Coupon } | { ok: false; reason: string } {
   const code = (codeRaw || "").trim().toUpperCase();
+
   if (!code) return { ok: false, reason: "Digite um código." };
 
   const coupon = COUPONS.find((c) => c.code.toUpperCase() === code);
+
   if (!coupon) return { ok: false, reason: "Código inválido." };
 
   if (coupon.sellerId && sellerId && coupon.sellerId !== sellerId) {
@@ -331,47 +474,20 @@ function findCoupon(
   return { ok: true, coupon };
 }
 
-function buildBaseParams(data: PaymentParams, searchParams: URLSearchParams) {
-  const params = new URLSearchParams(searchParams.toString());
-
-  params.set("tipo", data.tipo);
-  params.set("entrada", String(data.entrada || 0));
-  params.set("modelo", data.modelo || "Volkswagen Selecionado");
-  params.set("valor", String(data.valor || 0));
-  params.set("imagem", data.imagem || "");
-  params.set("pedido", data.pedido || "");
-  params.set("origem", data.origem || "builder");
-  params.set("vehicle_slug", data.vehicleSlug || "");
-  params.set("vehicle_name", data.vehicleName || "");
-  params.set("versao", data.versionName || data.modelo || "");
-  params.set("cor", data.colorName || "");
-
-  return params;
-}
-
-const Card = ({ className = "", children }: any) => (
-  <div className={`bg-white border border-slate-200 rounded-2xl shadow-sm ${className}`}>
-    {children}
-  </div>
-);
-
-const CardHeader = ({ className = "", children }: any) => (
-  <div className={`px-6 pt-6 ${className}`}>{children}</div>
-);
-
-const CardBody = ({ className = "", children }: any) => (
-  <div className={`px-6 pb-6 ${className}`}>{children}</div>
-);
-
-const Divider = () => <div className="h-px w-full bg-slate-100" />;
-
+// =========================
+// MAIN
+// =========================
 function AnaliseContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+
   const [loading, setLoading] = useState(true);
 
   const pedidoId = searchParams.get("pedido") || "";
-  const [builderOrder, setBuilderOrder] = useState<BuilderOrderPayload | null>(null);
+
+  const [builderOrder, setBuilderOrder] =
+    useState<BuilderOrderPayload | null>(null);
+
   const builderInitialData = useMemo(
     () => builderOrderToInitialData(builderOrder),
     [builderOrder]
@@ -381,23 +497,34 @@ function AnaliseContent() {
     let active = true;
 
     async function loadBuilderOrder() {
+      if (!pedidoId) {
+        try {
+          const cached =
+            localStorage.getItem("wb_analysis_order") ||
+            localStorage.getItem("wb_builder_order");
+
+          if (cached && active) setBuilderOrder(JSON.parse(cached));
+        } catch {}
+
+        return;
+      }
+
       try {
         const cached =
           localStorage.getItem("wb_analysis_order") ||
-          localStorage.getItem("wb_builder_order") ||
-          localStorage.getItem("wb_contract_order");
+          localStorage.getItem("wb_builder_order");
 
         if (cached && active) {
           setBuilderOrder(JSON.parse(cached));
         }
       } catch {}
 
-      if (!pedidoId) return;
-
       try {
         const { data, error } = await supabase
           .from("contract_orders")
-          .select("payload, vehicle_name, version_name, color_name, vehicle_image, total_value")
+          .select(
+            "payload, vehicle_name, version_name, color_name, vehicle_image, total_value"
+          )
           .eq("id", pedidoId)
           .maybeSingle();
 
@@ -432,156 +559,70 @@ function AnaliseContent() {
 
     loadBuilderOrder();
 
-    const timer = window.setTimeout(() => {
-      if (active) setLoading(false);
-    }, 450);
-
     return () => {
       active = false;
-      window.clearTimeout(timer);
     };
   }, [pedidoId]);
 
   const dadosIniciais = useMemo(
     () => ({
-      nome: searchParams.get("nome") || builderInitialData?.cliente || "Cliente",
-      cpf: searchParams.get("cpf") || builderInitialData?.cpf || "",
-      telefone: searchParams.get("telefone") || builderInitialData?.telefone || "",
-      email: searchParams.get("email") || builderInitialData?.email || "",
+      nome: searchParams.get("nome") || "Cliente",
       modelo:
         searchParams.get("modelo") ||
         builderInitialData?.modelo ||
-        "Volkswagen Selecionado",
-      valor: safeNumber(searchParams.get("valor")) || builderInitialData?.valor || 0,
+        "Veículo Selecionado",
+      valor:
+        safeNumber(searchParams.get("valor")) || builderInitialData?.valor || 0,
       entradaUrl: safeNumber(searchParams.get("entrada")) || 0,
       imagem: searchParams.get("imagem") || builderInitialData?.imagem || "",
       vendedorId:
         searchParams.get("vendedor") || searchParams.get("vendedor_id") || null,
-      vendedorNome:
-        searchParams.get("vendedor") || builderInitialData?.vendedor || "",
       pedidoId,
-      origem: searchParams.get("origem") || "builder",
-      vehicleSlug: searchParams.get("vehicle_slug") || builderInitialData?.vehicleSlug || "",
-      vehicleName: searchParams.get("vehicle_name") || builderInitialData?.vehicleName || "",
-      versionName: searchParams.get("versao") || builderInitialData?.versionName || "",
+      origem: searchParams.get("origem") || "",
+      vehicleSlug:
+        searchParams.get("vehicle_slug") || builderInitialData?.vehicleSlug || "",
+      vehicleName:
+        searchParams.get("vehicle_name") || builderInitialData?.vehicleName || "",
+      versionName:
+        searchParams.get("versao") || builderInitialData?.versionName || "",
       colorName: searchParams.get("cor") || builderInitialData?.colorName || "",
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [searchParams.toString(), builderInitialData, pedidoId]
   );
 
-  const [entradaManual, setEntradaManual] = useState<number>(dadosIniciais.entradaUrl);
+  const [entradaManual, setEntradaManual] = useState<number>(
+    dadosIniciais.entradaUrl
+  );
   const [entradaDisplay, setEntradaDisplay] = useState<string>(
     formatBRLInput(dadosIniciais.entradaUrl)
   );
 
-  const [prazoConsorcio, setPrazoConsorcio] = useState<VwPrazo>(80);
-  const [planMode, setPlanMode] = useState<PlanMode>("essencial");
+  const [prazoConsorcio, setPrazoConsorcio] = useState<number>(80);
+
+  const [resultado, setResultado] = useState<any>(null);
   const [planoSelecionado, setPlanoSelecionado] = useState<any>(null);
 
   const [isLanceOpen, setIsLanceOpen] = useState(false);
+
   const [lanceValor, setLanceValor] = useState<number>(0);
   const [lanceDisplay, setLanceDisplay] = useState<string>(formatBRLInput(0));
-  const [lanceMode, setLanceMode] = useState<LanceMode>("reduzir_parcela");
+  const [lanceMode, setLanceMode] =
+    useState<LanceMode>("reduzir_parcela");
 
   const [couponInput, setCouponInput] = useState<string>("");
   const [couponApplied, setCouponApplied] = useState<Coupon | null>(null);
   const [couponError, setCouponError] = useState<string>("");
 
-  useEffect(() => {
-    setEntradaManual(dadosIniciais.entradaUrl || 0);
-    setEntradaDisplay(formatBRLInput(dadosIniciais.entradaUrl || 0));
-  }, [dadosIniciais.entradaUrl]);
-
-  const valorCarro = dadosIniciais.valor || 0;
-
-  const entradaSegura = useMemo(() => {
-    let entrada = entradaManual || 0;
-    if (Number.isNaN(entrada) || entrada < 0) entrada = 0;
-    if (entrada >= valorCarro && valorCarro > 0) entrada = valorCarro - 1000;
-    return Math.max(0, entrada);
-  }, [entradaManual, valorCarro]);
-
-  const credito = useMemo(
-    () => Math.max(0, valorCarro - entradaSegura),
-    [valorCarro, entradaSegura]
-  );
-
-  const creditoTabelaConsorcio = useMemo(
-    () => roundUpVwAutoCredit(credito),
-    [credito]
-  );
-
-  const parcelaConsorcio = useMemo(
-    () => calcVwAutoInstallment(credito, prazoConsorcio, planMode),
-    [credito, prazoConsorcio, planMode]
-  );
-
-  const totalConsorcioBase = useMemo(
-    () => round2(parcelaConsorcio * prazoConsorcio + entradaSegura),
-    [parcelaConsorcio, prazoConsorcio, entradaSegura]
-  );
-
-  const selectedPlan = useMemo(
-    () => ({
-      key: planMode,
-      label: getPlanLabel(planMode),
-      prazo: prazoConsorcio,
-      parcela: parcelaConsorcio,
-      mode: planMode,
-      adminTaxPercent: VW_ADMIN_TAX_PERCENT,
-      fundReservePercent: VW_FUNDO_RESERVA_PERCENT,
-      insurancePercentLabel: VW_SEGURO_PERCENT_LABEL,
-      planCode: VW_PLANO_CODES[planMode],
-      factor: getFactor(prazoConsorcio, planMode),
-      originalCredit: credito,
-      tableCredit: creditoTabelaConsorcio,
-      roundRule: "credito_arredondado_para_cima",
-      detalhe: getPlanDescription(planMode),
-    }),
-    [planMode, prazoConsorcio, parcelaConsorcio, credito, creditoTabelaConsorcio]
-  );
-
-  useEffect(() => {
-    setPlanoSelecionado(selectedPlan);
-    setLanceValor(0);
-    setLanceDisplay(formatBRLInput(0));
-    setLanceMode("reduzir_parcela");
-  }, [selectedPlan]);
-
-  const financiamentoDisplay = useMemo(() => {
-    const saldo = credito;
-    const entrada = entradaSegura;
-
-    return {
-      saldo,
-      entrada,
-      description:
-        "Para financiamento, a simulação oficial será continuada no Santander Financiamentos.",
-    };
-  }, [credito, entradaSegura]);
-
-  const planosFinanciamento = useMemo(() => {
-    return FINANCIAMENTO_PRAZOS.map((prazo) => {
-      const i = TAXA_FINANCIAMENTO_MERCADO;
-      const divisor = 1 - Math.pow(1 + i, -prazo);
-      const parcela = divisor !== 0 ? (credito * i) / divisor : 0;
-
-      return {
-        prazo,
-        parcela: round2(parcela),
-        total: round2(parcela * prazo),
-      };
-    });
-  }, [credito]);
-
   const applyCoupon = () => {
     const res = findCoupon(couponInput, dadosIniciais.vendedorId);
+
     if (!res.ok) {
       setCouponApplied(null);
       setCouponError(res.reason);
       return;
     }
+
     setCouponError("");
     setCouponApplied(res.coupon);
   };
@@ -592,160 +633,329 @@ function AnaliseContent() {
     setCouponError("");
   };
 
+  useEffect(() => {
+    const realizarCalculo = () => {
+      const valorCarro = dadosIniciais.valor || 0;
+      let valorEntrada = entradaManual;
+
+      if (isNaN(valorEntrada) || valorEntrada < 0) valorEntrada = 0;
+
+      if (valorEntrada >= valorCarro && valorCarro > 0) {
+        valorEntrada = valorCarro - 1000;
+      }
+
+      const credito = Math.max(0, valorCarro - valorEntrada);
+
+      const tabelaSelecionada = findClosestVolkswagenPlan(credito);
+      const prazoSeguro = Math.min(prazoConsorcio, CONSORCIO_MAX_MESES);
+      const parcelaTabela = getVolkswagenInstallmentByPrazo(
+        tabelaSelecionada,
+        prazoSeguro
+      );
+
+      const primeiraParcelaIntegral = parcelaTabela.firstInstallment;
+      const demaisParcelasReduzidas = parcelaTabela.reducedInstallment;
+      const quantidadeReduzidas = Math.max(0, parcelaTabela.months - 1);
+
+      const consorcioOpcoes = [
+        {
+          key: "integral",
+          label: "Integral",
+          prazo: parcelaTabela.months,
+          percentualCategoria: 1,
+          parcela: primeiraParcelaIntegral,
+          detalhe: "1ª parcela integral + demais reduzidas",
+          codigoTabela: tabelaSelecionada.code,
+          creditoTabela: tabelaSelecionada.credit,
+          primeiraParcelaIntegral,
+          demaisParcelasReduzidas,
+          quantidadeReduzidas,
+          taxaAdmTotal: TAXA_ADM_TOTAL,
+          taxaAntecipacao: TAXA_ANTECIPACAO,
+          taxaSeguroVida: TAXA_SEGURO_VIDA,
+          fundoReserva: FUNDO_RESERVA,
+          rateioGrupo: RATEIO_GRUPO,
+          participantesGrupo: PARTICIPANTES_GRUPO,
+        },
+        {
+          key: "reduzida",
+          label: "Reduzida",
+          prazo: parcelaTabela.months,
+          percentualCategoria: 0.75,
+          parcela: demaisParcelasReduzidas,
+          detalhe: `${quantidadeReduzidas} parcelas após a 1ª`,
+          codigoTabela: tabelaSelecionada.code,
+          creditoTabela: tabelaSelecionada.credit,
+          primeiraParcelaIntegral,
+          demaisParcelasReduzidas,
+          quantidadeReduzidas,
+          taxaAdmTotal: TAXA_ADM_TOTAL,
+          taxaAntecipacao: TAXA_ANTECIPACAO,
+          taxaSeguroVida: TAXA_SEGURO_VIDA,
+          fundoReserva: FUNDO_RESERVA,
+          rateioGrupo: RATEIO_GRUPO,
+          participantesGrupo: PARTICIPANTES_GRUPO,
+        },
+      ];
+
+      const prazosFinanc = [12, 24, 36, 48, 60];
+
+      const planosFinanc = prazosFinanc.map((prazo) => {
+        const i = TAXA_FINANCIAMENTO_MERCADO;
+        const divisor = 1 - Math.pow(1 + i, -prazo);
+        const parcela = divisor !== 0 ? (credito * i) / divisor : 0;
+
+        return {
+          prazo,
+          parcela,
+          total: parcela * prazo,
+        };
+      });
+
+      setResultado({
+        credito,
+        consorcio: {
+          opcoes: consorcioOpcoes,
+          prazoSelecionado: parcelaTabela.months,
+          tabelaSelecionada,
+        },
+        financiamento: {
+          planos: planosFinanc,
+        },
+      });
+
+      setPlanoSelecionado(null);
+      setLoading(false);
+    };
+
+    if (loading) {
+      const timer = setTimeout(realizarCalculo, 450);
+      return () => clearTimeout(timer);
+    }
+
+    realizarCalculo();
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entradaManual, dadosIniciais.valor, prazoConsorcio]);
+
+  const irParaSantander = (planoFinanciamento?: any) => {
+    try {
+      const params = new URLSearchParams(searchParams.toString());
+
+      params.set("tipo", "FINANCIAMENTO");
+      params.set("modelo", dadosIniciais.modelo);
+      params.set("valor", String(dadosIniciais.valor || 0));
+      params.set("entrada", String(entradaManual || 0));
+      params.set("imagem", dadosIniciais.imagem || "");
+      params.set("pedido", dadosIniciais.pedidoId || "");
+      params.set("origem", dadosIniciais.origem || "builder");
+      params.set("vehicle_slug", dadosIniciais.vehicleSlug || "");
+      params.set("vehicle_name", dadosIniciais.vehicleName || "");
+      params.set(
+        "versao",
+        dadosIniciais.versionName || dadosIniciais.modelo || ""
+      );
+      params.set("cor", dadosIniciais.colorName || "");
+
+      if (planoFinanciamento) {
+        params.set("prazo_escolhido", String(planoFinanciamento.prazo));
+        params.set("parcela_escolhida", String(planoFinanciamento.parcela));
+        params.set(
+          "total_final",
+          String(round2((planoFinanciamento.total || 0) + (entradaManual || 0)))
+        );
+      }
+
+      if (builderOrder) {
+        localStorage.setItem("wb_contract_order", JSON.stringify(builderOrder));
+      }
+
+      localStorage.setItem("wb_financiamento_params", params.toString());
+      localStorage.setItem(
+        "wb_financiamento_redirect",
+        SANTANDER_FINANCIAMENTOS_URL
+      );
+    } catch {}
+
+    window.open(SANTANDER_FINANCIAMENTOS_URL, "_blank");
+  };
+
   const lanceCalc = useMemo(() => {
+    const valorCarro = dadosIniciais.valor || 0;
+    const entrada = Math.max(0, entradaManual || 0);
+    const credito = Math.max(0, valorCarro - entrada);
+
+    const prazo =
+      planoSelecionado?.prazo || Math.min(prazoConsorcio, CONSORCIO_MAX_MESES);
+
+    const percentualCategoria = planoSelecionado?.percentualCategoria ?? 1;
+    const parcelaBase = planoSelecionado?.parcela || 0;
     const lance = Math.max(0, Math.min(lanceValor || 0, credito));
     const creditoAposLance = Math.max(0, credito - lance);
 
-    const parcelaBase = planoSelecionado?.parcela || parcelaConsorcio;
-    const prazoBase = planoSelecionado?.prazo || prazoConsorcio;
-    const modeBase = (planoSelecionado?.mode || planMode) as PlanMode;
-
-    const parcelaMesmoPrazo = calcVwAutoInstallment(
-      creditoAposLance,
-      prazoBase,
-      modeBase
+    const tabelaAposLance = findClosestVolkswagenPlan(creditoAposLance);
+    const parcelaTabelaAposLance = getVolkswagenInstallmentByPrazo(
+      tabelaAposLance,
+      prazo
     );
 
-    const prazosPossiveis = [...VW_AUTO_PRAZOS]
-      .filter((prazo) => prazo <= prazoBase)
-      .sort((a, b) => a - b);
+    const parcelaAposLanceMesmoPrazo =
+      planoSelecionado?.key === "integral"
+        ? parcelaTabelaAposLance.firstInstallment
+        : parcelaTabelaAposLance.reducedInstallment;
 
-    const melhorPrazoMantendoParcela =
-      prazosPossiveis.find(
-        (prazo) => calcVwAutoInstallment(creditoAposLance, prazo, modeBase) <= parcelaBase
-      ) || prazoBase;
+    const totalTabelaAposLance =
+      parcelaTabelaAposLance.firstInstallment +
+      parcelaTabelaAposLance.reducedInstallment *
+        Math.max(0, parcelaTabelaAposLance.months - 1);
 
-    const parcelaNoPrazoReduzido = calcVwAutoInstallment(
-      creditoAposLance,
-      melhorPrazoMantendoParcela,
-      modeBase
-    );
+    const mesesAposLanceMantendoParcela =
+      parcelaBase > 0
+        ? Math.max(1, Math.ceil(totalTabelaAposLance / parcelaBase))
+        : prazo;
 
     const resultadoFinal =
       lanceMode === "reduzir_parcela"
-        ? { prazoFinal: prazoBase, parcelaFinal: parcelaMesmoPrazo }
+        ? {
+            prazoFinal: prazo,
+            parcelaFinal: parcelaAposLanceMesmoPrazo,
+          }
         : {
-            prazoFinal: melhorPrazoMantendoParcela,
-            parcelaFinal: parcelaNoPrazoReduzido,
+            prazoFinal: Math.min(prazo, mesesAposLanceMantendoParcela),
+            parcelaFinal: parcelaBase,
           };
 
     return {
       valorCarro,
-      entrada: entradaSegura,
+      entrada,
       credito,
       lance,
       creditoAposLance,
-      prazo: prazoBase,
+      prazo,
+      percentualCategoria,
       parcelaBase,
-      mode: modeBase,
-      parcelaMesmoPrazo,
-      melhorPrazoMantendoParcela,
-      parcelaNoPrazoReduzido,
+      parcelaAposLanceMesmoPrazo,
+      mesesAposLanceMantendoParcela,
       ...resultadoFinal,
     };
   }, [
-    valorCarro,
-    entradaSegura,
-    credito,
-    lanceValor,
-    planoSelecionado,
-    parcelaConsorcio,
+    dadosIniciais.valor,
+    entradaManual,
     prazoConsorcio,
-    planMode,
+    planoSelecionado,
+    lanceValor,
     lanceMode,
   ]);
-
-  function applyCouponToTotal(base: number) {
-    let totalComPromo = round2(base || 0);
-    let descontoTotalValor = 0;
-
-    if (!couponApplied) {
-      return { totalComPromo, descontoTotalValor };
-    }
-
-    const percent = couponApplied.effects.discountPercent || 0;
-    const descontoFixo = couponApplied.effects.discountValue || 0;
-
-    if (percent > 0) {
-      const d = round2((totalComPromo * percent) / 100);
-      descontoTotalValor = round2(descontoTotalValor + d);
-      totalComPromo = round2(totalComPromo - d);
-    }
-
-    if (descontoFixo > 0) {
-      const d = round2(descontoFixo);
-      descontoTotalValor = round2(descontoTotalValor + d);
-      totalComPromo = round2(totalComPromo - d);
-    }
-
-    return {
-      totalComPromo: Math.max(0, round2(totalComPromo)),
-      descontoTotalValor,
-    };
-  }
 
   const avancarParaContrato = (opts?: { withLance?: boolean }) => {
     if (!planoSelecionado) return;
 
-    const usarLance = !!opts?.withLance;
-    const prazoFinal = usarLance ? lanceCalc.prazoFinal : planoSelecionado.prazo;
-    const parcelaFinal = usarLance ? lanceCalc.parcelaFinal : planoSelecionado.parcela;
-    const creditoFinal = usarLance ? lanceCalc.creditoAposLance : credito;
+    const params = new URLSearchParams(searchParams.toString());
 
-    const totalBase = round2(
-      parcelaFinal * prazoFinal + entradaSegura + (usarLance ? lanceCalc.lance : 0)
+    params.set("tipo", "CONSORCIO");
+    params.set("entrada", String(entradaManual || 0));
+    params.set("modelo", dadosIniciais.modelo);
+    params.set("valor", String(dadosIniciais.valor || 0));
+    params.set("imagem", dadosIniciais.imagem || "");
+    params.set("pedido", dadosIniciais.pedidoId || "");
+    params.set("origem", dadosIniciais.origem || "builder");
+    params.set("vehicle_slug", dadosIniciais.vehicleSlug || "");
+    params.set("vehicle_name", dadosIniciais.vehicleName || "");
+    params.set(
+      "versao",
+      dadosIniciais.versionName || dadosIniciais.modelo || ""
+    );
+    params.set("cor", dadosIniciais.colorName || "");
+
+    const valorCarro = dadosIniciais.valor || 0;
+    const credito = Math.max(0, valorCarro - (entradaManual || 0));
+
+    const primeiraParcelaIntegral =
+      planoSelecionado.primeiraParcelaIntegral || 0;
+
+    const demaisParcelasReduzidas =
+      planoSelecionado.demaisParcelasReduzidas || 0;
+
+    const quantidadeReduzidas =
+      planoSelecionado.quantidadeReduzidas ||
+      Math.max(0, planoSelecionado.prazo - 1);
+
+    const totalConsorcioTabela = round2(
+      primeiraParcelaIntegral + demaisParcelasReduzidas * quantidadeReduzidas
     );
 
-    const { totalComPromo, descontoTotalValor } = applyCouponToTotal(totalBase);
+    const totalBase = round2(totalConsorcioTabela + (entradaManual || 0));
 
-    const params = buildBaseParams(
-      {
-        tipo: "CONSORCIO",
-        entrada: entradaSegura,
-        modelo: dadosIniciais.modelo,
-        valor: dadosIniciais.valor,
-        imagem: dadosIniciais.imagem,
-        pedido: dadosIniciais.pedidoId,
-        origem: dadosIniciais.origem,
-        vehicleSlug: dadosIniciais.vehicleSlug,
-        vehicleName: dadosIniciais.vehicleName,
-        versionName: dadosIniciais.versionName,
-        colorName: dadosIniciais.colorName,
-      },
-      searchParams
+    params.set("prazo_escolhido", String(planoSelecionado.prazo));
+    params.set("parcela_escolhida", String(planoSelecionado.parcela));
+    params.set("taxa_adm_total", String(TAXA_ADM_TOTAL));
+    params.set("modo_parcela", String(planoSelecionado.key));
+    params.set(
+      "percentual_categoria",
+      String(planoSelecionado.percentualCategoria)
     );
-
-    params.set("prazo_escolhido", String(prazoFinal));
-    params.set("parcela_escolhida", String(parcelaFinal));
-    params.set("credito_utilizado", String(creditoFinal));
-    params.set("credito_original", String(creditoFinal));
-    params.set("credito_tabela", String(roundUpVwAutoCredit(creditoFinal)));
-    params.set("regra_arredondamento_credito", "sempre_para_cima");
-    params.set("taxa_adm_percentual", String(VW_ADMIN_TAX_PERCENT));
-    params.set("fundo_reserva_percentual", String(VW_FUNDO_RESERVA_PERCENT));
-    params.set("seguro_percentual", VW_SEGURO_PERCENT_LABEL);
-    params.set("modo_parcela", planMode);
-    params.set("plano_vw", planMode === "essencial" ? "Essencial" : "Convencional");
-    params.set("plano_codigo_vw", VW_PLANO_CODES[planMode]);
-    params.set("grupo_vw", VW_GRUPO_LABEL);
-    params.set("percentual_tabela", String(getFactor(planoSelecionado.prazo, planMode)));
     params.set("total_final_base", String(totalBase));
-    params.set("total_final", String(totalComPromo));
-    params.set("desconto_total_valor", String(descontoTotalValor));
-    params.set("vw_tabela", "Tabela Normal Auto");
-    params.set("vw_tabela_tipo", "auto");
+    params.set("codigo_tabela", String(planoSelecionado.codigoTabela || ""));
+    params.set(
+      "credito_tabela",
+      String(planoSelecionado.creditoTabela || credito)
+    );
+    params.set("primeira_parcela_integral", String(primeiraParcelaIntegral));
+    params.set("demais_parcelas_reduzidas", String(demaisParcelasReduzidas));
+    params.set("quantidade_reduzidas", String(quantidadeReduzidas));
+    params.set("taxa_antecipacao", String(TAXA_ANTECIPACAO));
+    params.set("taxa_seguro_vida", String(TAXA_SEGURO_VIDA));
+    params.set("fundo_reserva", String(FUNDO_RESERVA));
+    params.set("rateio_grupo", String(RATEIO_GRUPO));
+    params.set("participantes_grupo", String(PARTICIPANTES_GRUPO));
+    params.set("modo_tabela", "vw_primeira_integral_demais_reduzidas");
+
+    let totalComPromo = totalBase;
+    let descontoTotalValor = 0;
 
     if (couponApplied) {
+      const percent = couponApplied.effects.discountPercent || 0;
+      const descontoFixo = couponApplied.effects.discountValue || 0;
+
+      if (percent > 0) {
+        const d = round2((totalComPromo * percent) / 100);
+        descontoTotalValor = round2(descontoTotalValor + d);
+        totalComPromo = round2(totalComPromo - d);
+      }
+
+      if (descontoFixo > 0) {
+        const d = round2(descontoFixo);
+        descontoTotalValor = round2(descontoTotalValor + d);
+        totalComPromo = round2(totalComPromo - d);
+      }
+
+      totalComPromo = Math.max(0, round2(totalComPromo));
+
       params.set("cupom_codigo", couponApplied.code);
       params.set("cupom_label", couponApplied.label);
-      params.set("cupom_acessorios_gratis", couponApplied.effects.accessoriesFree ? "1" : "0");
-      params.set("cupom_emplacamento_gratis", couponApplied.effects.platingFree ? "1" : "0");
-      params.set("cupom_frete_gratis", couponApplied.effects.freteFree ? "1" : "0");
-      params.set("cupom_desconto_percent", String(couponApplied.effects.discountPercent || 0));
-      params.set("cupom_desconto_valor", String(couponApplied.effects.discountValue || 0));
+      params.set(
+        "cupom_acessorios_gratis",
+        couponApplied.effects.accessoriesFree ? "1" : "0"
+      );
+      params.set(
+        "cupom_emplacamento_gratis",
+        couponApplied.effects.platingFree ? "1" : "0"
+      );
+      params.set(
+        "cupom_frete_gratis",
+        couponApplied.effects.freteFree ? "1" : "0"
+      );
+      params.set("cupom_desconto_percent", String(percent));
+      params.set("cupom_desconto_valor", String(descontoFixo));
       params.set("cupom_obs", couponApplied.effects.note || "");
       params.set("total_final_com_cupom", String(totalComPromo));
+      params.set("desconto_total_valor", String(descontoTotalValor));
+      params.set("total_final", String(totalComPromo));
+    } else {
+      params.set("total_final", String(totalBase));
     }
+
+    const usarLance = !!opts?.withLance;
 
     if (usarLance) {
       params.set("lance_valor", String(lanceCalc.lance));
@@ -757,222 +967,156 @@ function AnaliseContent() {
 
     try {
       if (builderOrder) {
-        const enrichedOrder = {
-          ...builderOrder,
-          payment: {
-            type: "consorcio",
-            tableName: "Tabela Normal Auto",
-            mode: planMode,
-            adminTaxPercent: VW_ADMIN_TAX_PERCENT,
-            fundReservePercent: VW_FUNDO_RESERVA_PERCENT,
-            insurancePercentLabel: VW_SEGURO_PERCENT_LABEL,
-            group: VW_GRUPO_LABEL,
-            planCode: VW_PLANO_CODES[planMode],
-            vehicleValue: dadosIniciais.valor,
-            entryValue: entradaSegura,
-            credit: creditoFinal,
-            tableCredit: roundUpVwAutoCredit(creditoFinal),
-            creditRoundingRule: "sempre_para_cima",
-            months: prazoFinal,
-            installment: parcelaFinal,
-            lance: usarLance
-              ? {
-                  value: lanceCalc.lance,
-                  mode: lanceMode,
-                  creditAfterBid: lanceCalc.creditoAposLance,
-                  finalMonths: lanceCalc.prazoFinal,
-                  finalInstallment: lanceCalc.parcelaFinal,
-                }
-              : null,
-          },
-        };
-
-        localStorage.setItem("wb_contract_order", JSON.stringify(enrichedOrder));
+        localStorage.setItem("wb_contract_order", JSON.stringify(builderOrder));
       }
 
       localStorage.setItem("wb_contract_params", params.toString());
     } catch {}
 
-    router.push(`${CONTRACT_ROUTE}?${params.toString()}`);
-  };
-
-  const irParaSantander = (planoFinanciamento?: any) => {
-    const params = buildBaseParams(
-      {
-        tipo: "FINANCIAMENTO",
-        entrada: entradaSegura,
-        modelo: dadosIniciais.modelo,
-        valor: dadosIniciais.valor,
-        imagem: dadosIniciais.imagem,
-        pedido: dadosIniciais.pedidoId,
-        origem: dadosIniciais.origem,
-        vehicleSlug: dadosIniciais.vehicleSlug,
-        vehicleName: dadosIniciais.vehicleName,
-        versionName: dadosIniciais.versionName,
-        colorName: dadosIniciais.colorName,
-      },
-      searchParams
-    );
-
-    params.set("saldo_financiar", String(financiamentoDisplay.saldo));
-    params.set("financeira", "Santander Financiamentos");
-    params.set("status_financiamento", "continuar_no_santander");
-
-    if (planoFinanciamento) {
-      params.set("prazo_escolhido", String(planoFinanciamento.prazo));
-      params.set("parcela_escolhida", String(planoFinanciamento.parcela));
-      params.set(
-        "total_final",
-        String(round2((planoFinanciamento.total || 0) + entradaSegura))
-      );
-    }
-
-    try {
-      if (builderOrder) {
-        const enrichedOrder = {
-          ...builderOrder,
-          payment: {
-            type: "financiamento",
-            financeCompany: "Santander Financiamentos",
-            vehicleValue: dadosIniciais.valor,
-            entryValue: entradaSegura,
-            financedValue: financiamentoDisplay.saldo,
-            selectedPlan: planoFinanciamento
-              ? {
-                  months: planoFinanciamento.prazo,
-                  installment: planoFinanciamento.parcela,
-                  total: planoFinanciamento.total,
-                }
-              : null,
-            status: "continuar_no_santander",
-          },
-        };
-
-        localStorage.setItem("wb_contract_order", JSON.stringify(enrichedOrder));
-      }
-
-      localStorage.setItem("wb_financing_params", params.toString());
-      localStorage.setItem("wb_financiamento_params", params.toString());
-      localStorage.setItem("wb_financing_redirect", SANTANDER_URL);
-      localStorage.setItem("wb_financiamento_redirect", SANTANDER_URL);
-    } catch {}
-
-    window.open(SANTANDER_URL, "_blank", "noopener,noreferrer");
+    router.push(`/vendedor/contrato?${params.toString()}`);
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
-        <div className="w-14 h-14 rounded-2xl bg-white border border-slate-200 flex items-center justify-center shadow-sm">
-          <Loader2 className="animate-spin h-6 w-6 text-black" />
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#f7f9fc] relative overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          <div className="absolute top-1/3 left-1/4 w-72 h-72 rounded-full bg-[#0072bc]/8 blur-[90px] animate-pulse" />
+          <div
+            className="absolute bottom-1/4 right-1/4 w-56 h-56 rounded-full bg-[#b8d4ea]/40 blur-[70px] animate-pulse"
+            style={{ animationDelay: "1s" }}
+          />
         </div>
-        <p className="mt-4 text-xs font-bold uppercase tracking-widest text-slate-400">
-          Preparando simulação...
+        <Loader2 className="h-8 w-8 text-[#0072bc] animate-spin relative z-10" />
+        <p className="mt-5 text-[11px] font-medium tracking-[0.18em] uppercase text-[#8a9aab] relative z-10">
+          Montando simulação
         </p>
       </div>
     );
   }
 
+  const valorCarro = dadosIniciais.valor || 0;
+  const credito = resultado?.credito || 0;
+
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-24">
-      <header className="bg-white/90 backdrop-blur border-b border-slate-200 sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
+    <div className="min-h-screen bg-[#f7f9fc] text-[#1a2332] relative overflow-hidden">
+      {/* Fundo animado sutil (claro) */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden">
+        <div
+          className="absolute -top-24 -left-24 w-[380px] h-[380px] rounded-full bg-[#0072bc]/[0.07] blur-[100px]"
+          style={{ animation: "float1 20s ease-in-out infinite" }}
+        />
+        <div
+          className="absolute top-[45%] -right-20 w-[300px] h-[300px] rounded-full bg-[#a8cce0]/25 blur-[90px]"
+          style={{ animation: "float2 24s ease-in-out infinite" }}
+        />
+        <div
+          className="absolute -bottom-16 left-1/3 w-[260px] h-[260px] rounded-full bg-[#d0e4f2]/40 blur-[80px]"
+          style={{ animation: "float3 16s ease-in-out infinite" }}
+        />
+        <style jsx>{`
+          @keyframes float1 {
+            0%, 100% { transform: translate(0, 0); }
+            50% { transform: translate(36px, 28px); }
+          }
+          @keyframes float2 {
+            0%, 100% { transform: translate(0, 0); }
+            50% { transform: translate(-28px, -36px); }
+          }
+          @keyframes float3 {
+            0%, 100% { transform: translate(0, 0); }
+            50% { transform: translate(22px, -18px); }
+          }
+        `}</style>
+      </div>
+
+      {/* Header */}
+      <header className="relative z-30 sticky top-0 border-b border-[#e4ebf3] bg-white/85 backdrop-blur-xl">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <button
             onClick={() => router.back()}
-            className="text-xs font-black text-slate-500 hover:text-black flex items-center gap-2 uppercase transition-all"
+            className="flex items-center gap-2 text-[#6b7c8f] hover:text-[#0072bc] transition-colors"
           >
-            <ArrowLeft size={16} /> Voltar
+            <span className="w-8 h-8 rounded-xl bg-[#f0f4f8] flex items-center justify-center">
+              <ArrowLeft size={16} strokeWidth={1.75} />
+            </span>
+            <span className="text-xs font-medium hidden sm:inline">Voltar</span>
           </button>
 
-          <div className="flex items-center gap-4">
-            <div className="text-right hidden sm:block">
-              <h1 className="font-black text-black text-sm uppercase">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="text-right min-w-0">
+              <p className="text-sm font-semibold text-[#1a2332] truncate max-w-[140px] sm:max-w-[200px]">
                 {dadosIniciais.nome}
-              </h1>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+              </p>
+              <p className="text-[11px] text-[#8a9aab] truncate max-w-[140px] sm:max-w-[200px]">
                 {dadosIniciais.modelo}
               </p>
             </div>
-
             {dadosIniciais.imagem ? (
-              <div className="w-10 h-10 rounded-full overflow-hidden border border-slate-200 bg-white shadow-sm">
+              <div className="w-9 h-9 rounded-xl overflow-hidden border border-[#e4ebf3] flex-shrink-0 bg-white shadow-sm">
                 <img
                   src={dadosIniciais.imagem}
                   className="w-full h-full object-cover"
-                  alt="Veículo"
+                  alt=""
                 />
               </div>
             ) : (
-              <div className="w-10 h-10 rounded-full border border-slate-200 bg-white shadow-sm" />
+              <div className="w-9 h-9 rounded-xl bg-[#f0f4f8] border border-[#e4ebf3] flex items-center justify-center flex-shrink-0">
+                <Car size={16} className="text-[#8a9aab]" strokeWidth={1.5} />
+              </div>
             )}
           </div>
         </div>
       </header>
 
-      {isLanceOpen && (
+      {/* Modal Lance */}
+      {isLanceOpen ? (
         <div
-          className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          className="fixed inset-0 z-[100] bg-[#10233f]/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-5"
           onClick={() => setIsLanceOpen(false)}
         >
           <div
-            className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[92vh]"
+            className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl border border-[#e4ebf3] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
+            <div className="px-5 pt-5 pb-4 flex items-center justify-between border-b border-[#eef2f7]">
               <div>
-                <h3 className="font-black text-slate-900 uppercase text-sm">
-                  Simulador de Lance
-                </h3>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Informe o lance e escolha como deseja aplicar no plano.
+                <h3 className="text-sm font-semibold text-[#1a2332]">Lance</h3>
+                <p className="text-[12px] text-[#7a8b9e] mt-0.5">
+                  Aplique e escolha como reduzir
                 </p>
               </div>
               <button
                 onClick={() => setIsLanceOpen(false)}
-                className="p-2 rounded-full hover:bg-slate-100 text-slate-600"
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-[#8a9aab] hover:text-[#1a2332] hover:bg-[#f0f4f8] transition-colors"
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
 
-            <div className="p-5 space-y-5 flex-1 overflow-y-auto overscroll-contain">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
-                  <p className="text-[10px] text-slate-400 font-black uppercase">
+            <div className="p-5 space-y-4 overflow-y-auto flex-1">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-2xl bg-[#f7f9fc] border border-[#e8eef5] p-3.5">
+                  <p className="text-[10px] text-[#8a9aab] uppercase tracking-wider mb-1">
                     Crédito
                   </p>
-                  <p className="text-lg font-black">{formatMoney(lanceCalc.credito)}</p>
-                </div>
-                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
-                  <p className="text-[10px] text-slate-400 font-black uppercase">
-                    Parcela atual
+                  <p className="text-base font-semibold text-[#1a2332]">
+                    {formatMoney(lanceCalc.credito)}
                   </p>
-                  <p className="text-lg font-black">
+                </div>
+                <div className="rounded-2xl bg-[#f7f9fc] border border-[#e8eef5] p-3.5">
+                  <p className="text-[10px] text-[#8a9aab] uppercase tracking-wider mb-1">
+                    Parcela
+                  </p>
+                  <p className="text-base font-semibold text-[#1a2332]">
                     {formatMoney(lanceCalc.parcelaBase)}
-                  </p>
-                  <p className="text-[10px] text-slate-400 font-black uppercase mt-1">
-                    {lanceCalc.prazo}x
-                  </p>
-                </div>
-                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
-                  <p className="text-[10px] text-slate-400 font-black uppercase">
-                    Plano
-                  </p>
-                  <p className="text-sm font-black text-slate-900">
-                    {planMode === "essencial" ? "Essencial" : "Convencional"}
-                  </p>
-                  <p className="text-[10px] text-slate-500 mt-1">
-                    Tabela Normal Auto
                   </p>
                 </div>
               </div>
 
-              <div className="bg-white border border-slate-200 rounded-2xl p-4">
-                <p className="text-[10px] text-slate-400 font-black uppercase mb-2">
-                  Valor do lance
-                </p>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-black text-slate-400">R$</span>
+              <div>
+                <p className="text-[11px] text-[#7a8b9e] mb-2">Valor do lance</p>
+                <div className="flex items-center gap-2 rounded-xl bg-[#f7f9fc] border border-[#e4ebf3] px-3.5 h-12 focus-within:border-[#0072bc] focus-within:ring-2 focus-within:ring-[#0072bc]/15 transition-all">
+                  <span className="text-sm text-[#8a9aab]">R$</span>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -982,78 +1126,61 @@ function AnaliseContent() {
                       setLanceValor(num);
                       setLanceDisplay(formatBRLInput(num));
                     }}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl h-11 px-3 text-lg font-black text-slate-900 outline-none focus:border-black"
+                    className="w-full bg-transparent text-lg font-semibold text-[#1a2332] outline-none"
                     placeholder="0,00"
                   />
                 </div>
-                <p className="text-[11px] text-slate-500 mt-2">
-                  Máximo:{" "}
-                  <span className="font-black">
-                    {formatMoney(lanceCalc.credito)}
-                  </span>
+                <p className="text-[11px] text-[#8a9aab] mt-1.5 flex items-center gap-1">
+                  <Info size={11} />
+                  Máx. {formatMoney(lanceCalc.credito)}
                 </p>
               </div>
 
-              <div className="bg-white border border-slate-200 rounded-2xl p-4">
-                <p className="text-[10px] text-slate-400 font-black uppercase mb-2">
-                  Como aplicar o lance?
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setLanceMode("reduzir_parcela")}
-                    className={[
-                      "h-11 rounded-xl border text-xs font-black uppercase tracking-widest transition-all",
-                      lanceMode === "reduzir_parcela"
-                        ? "bg-black text-white border-black"
-                        : "bg-white text-slate-700 border-slate-200 hover:border-black",
-                    ].join(" ")}
-                  >
-                    Reduzir parcela
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setLanceMode("reduzir_meses")}
-                    className={[
-                      "h-11 rounded-xl border text-xs font-black uppercase tracking-widest transition-all",
-                      lanceMode === "reduzir_meses"
-                        ? "bg-black text-white border-black"
-                        : "bg-white text-slate-700 border-slate-200 hover:border-black",
-                    ].join(" ")}
-                  >
-                    Reduzir meses
-                  </button>
-                </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setLanceMode("reduzir_parcela")}
+                  className={[
+                    "h-11 rounded-xl text-xs font-semibold transition-all",
+                    lanceMode === "reduzir_parcela"
+                      ? "bg-[#0072bc] text-white shadow-md shadow-[#0072bc]/20"
+                      : "bg-[#f7f9fc] text-[#5a6d80] border border-[#e4ebf3] hover:border-[#0072bc]/40",
+                  ].join(" ")}
+                >
+                  Reduzir parcela
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLanceMode("reduzir_meses")}
+                  className={[
+                    "h-11 rounded-xl text-xs font-semibold transition-all",
+                    lanceMode === "reduzir_meses"
+                      ? "bg-[#0072bc] text-white shadow-md shadow-[#0072bc]/20"
+                      : "bg-[#f7f9fc] text-[#5a6d80] border border-[#e4ebf3] hover:border-[#0072bc]/40",
+                  ].join(" ")}
+                >
+                  Reduzir meses
+                </button>
               </div>
 
-              <div className="bg-white border border-slate-200 rounded-2xl p-4">
-                <div className="flex items-center justify-between gap-3 mb-2">
-                  <p className="text-[10px] text-slate-400 font-black uppercase">
-                    Código de promoção
-                  </p>
-                  {couponApplied ? (
-                    <span className="inline-flex items-center gap-2 text-[10px] font-black uppercase text-emerald-700">
-                      <CheckCircle2 size={14} /> Aplicado
-                    </span>
-                  ) : null}
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-                  <div className="flex-1 flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl h-11 px-3">
-                    <Tag size={16} className="text-slate-400" />
+              {/* Cupom */}
+              <div>
+                <p className="text-[11px] text-[#7a8b9e] mb-2">Cupom</p>
+                <div className="flex gap-2">
+                  <div className="flex-1 flex items-center gap-2 rounded-xl bg-[#f7f9fc] border border-[#e4ebf3] px-3 h-11">
+                    <Ticket size={14} className="text-[#8a9aab] flex-shrink-0" />
                     <input
                       value={couponInput}
                       onChange={(e) => setCouponInput(e.target.value)}
-                      placeholder="Digite o código"
-                      className="w-full bg-transparent outline-none text-sm font-black uppercase tracking-wider text-slate-900 placeholder:text-slate-400"
+                      placeholder="Código"
+                      className="w-full bg-transparent text-sm font-medium uppercase tracking-wide text-[#1a2332] outline-none placeholder:text-[#a8b5c4]"
                     />
                   </div>
-
                   {!couponApplied ? (
                     <button
                       type="button"
                       onClick={applyCoupon}
-                      className="h-11 px-4 rounded-xl bg-black text-white font-black uppercase text-xs tracking-widest hover:bg-slate-800 transition-all"
+                      className="h-11 px-4 rounded-xl bg-[#1a2332] text-white text-xs font-semibold hover:bg-[#2a3545] transition-colors"
                     >
                       Aplicar
                     </button>
@@ -1061,399 +1188,310 @@ function AnaliseContent() {
                     <button
                       type="button"
                       onClick={clearCoupon}
-                      className="h-11 px-4 rounded-xl border-2 border-slate-200 hover:border-black text-black font-black uppercase text-xs tracking-widest transition-all"
+                      className="h-11 px-4 rounded-xl border border-[#e4ebf3] text-[#5a6d80] text-xs font-semibold hover:border-[#0072bc] transition-colors"
                     >
-                      Remover
+                      Limpar
                     </button>
                   )}
                 </div>
-
                 {couponError ? (
-                  <div className="mt-2 flex items-center gap-2 text-rose-600">
-                    <AlertCircle size={14} />
-                    <p className="text-[11px] font-bold">{couponError}</p>
-                  </div>
+                  <p className="mt-2 text-[11px] text-rose-500 flex items-center gap-1.5">
+                    <AlertCircle size={12} /> {couponError}
+                  </p>
                 ) : null}
-
                 {couponApplied ? (
-                  <div className="mt-3 bg-slate-50 border border-slate-200 rounded-xl p-3">
-                    <p className="text-[11px] font-black text-slate-900 uppercase">
-                      {couponApplied.label}
-                    </p>
-                    <p className="text-[11px] text-slate-600 mt-1">
-                      {couponApplied.description}
-                    </p>
-                  </div>
+                  <p className="mt-2 text-[11px] text-emerald-600 flex items-center gap-1.5">
+                    <Check size={12} /> {couponApplied.label}
+                  </p>
                 ) : null}
               </div>
 
-              <div className="bg-gradient-to-br from-[#f2e14c]/45 to-white border border-[#f2e14c] rounded-2xl p-4">
-                <div className="flex items-start justify-between gap-3">
+              <div className="rounded-2xl bg-[#eef6fc] border border-[#c5dff0] p-4">
+                <div className="flex justify-between items-end">
                   <div>
-                    <p className="text-[10px] font-black uppercase text-black/70">
-                      Resultado com lance
+                    <p className="text-[10px] text-[#5a7a94] uppercase tracking-wider">
+                      Após lance
                     </p>
-                    <p className="text-[11px] text-black/70 mt-1">
-                      Crédito após lance:{" "}
-                      <span className="font-black">
-                        {formatMoney(lanceCalc.creditoAposLance)}
-                      </span>
+                    <p className="text-sm text-[#3d5a72] mt-0.5">
+                      {formatMoney(lanceCalc.creditoAposLance)}
                     </p>
                   </div>
-
                   <div className="text-right">
-                    <p className="text-[10px] font-black uppercase text-black/70">
-                      Parcela final
-                    </p>
-                    <p className="text-2xl font-black text-black">
+                    <p className="text-2xl font-semibold text-[#10233f] tracking-tight">
                       {formatMoney(lanceCalc.parcelaFinal)}
                     </p>
-                    <p className="text-[10px] font-black uppercase text-black/70 mt-1">
-                      Prazo final: {lanceCalc.prazoFinal}x
+                    <p className="text-[11px] text-[#5a7a94]">
+                      {lanceCalc.prazoFinal}x
                     </p>
                   </div>
                 </div>
-
-                <p className="text-[11px] text-black/70 mt-3">
-                  {lanceMode === "reduzir_parcela"
-                    ? "Mantém o prazo e diminui o valor da parcela."
-                    : "Mantém a parcela o mais próximo possível e reduz a quantidade de meses."}
-                </p>
               </div>
             </div>
 
-            <div className="p-5 border-t border-slate-100 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between flex-shrink-0 bg-white sticky bottom-0">
+            <div className="p-4 border-t border-[#eef2f7] flex gap-2.5">
               <button
                 type="button"
                 onClick={() => {
                   setIsLanceOpen(false);
                   avancarParaContrato({ withLance: false });
                 }}
-                className="h-11 px-4 rounded-xl border-2 border-slate-200 hover:border-black text-black font-black uppercase text-xs tracking-widest transition-all"
+                className="flex-1 h-11 rounded-xl border border-[#e4ebf3] text-[#5a6d80] text-xs font-semibold hover:bg-[#f7f9fc] transition-colors"
               >
-                Continuar sem lance
+                Sem lance
               </button>
-
               <button
                 type="button"
                 onClick={() => {
                   setIsLanceOpen(false);
                   avancarParaContrato({ withLance: true });
                 }}
-                className="h-11 px-4 rounded-xl bg-black text-white font-black uppercase text-xs tracking-widest hover:bg-slate-800 transition-all flex items-center justify-center gap-2"
+                className="flex-1 h-11 rounded-xl bg-[#0072bc] text-white text-xs font-semibold hover:bg-[#0084d6] shadow-md shadow-[#0072bc]/20 transition-colors flex items-center justify-center gap-1.5"
               >
-                Aplicar lance e continuar <ChevronRight size={14} />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <main className="max-w-6xl mx-auto px-6 py-8">
-        <div className="mb-8">
-          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                análise
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full lg:w-auto">
-              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
-                <p className="text-[10px] font-black uppercase text-slate-400">
-                  Valor do veículo
-                </p>
-                <p className="text-lg font-black text-black">
-                  {formatMoney(valorCarro)}
-                </p>
-              </div>
-              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
-                <p className="text-[10px] font-black uppercase text-slate-400">
-                  Entrada
-                </p>
-                <p className="text-lg font-black text-black">
-                  {formatMoney(entradaSegura || 0)}
-                </p>
-              </div>
-              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
-                <p className="text-[10px] font-black uppercase text-slate-400">
-                  Crédito
-                </p>
-                <p className="text-lg font-black text-black">
-                  {formatMoney(credito)}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <Card className="mb-8">
-          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-2xl bg-slate-100 text-slate-700 flex items-center justify-center">
-                <DollarSign size={20} />
-              </div>
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                  Controle da simulação
-                </p>
-                <h3 className="text-lg font-black text-black">Valor da Entrada</h3>
-                <p className="text-xs text-slate-500 mt-1">
-                  Digite o valor de entrada. O restante será usado como crédito.
-                </p>
-              </div>
-            </div>
-
-            <button
-              onClick={() => {
-                const sugerida = (dadosIniciais.valor || 0) * 0.3;
-                setEntradaManual(sugerida);
-                setEntradaDisplay(formatBRLInput(sugerida));
-              }}
-              className="h-11 px-4 rounded-xl bg-black hover:bg-slate-800 text-white text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 w-full sm:w-auto"
-            >
-              Sugerir 30%
-            </button>
-          </CardHeader>
-
-          <div className="px-6">
-            <Divider />
-          </div>
-
-          <CardBody className="pt-5">
-            <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-2xl p-4">
-              <span className="text-sm font-black text-slate-400">R$</span>
-              <input
-                type="text"
-                inputMode="numeric"
-                value={entradaDisplay}
-                onChange={(e) => {
-                  const num = parseDigitsToBRLNumber(e.target.value);
-                  setEntradaManual(num);
-                  setEntradaDisplay(formatBRLInput(num));
-                }}
-                className="bg-transparent border-none text-black text-3xl font-black w-full focus:ring-0 p-0 outline-none"
-                placeholder="0,00"
-              />
-            </div>
-          </CardBody>
-        </Card>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch">
-          <Card className="overflow-hidden flex flex-col">
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-slate-100 text-slate-600 flex items-center justify-center">
-                  <Landmark size={20} />
-                </div>
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                    CDC • simulação oficial
-                  </p>
-                  <h3 className="text-lg font-black text-black uppercase">
-                    Financiamento
-                  </h3>
-                </div>
-              </div>
-
-              <div className="mt-4 bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center">
-                <p className="text-[10px] text-slate-400 uppercase font-black mb-1">
-                  Saldo a financiar
-                </p>
-                <p className="text-2xl font-black text-black">
-                  {formatMoney(financiamentoDisplay.saldo)}
-                </p>
-              </div>
-            </CardHeader>
-
-            <div className="px-6">
-              <Divider />
-            </div>
-
-            <CardBody className="pt-5 flex-1 flex flex-col">
-              <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase mb-3 px-1">
-                <span>Prazo</span>
-                <span>Parcela</span>
-              </div>
-
-              <div className="flex-1">
-                {planosFinanciamento.map((p: any) => (
-                  <button
-                    key={p.prazo}
-                    type="button"
-                    onClick={() => irParaSantander(p)}
-                    className="flex w-full justify-between items-center py-3 px-2 rounded-xl hover:bg-slate-50 transition-all border border-transparent hover:border-slate-200 text-left"
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      <span className="px-2 py-1 rounded-lg bg-slate-100 text-slate-700 text-[11px] font-black">
-                        {p.prazo}x
-                      </span>
-                      <span className="text-sm font-bold text-slate-500">
-                        clique para usar no Santander
-                      </span>
-                    </span>
-                    <span className="font-black text-slate-900">
-                      {formatMoney(p.parcela)}
-                    </span>
-                  </button>
-                ))}
-              </div>
-
-              <button
-                onClick={() => irParaSantander()}
-                className="mt-6 w-full bg-white border-2 border-slate-200 hover:border-black text-black font-black py-4 rounded-2xl uppercase text-xs tracking-widest transition-all flex items-center justify-center gap-2"
-              >
-                Simular no Santander <ExternalLink size={14} />
-              </button>
-            </CardBody>
-          </Card>
-
-          <Card className="overflow-hidden flex flex-col ring-1 ring-black/5">
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 rounded-2xl bg-[#f2e14c] text-black flex items-center justify-center">
-                  <ShieldCheck size={20} />
-                </div>
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                    Tabela Normal Auto
-                  </p>
-                  <h3 className="text-lg font-black text-black uppercase">
-                    Consórcio
-                  </h3>
-                </div>
-              </div>
-
-              <div className="mt-5">
-                <p className="text-[10px] font-black text-slate-400 uppercase mb-2">
-                  Tipo de plano
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  {(["essencial", "convencional"] as PlanMode[]).map((mode) => {
-                    const active = planMode === mode;
-                    return (
-                      <button
-                        key={mode}
-                        onClick={() => setPlanMode(mode)}
-                        className={[
-                          "h-10 rounded-xl border text-xs font-black uppercase tracking-widest transition-all",
-                          active
-                            ? "bg-black text-white border-black"
-                            : "bg-white text-slate-700 border-slate-200 hover:border-black",
-                        ].join(" ")}
-                      >
-                        {mode === "essencial" ? "Essencial 75%" : "Convencional 100%"}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="mt-5">
-                <p className="text-[10px] font-black text-slate-400 uppercase mb-2">
-                  Quantidade de parcelas
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {VW_AUTO_PRAZOS.map((prazo) => {
-                    const active = prazoConsorcio === prazo;
-                    return (
-                      <button
-                        key={prazo}
-                        onClick={() => setPrazoConsorcio(prazo)}
-                        className={[
-                          "h-10 px-3 rounded-xl border text-xs font-black uppercase tracking-widest transition-all",
-                          active
-                            ? "bg-black text-white border-black"
-                            : "bg-white text-slate-700 border-slate-200 hover:border-black",
-                        ].join(" ")}
-                      >
-                        {prazo}x
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </CardHeader>
-
-            <div className="px-6">
-              <Divider />
-            </div>
-
-            <CardBody className="pt-5 flex-1 flex flex-col">
-              <button
-                type="button"
-                onClick={() => setPlanoSelecionado(selectedPlan)}
-                className="w-full text-left rounded-2xl border border-black bg-gradient-to-br from-[#f2e14c]/60 to-white p-4 shadow-md transition-all"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-3">
-                    <div className="mt-1 w-5 h-5 rounded-full border-2 border-black flex items-center justify-center">
-                      <div className="w-2.5 h-2.5 rounded-full bg-black" />
-                    </div>
-
-                    <div>
-                      <p className="font-black text-sm text-black">
-                        {selectedPlan.label}
-                      </p>
-                      <p className="text-[11px] text-slate-600 mt-1">
-                        {selectedPlan.detalhe}
-                      </p>
-                      <p className="text-[10px] uppercase font-black text-slate-500 mt-2"></p>
-                    </div>
-                  </div>
-
-                  <div className="text-right">
-                    <p className="font-black text-xl text-black">
-                      {formatMoney(selectedPlan.parcela)}
-                    </p>
-                    <p className="text-[10px] uppercase font-black text-slate-500 mt-1">
-                      {selectedPlan.prazo}x •{" "}
-                      {planMode === "essencial" ? "Essencial" : "Convencional"}
-                    </p>
-                  </div>
-                </div>
-              </button>
-
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4">
-                  <p className="text-[10px] font-black uppercase text-slate-400">
-                    Saldo considerado
-                  </p>
-                  <p className="text-lg font-black text-slate-900">
-                    {formatMoney(creditoTabelaConsorcio)}
-                  </p>
-                </div>
-                <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4">
-                  <p className="text-[10px] font-black uppercase text-slate-400">
-                    Total base
-                  </p>
-                  <p className="text-lg font-black text-slate-900">
-                    {formatMoney(totalConsorcioBase)}
-                  </p>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setIsLanceOpen(true)}
-                className="mt-6 w-full font-black py-4 rounded-2xl uppercase text-xs tracking-widest transition-all flex items-center justify-center gap-2 bg-black text-white hover:bg-slate-800 shadow-lg"
-              >
-                Continuar ({selectedPlan.prazo}x •{" "}
-                {planMode === "essencial" ? "Essencial" : "Convencional"})
+                Aplicar
                 <ChevronRight size={14} />
               </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
-              <p className="text-[11px] text-slate-500 mt-3"></p>
-            </CardBody>
-          </Card>
+      {/* Conteúdo */}
+      <main className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 py-7 sm:py-9">
+        {/* Resumo */}
+        <div className="flex flex-wrap items-end justify-between gap-4 mb-7">
+          <div>
+            <p className="text-[11px] text-[#8a9aab] tracking-wider uppercase mb-1">
+              Crédito disponível
+            </p>
+            <h1 className="text-2xl sm:text-3xl font-semibold text-[#10233f] tracking-tight">
+              {formatMoney(credito)}
+            </h1>
+            <p className="text-sm text-[#7a8b9e] mt-1">
+              Veículo {formatMoney(valorCarro)} · Entrada{" "}
+              {formatMoney(entradaManual || 0)}
+            </p>
+          </div>
+
+          <button
+            onClick={() => {
+              const sugerida = (dadosIniciais.valor || 0) * 0.3;
+              setEntradaManual(sugerida);
+              setEntradaDisplay(formatBRLInput(sugerida));
+            }}
+            className="h-9 px-3.5 rounded-lg bg-white border border-[#e4ebf3] text-[11px] font-medium text-[#5a6d80] hover:border-[#0072bc] hover:text-[#0072bc] transition-colors shadow-sm"
+          >
+            Sugerir 30%
+          </button>
+        </div>
+
+        {/* Entrada */}
+        <div className="mb-7">
+          <div className="rounded-2xl bg-white border border-[#e4ebf3] shadow-[0_4px_24px_rgba(16,35,63,0.04)] p-1 focus-within:border-[#0072bc]/50 focus-within:ring-2 focus-within:ring-[#0072bc]/10 transition-all">
+            <div className="flex items-center gap-3 px-4 h-16">
+              <div className="w-10 h-10 rounded-xl bg-[#eef5fb] flex items-center justify-center flex-shrink-0">
+                <Banknote size={18} className="text-[#0072bc]" strokeWidth={1.6} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-[#8a9aab] uppercase tracking-wider leading-none mb-1">
+                  Valor da entrada
+                </p>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-sm text-[#8a9aab]">R$</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={entradaDisplay}
+                    onChange={(e) => {
+                      const num = parseDigitsToBRLNumber(e.target.value);
+                      setEntradaManual(num);
+                      setEntradaDisplay(formatBRLInput(num));
+                    }}
+                    className="w-full bg-transparent text-xl sm:text-2xl font-semibold text-[#1a2332] outline-none tracking-tight"
+                    placeholder="0,00"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+          {/* Financiamento */}
+          <div className="lg:col-span-2 rounded-2xl bg-white border border-[#e4ebf3] shadow-[0_4px_24px_rgba(16,35,63,0.04)] overflow-hidden">
+            <div className="px-5 pt-5 pb-3 flex items-center gap-2.5">
+              <Percent size={16} className="text-[#8a9aab]" strokeWidth={1.75} />
+              <div>
+                <p className="text-sm font-medium text-[#1a2332]">Financiamento</p>
+                <p className="text-[11px] text-[#8a9aab]">CDC · estimativa</p>
+              </div>
+            </div>
+
+            <div className="px-3 pb-2 space-y-0.5">
+              {resultado?.financiamento?.planos?.map((p: any) => (
+                <button
+                  key={p.prazo}
+                  type="button"
+                  onClick={() => irParaSantander(p)}
+                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-[#f7f9fc] transition-colors group"
+                >
+                  <span className="text-[13px] text-[#7a8b9e] group-hover:text-[#5a6d80] transition-colors">
+                    {p.prazo}x
+                  </span>
+                  <span className="text-[13px] font-medium text-[#1a2332]">
+                    {formatMoney(p.parcela)}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            <div className="px-4 pb-4 pt-1">
+              <button
+                onClick={() => irParaSantander()}
+                className="w-full h-10 rounded-xl border border-[#e4ebf3] text-[11px] font-medium text-[#7a8b9e] hover:text-[#0072bc] hover:border-[#0072bc]/40 transition-all flex items-center justify-center gap-1.5"
+              >
+                Abrir no Santander
+                <ExternalLink size={12} />
+              </button>
+            </div>
+          </div>
+
+          {/* Consórcio */}
+          <div className="lg:col-span-3 rounded-2xl bg-white border border-[#0072bc]/20 shadow-[0_8px_32px_rgba(0,114,188,0.08)] overflow-hidden relative">
+            <div className="absolute inset-0 bg-gradient-to-br from-[#eef6fc]/80 via-transparent to-transparent pointer-events-none" />
+
+            <div className="relative px-5 pt-5 pb-3 flex items-center gap-2.5">
+              <Calendar size={16} className="text-[#0072bc]" strokeWidth={1.75} />
+              <div>
+                <p className="text-sm font-medium text-[#1a2332]">Consórcio Nacional</p>
+                <p className="text-[11px] text-[#8a9aab]">
+                  Tabela exclusiva · até {CONSORCIO_MAX_MESES}x
+                </p>
+              </div>
+            </div>
+
+            {/* Prazos */}
+            <div className="relative px-5 pb-4">
+              <p className="text-[10px] text-[#8a9aab] uppercase tracking-wider mb-2">
+                Prazo
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {CONSORCIO_PRAZOS.filter((p) => p <= CONSORCIO_MAX_MESES).map(
+                  (p) => {
+                    const active = prazoConsorcio === p;
+                    return (
+                      <button
+                        key={p}
+                        onClick={() => setPrazoConsorcio(p)}
+                        className={[
+                          "h-9 min-w-[48px] px-2.5 rounded-lg text-[12px] font-medium transition-all",
+                          active
+                            ? "bg-[#0072bc] text-white shadow-sm shadow-[#0072bc]/25"
+                            : "bg-[#f7f9fc] text-[#5a6d80] border border-[#e4ebf3] hover:border-[#0072bc]/40",
+                        ].join(" ")}
+                      >
+                        {p}x
+                      </button>
+                    );
+                  }
+                )}
+              </div>
+            </div>
+
+            {/* Opções */}
+            <div className="relative px-4 pb-3 space-y-2">
+              {resultado?.consorcio?.opcoes?.map((op: any) => {
+                const isSelected = planoSelecionado?.key === op.key;
+
+                return (
+                  <button
+                    key={op.key}
+                    type="button"
+                    onClick={() => {
+                      setPlanoSelecionado(op);
+                      setLanceValor(0);
+                      setLanceDisplay(formatBRLInput(0));
+                      setLanceMode("reduzir_parcela");
+                    }}
+                    className={[
+                      "w-full text-left rounded-xl px-4 py-3.5 transition-all border",
+                      isSelected
+                        ? "bg-[#eef6fc] border-[#0072bc]/45 shadow-sm"
+                        : "bg-[#fafbfc] border-[#e8eef5] hover:border-[#c5d8ea] hover:bg-white",
+                    ].join(" ")}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div
+                          className={[
+                            "w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors",
+                            isSelected
+                              ? "border-[#0072bc] bg-[#0072bc]"
+                              : "border-[#c5d0dc]",
+                          ].join(" ")}
+                        >
+                          {isSelected ? (
+                            <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                          ) : null}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-[#1a2332]">
+                            {op.label}
+                          </p>
+                          <p className="text-[11px] text-[#7a8b9e] truncate">
+                            {op.detalhe}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className="text-lg font-semibold text-[#1a2332] tracking-tight">
+                          {formatMoney(op.parcela)}
+                        </p>
+                        <p className="text-[10px] text-[#8a9aab]">
+                          {op.prazo}x
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="relative px-4 pb-5 pt-1">
+              <button
+                onClick={() => {
+                  if (!planoSelecionado) return;
+                  setIsLanceOpen(true);
+                }}
+                disabled={!planoSelecionado}
+                className={[
+                  "w-full h-12 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2",
+                  planoSelecionado
+                    ? "bg-[#0072bc] text-white hover:bg-[#0084d6] shadow-lg shadow-[#0072bc]/25 active:scale-[0.98]"
+                    : "bg-[#eef2f7] text-[#a0aec0] cursor-not-allowed",
+                ].join(" ")}
+              >
+                {planoSelecionado ? (
+                  <>
+                    Continuar · {planoSelecionado.prazo}x{" "}
+                    {planoSelecionado.label}
+                    <ChevronRight size={16} />
+                  </>
+                ) : (
+                  "Escolha uma opção"
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       </main>
     </div>
   );
 }
 
-export default function AnaliseVolkswagenPage() {
+export default function AnalisePage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-slate-50" />}>
+    <Suspense fallback={<div className="min-h-screen bg-[#f7f9fc]" />}>
       <AnaliseContent />
     </Suspense>
   );
