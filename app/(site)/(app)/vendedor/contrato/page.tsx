@@ -735,14 +735,6 @@ function PedidoContent() {
             <ArrowLeft size={16} />
             Voltar
           </button>
-          <button
-            type="button"
-            onClick={handlePrint}
-            className="inline-flex items-center gap-2 rounded-xl border border-[#e4ebf3] bg-white px-3 py-2 text-xs font-medium text-[#1a2332] hover:bg-[#f7f9fc]"
-          >
-            <Printer size={14} />
-            Imprimir
-          </button>
         </div>
       </div>
 

@@ -69,7 +69,7 @@ export default function ChooseBrandPage() {
       },
       {
         key: "nissan",
-        name: "Manutenção",
+        name: "Nissan",
         logo: "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/hd-nissan-emblem-logo-transparent-png-701751694774302g4gilafdjp.png",
         accent: "from-red-600 to-orange-500",
         soft: "bg-red-50 text-red-700 border-red-200 dark:bg-red-500/10 dark:text-red-300 dark:border-red-500/20",

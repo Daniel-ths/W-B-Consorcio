@@ -263,12 +263,6 @@ function ModalDetalhes({
           >
             Fechar
           </button>
-          <button
-            onClick={() => window.print()}
-            className="px-5 py-2.5 bg-slate-900 text-white font-bold text-xs uppercase rounded-xl hover:bg-slate-800 transition flex items-center gap-2"
-          >
-            <FileText size={14} /> Imprimir
-          </button>
         </div>
       </div>
     </div>

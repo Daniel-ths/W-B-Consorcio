@@ -568,13 +568,6 @@ function PedidoContent() {
           </button>
 
           <div className="flex items-center gap-2 md:gap-3">
-            <button
-              onClick={() => window.print()}
-              className="bg-zinc-800 border border-zinc-700 text-zinc-300 p-2 md:px-4 md:py-2 rounded-lg text-xs font-bold uppercase hover:bg-zinc-700 hover:text-white flex items-center gap-2 shadow-sm transition-all"
-            >
-              <Printer size={18} />{" "}
-              <span className="hidden md:inline">Imprimir</span>
-            </button>
 
             {!pedidoSalvo ? (
               <button

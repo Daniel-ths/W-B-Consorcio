@@ -109,7 +109,6 @@ export default function ReportsPage() {
             onClick={() => window.print()}
             className="flex items-center gap-2 text-sm font-bold text-slate-600 hover:text-black border border-slate-300 px-4 py-2 rounded-lg hover:bg-slate-50 print:hidden"
           >
-            <Printer size={16}/> Imprimir
           </button>
         </div>
       </header>
