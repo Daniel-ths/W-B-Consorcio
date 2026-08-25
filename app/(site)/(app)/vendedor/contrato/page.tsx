@@ -126,6 +126,14 @@ type BuilderOrderPayload = {
     hex?: string;
     versionId?: string;
   } | null;
+  // ✅ alinhado com Nissan + Análise
+  client?: {
+    full_name?: string;
+    cpf?: string;
+    email?: string;
+    phone?: string;
+    seller?: string;
+  };
   kits?: any[];
   accessories?: any[];
   totals?: {
@@ -162,6 +170,12 @@ function builderOrderToContractData(order: BuilderOrderPayload | null) {
     vehicleName: order.vehicle_name || "",
     versionName: order.version?.name || "",
     colorName: order.color?.name || "",
+    // ✅ dados do cliente vindos do builder / análise
+    clientName: order.client?.full_name || "",
+    clientCpf: order.client?.cpf || "",
+    clientEmail: order.client?.email || "",
+    clientPhone: order.client?.phone || "",
+    clientSeller: order.client?.seller || "",
   };
 }
 
@@ -257,7 +271,11 @@ function PedidoContent() {
   const dados = useMemo(
     () => ({
       tipo: searchParams.get("tipo") || "CONSORCIO",
-      cpf: searchParams.get("cpf") || "",
+      // URL tem prioridade; depois client do builder/análise
+      cpf:
+        searchParams.get("cpf") ||
+        builderContractData?.clientCpf ||
+        "",
       modelo:
         searchParams.get("modelo") ||
         builderContractData?.modelo ||
@@ -285,8 +303,22 @@ function PedidoContent() {
       ),
       quantidadeReduzidas: safeNumber(searchParams.get("quantidade_reduzidas")),
       imagem: searchParams.get("imagem") || builderContractData?.imagem || "",
-      nome: searchParams.get("nome") || "",
-      telefone: searchParams.get("telefone") || "",
+      nome:
+        searchParams.get("nome") ||
+        builderContractData?.clientName ||
+        "",
+      telefone:
+        searchParams.get("telefone") ||
+        builderContractData?.clientPhone ||
+        "",
+      email:
+        searchParams.get("email") ||
+        builderContractData?.clientEmail ||
+        "",
+      vendedor:
+        searchParams.get("vendedor_nome") ||
+        builderContractData?.clientSeller ||
+        "",
       taxaAdmTotal:
         safeNumber(searchParams.get("taxa_adm_total")) ||
         TAXA_ADM_TOTAL_FALLBACK,
@@ -491,6 +523,13 @@ function PedidoContent() {
     setCpfErro("");
   }, [dados.cpf, cpfFormatoValido]);
 
+  // sincroniza nome quando o builder carregar depois do primeiro render
+  useEffect(() => {
+    if (!nomeManual && dados.nome) {
+      setNomeManual(dados.nome);
+    }
+  }, [dados.nome, nomeManual]);
+
   const formatMoney = (val: number) =>
     new Intl.NumberFormat("pt-BR", {
       style: "currency",
@@ -611,7 +650,7 @@ function PedidoContent() {
       if (!silent) alert(`❌ ${msg}`);
       return { ok: false as const, data: null };
     } catch {
-      if (!silent) alert("Erro ao consultar CPF. Segindo mesmo assim.");
+      if (!silent) alert("Erro ao consultar CPF. Seguindo mesmo assim.");
       return { ok: false as const, data: null };
     } finally {
       setLoadingValidacao(false);
@@ -696,7 +735,6 @@ function PedidoContent() {
         return;
       }
 
-      // CPF opcional — 429 não trava
       if (!apiData && isValidCpf(dados.cpf)) {
         await consultarCpf({ silent: true });
       }
@@ -817,6 +855,11 @@ function PedidoContent() {
                               {aprovadorNome}
                             </span>
                           ) : null}
+                          {dados.vendedor ? (
+                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-[#f0f4f8] text-[#6b7c8f]">
+                              Vendedor: {dados.vendedor}
+                            </span>
+                          ) : null}
                         </div>
                       </div>
                     </div>
@@ -911,6 +954,24 @@ function PedidoContent() {
                     {cpfErro ? "Inválido" : String(situacaoReceita).toUpperCase()}
                   </span>
                 </div>
+                {dados.email ? (
+                  <div className="sm:col-span-2">
+                    <p className="text-[10px] text-[#8a9aab] uppercase tracking-wider mb-0.5">
+                      E-mail
+                    </p>
+                    <p className="text-[#5a6d80] truncate">{dados.email}</p>
+                  </div>
+                ) : null}
+                {dados.vendedor ? (
+                  <div className="sm:col-span-2">
+                    <p className="text-[10px] text-[#8a9aab] uppercase tracking-wider mb-0.5">
+                      Vendedor
+                    </p>
+                    <p className="font-medium text-[#1a2332] uppercase truncate">
+                      {dados.vendedor}
+                    </p>
+                  </div>
+                ) : null}
               </div>
             </section>
 

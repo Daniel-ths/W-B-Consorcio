@@ -352,6 +352,13 @@ type BuilderOrderPayload = {
     hex?: string;
     versionId?: string;
   } | null;
+  client?: {
+    full_name?: string;
+    cpf?: string;
+    email?: string;
+    phone?: string;
+    seller?: string;
+  };
   kits?: any[];
   accessories?: any[];
   totals?: {
@@ -452,6 +459,11 @@ function builderOrderToInitialData(order: BuilderOrderPayload | null) {
     vehicleName: order.vehicle_name || "",
     versionName: order.version?.name || "",
     colorName: order.color?.name || "",
+    clientName: order.client?.full_name || "",
+    clientCpf: order.client?.cpf || "",
+    clientEmail: order.client?.email || "",
+    clientPhone: order.client?.phone || "",
+    clientSeller: order.client?.seller || "",
   };
 }
 
@@ -566,7 +578,10 @@ function AnaliseContent() {
 
   const dadosIniciais = useMemo(
     () => ({
-      nome: searchParams.get("nome") || "Cliente",
+      nome:
+        searchParams.get("nome") ||
+        builderInitialData?.clientName ||
+        "Cliente",
       modelo:
         searchParams.get("modelo") ||
         builderInitialData?.modelo ||
@@ -586,6 +601,11 @@ function AnaliseContent() {
       versionName:
         searchParams.get("versao") || builderInitialData?.versionName || "",
       colorName: searchParams.get("cor") || builderInitialData?.colorName || "",
+      clientName: builderInitialData?.clientName || "",
+      clientCpf: builderInitialData?.clientCpf || "",
+      clientEmail: builderInitialData?.clientEmail || "",
+      clientPhone: builderInitialData?.clientPhone || "",
+      clientSeller: builderInitialData?.clientSeller || "",
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [searchParams.toString(), builderInitialData, pedidoId]

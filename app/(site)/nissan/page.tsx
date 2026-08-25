@@ -388,7 +388,6 @@ function preloadImages(urls: string[]) {
   });
 }
 
-// Máscara simples de CPF
 function maskCPF(value: string) {
   return value
     .replace(/\D/g, "")
@@ -398,13 +397,15 @@ function maskCPF(value: string) {
     .slice(0, 14);
 }
 
-// Máscara de telefone
 function maskPhone(value: string) {
   const digits = value.replace(/\D/g, "").slice(0, 11);
   if (digits.length <= 2) return digits;
   if (digits.length <= 7) return `${digits.slice(0, 2)} ${digits.slice(2)}`;
   return `${digits.slice(0, 2)} ${digits.slice(2, 7)} ${digits.slice(7)}`;
 }
+
+const INPUT_CLASS =
+  "h-11 w-full border border-zinc-200 bg-white px-3 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-black";
 
 export default function NissanPage() {
   const router = useRouter();
@@ -495,7 +496,6 @@ export default function NissanPage() {
     };
   }, []);
 
-  // Pré-preenche o vendedor com o usuário logado
   useEffect(() => {
     if (fullName && !clientSeller) {
       setClientSeller(fullName);
@@ -525,7 +525,6 @@ export default function NissanPage() {
   const dashboardLabel = isAdmin ? "Painel Gerencial" : isSupervisor ? "Painel do Supervisor" : "Painel do Vendedor";
   const displayName = fullName || user?.email?.split("@")[0];
 
-  // Preload
   useEffect(() => {
     const covers = VEHICLES.map((v) => v.cover);
     const allColors = VEHICLES.flatMap((v) => v.colors.map((c) => c.image));
@@ -641,161 +640,68 @@ export default function NissanPage() {
   };
 
   return (
-    <main className="relative min-h-screen overflow-x-hidden bg-white text-zinc-900 antialiased">
-      {/* ========== HEADER COM LOGIN ========== */}
-      <nav className="fixed top-0 z-[1001] flex h-16 w-full items-center justify-between border-b border-zinc-200 bg-black px-4 text-white lg:px-10">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="rounded-full p-2 text-white/80 transition hover:bg-white/10 lg:hidden"
-          >
-            <Menu size={22} />
-          </button>
-          <Link
-            href="/"
-            className="hidden items-center gap-2 border border-white/20 px-3 py-2 text-xs tracking-wide transition hover:bg-white/10 lg:inline-flex"
-          >
-            <ChevronLeft size={14} /> Marcas
+    <main className="relative min-h-screen overflow-x-hidden bg-white text-zinc-900">
+      {/* ===== HEADER / AUTH (mantido) ===== */}
+      <header className="sticky top-0 z-50 border-b border-zinc-200 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
+          <Link href="/" className="text-sm font-semibold tracking-wide">
+            Nacional Consórcio
           </Link>
-        </div>
 
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="text-xl font-semibold tracking-[0.28em]">NISSAN</span>
-          </Link>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {loadingAuth ? (
-            <div className="h-8 w-8 animate-pulse rounded-full bg-white/20" />
-          ) : user ? (
-            <div className="group relative hidden lg:block">
-              <button className="flex items-center gap-2.5 rounded-full border border-white/20 bg-white/5 py-1 pl-1 pr-3 transition hover:border-white/40">
-                <div className={`flex h-8 w-8 items-center justify-center overflow-hidden rounded-full text-sm font-bold ${isAdmin ? "bg-[#C3002F] text-white" : "bg-white/15 text-white"}`}>
-                  {avatarUrl ? <img src={avatarUrl} alt="" className="h-full w-full object-cover" /> : <User size={15} />}
-                </div>
-                <div className="text-left">
-                  <p className="text-[9px] font-bold uppercase text-white/50">Olá,</p>
-                  <p className="max-w-[90px] truncate text-xs font-bold">{displayName}</p>
-                </div>
-                <ChevronDown size={14} className="text-white/40" />
-              </button>
-              <div className="invisible absolute right-0 top-full mt-3 w-64 translate-y-2 rounded-2xl border border-zinc-100 bg-white p-2 text-zinc-900 opacity-0 shadow-xl transition-all duration-200 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
-                <div className="mb-2 rounded-xl bg-zinc-50 p-3">
-                  <p className="truncate text-xs font-bold">{displayName}</p>
-                  <p className="truncate text-[10px] text-zinc-500">{user.email}</p>
-                </div>
-                <Link href={dashboardLink} className="flex items-center gap-3 rounded-lg px-4 py-2.5 text-xs font-bold text-zinc-700 hover:bg-zinc-50">
-                  {isAdmin ? <ShieldCheck size={16} /> : <LayoutDashboard size={16} />} {dashboardLabel}
-                </Link>
-                <Link href="/profile" className="flex items-center gap-3 rounded-lg px-4 py-2.5 text-xs font-bold text-zinc-700 hover:bg-zinc-50">
-                  <User size={16} /> Meus Dados
-                </Link>
-                <Link href="/vendedor/consulta-cliente" className="flex items-center gap-3 rounded-lg px-4 py-2.5 text-xs font-bold text-zinc-700 hover:bg-zinc-50">
-                  <Search size={16} /> Consulta de Cliente
-                </Link>
-                <div className="my-1 h-px bg-zinc-100" />
-                <button onClick={handleLogout} className="flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-xs font-bold text-red-600 hover:bg-red-50">
-                  <LogOut size={16} /> Sair
-                </button>
-              </div>
-            </div>
-          ) : (
-            <Link
-              href="/login"
-              className="hidden rounded-full border border-white/30 px-5 py-2 text-xs font-black uppercase tracking-wide transition hover:bg-white hover:text-black lg:block"
-            >
-              Entrar
-            </Link>
-          )}
-        </div>
-        <div className="absolute bottom-0 left-0 h-[3px] w-full bg-[#C3002F]" />
-      </nav>
-
-      {/* Sidebar Mobile */}
-      <div
-        className={`fixed inset-0 z-[2000] bg-black/50 backdrop-blur-sm transition-opacity duration-500 ${sidebarOpen ? "visible opacity-100" : "invisible opacity-0"}`}
-        onClick={() => setSidebarOpen(false)}
-      />
-      <div
-        className={`fixed left-0 top-0 z-[2001] flex h-full w-[85%] max-w-[320px] flex-col bg-white shadow-2xl transition-transform duration-500 ease-out ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
-      >
-        <div className="flex h-20 items-center justify-between border-b border-zinc-100 px-6">
-          <span className="text-lg font-semibold tracking-[0.28em]">NISSAN</span>
-          <button onClick={() => setSidebarOpen(false)} className="rounded-full bg-zinc-100 p-2 text-zinc-500 hover:bg-zinc-200">
-            <X size={18} />
-          </button>
-        </div>
-        <div className="flex-1 space-y-6 overflow-y-auto px-6 py-6">
-          <div className="rounded-2xl border border-zinc-100 bg-zinc-50 p-4">
-            {user ? (
+          <div className="flex items-center gap-3">
+            {!loadingAuth && user ? (
               <>
-                <div className="mb-4 flex items-center gap-3">
-                  <div className={`flex h-10 w-10 items-center justify-center overflow-hidden rounded-full ${isAdmin ? "bg-[#C3002F] text-white" : "bg-zinc-200 text-zinc-600"}`}>
-                    {avatarUrl ? <img src={avatarUrl} className="h-full w-full object-cover" /> : <User size={18} />}
-                  </div>
-                  <div>
-                    <p className="max-w-[150px] truncate text-xs font-bold">{displayName}</p>
-                    <p className="max-w-[150px] truncate text-[10px] text-zinc-500">{user.email}</p>
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <Link href={dashboardLink} onClick={() => setSidebarOpen(false)} className="flex items-center gap-3 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-bold text-zinc-700 hover:border-black">
-                    {isAdmin ? <ShieldCheck size={14} /> : <LayoutDashboard size={14} />} {dashboardLabel}
-                  </Link>
-                  <Link href="/profile" onClick={() => setSidebarOpen(false)} className="flex items-center gap-3 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-bold text-zinc-700 hover:border-black">
-                    <User size={14} /> Meus Dados
-                  </Link>
-                  <button onClick={handleLogout} className="flex w-full items-center gap-3 rounded-lg border border-red-100 bg-white px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50">
-                    <LogOut size={14} /> Sair
-                  </button>
-                </div>
+                <Link
+                  href={dashboardLink}
+                  className="hidden items-center gap-1.5 text-xs font-medium text-zinc-600 hover:text-black sm:flex"
+                >
+                  <LayoutDashboard size={14} />
+                  {dashboardLabel}
+                </Link>
+                <span className="hidden text-xs text-zinc-500 sm:inline">
+                  {displayName}
+                </span>
+                <button
+                  onClick={handleLogout}
+                  className="flex h-9 w-9 items-center justify-center rounded-full border border-zinc-200 text-zinc-600 hover:bg-zinc-50"
+                  title="Sair"
+                >
+                  <LogOut size={15} />
+                </button>
               </>
             ) : (
-              <div className="text-center">
-                <p className="mb-3 text-xs text-zinc-500">Acesse sua conta</p>
-                <Link href="/login" onClick={() => setSidebarOpen(false)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-black py-3 text-xs font-bold uppercase text-white">
-                  <LogIn size={16} /> Entrar
-                </Link>
-              </div>
+              <Link
+                href="/login"
+                className="flex items-center gap-1.5 text-xs font-medium text-zinc-600 hover:text-black"
+              >
+                <LogIn size={14} />
+                Entrar
+              </Link>
             )}
           </div>
-          <div className="space-y-4">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Navegação</p>
-            <Link href="/" onClick={() => setSidebarOpen(false)} className="flex items-center gap-3 text-sm font-bold uppercase tracking-wide text-zinc-800 hover:text-[#C3002F]">
-              <CarFront size={18} /> Voltar às Marcas
-            </Link>
-          </div>
         </div>
-      </div>
+      </header>
 
       {/* ========== HERO ========== */}
-      <section className="relative flex min-h-[88vh] items-center overflow-hidden bg-black pt-16 text-white">
-        <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <img src={PHOTO.kicks} alt="" className="absolute -right-16 top-8 w-[52%] max-w-3xl opacity-[0.12] animate-float-slow" />
-          <img src={PHOTO.kait} alt="" className="absolute -left-28 bottom-0 w-[48%] max-w-2xl opacity-[0.09] animate-float-delayed" />
-          <img src={PHOTO.versa} alt="" className="absolute right-1/4 top-1/3 w-[38%] max-w-xl opacity-[0.07] animate-float" />
-          <div className="absolute inset-0 bg-gradient-to-r from-black via-black/90 to-black/60" />
-        </div>
-
-        <div className="relative z-10 mx-auto grid w-full max-w-6xl items-center gap-10 px-4 py-16 lg:grid-cols-2">
-          <div className={`space-y-6 transition-all duration-1000 ${mounted ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0"}`}>
-            <p className="text-[11px] font-semibold tracking-[0.28em] text-[#C3002F]">
-              LINHA NISSAN BRASIL 2026
+      <section className="relative overflow-hidden bg-black text-white">
+        <div className="mx-auto grid max-w-6xl gap-8 px-4 py-16 sm:py-20 lg:grid-cols-2 lg:items-center">
+          <div className={`transition-all duration-1000 ${mounted ? "translate-y-0 opacity-100" : "translate-y-10 opacity-0"}`}>
+            <p className="text-[11px] font-semibold tracking-[0.22em] text-[#C3002F]">
+              NISSAN · CONSÓRCIO
             </p>
-            <h1 className="text-4xl font-light tracking-tight sm:text-5xl lg:text-6xl">
-              Escolha o seu Nissan
+            <h1 className="mt-3 text-3xl font-light tracking-tight sm:text-4xl lg:text-5xl">
+              Monte o seu Nissan
             </h1>
-            <p className="max-w-md text-sm leading-relaxed text-white/65">
-              Configure versão e cor com todos os detalhes. Ao finalizar, você cadastra o cliente e segue para a análise de consórcio.
+            <p className="mt-4 max-w-md text-sm leading-relaxed text-white/70">
+              Escolha modelo, versão e cor. Em seguida preencha os dados do cliente para enviar à análise de consórcio.
             </p>
-            <div className="flex flex-wrap gap-3 pt-2">
-              <button
-                onClick={() => document.getElementById("modelos")?.scrollIntoView({ behavior: "smooth" })}
-                className="h-12 bg-[#C3002F] px-8 text-[12px] font-semibold uppercase tracking-[0.16em] transition hover:bg-[#9a0025] active:scale-95"
+            <div className="mt-8 flex flex-wrap gap-3">
+              <a
+                href="#modelos"
+                className="flex h-12 items-center bg-[#C3002F] px-6 text-[12px] font-semibold uppercase tracking-[0.14em] text-white transition hover:bg-[#9a0025]"
               >
                 Ver modelos
-              </button>
+              </a>
               <Link
                 href="/"
                 className="flex h-12 items-center border border-white/25 px-6 text-[12px] font-semibold uppercase tracking-[0.14em] transition hover:bg-white/10"
@@ -914,7 +820,7 @@ export default function NissanPage() {
             </div>
 
             <div className="grid flex-1 overflow-y-auto lg:grid-cols-2">
-              {/* Imagem + Resumo (sempre visível) */}
+              {/* Imagem + Resumo */}
               <div className="flex flex-col bg-[#f3f3f3]">
                 <div className="relative flex min-h-[220px] flex-1 items-center justify-center p-6">
                   {!imageLoaded && (
@@ -970,11 +876,10 @@ export default function NissanPage() {
                 </div>
               </div>
 
-              {/* Conteúdo direito: Config ou Formulário */}
-              <div className="flex flex-col p-6">
+              {/* Conteúdo direito */}
+              <div className="flex flex-col bg-white p-6">
                 {step === "config" ? (
                   <>
-                    {/* Versões */}
                     <div className="mb-6">
                       <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-400">
                         Escolha a versão
@@ -1002,7 +907,6 @@ export default function NissanPage() {
                       </div>
                     </div>
 
-                    {/* Ficha técnica */}
                     <div className="mb-6 grid grid-cols-3 gap-3">
                       <div className="flex flex-col items-center rounded-lg border border-zinc-100 bg-zinc-50 p-3 text-center">
                         <Fuel size={16} className="mb-1 text-[#C3002F]" />
@@ -1021,7 +925,6 @@ export default function NissanPage() {
                       </div>
                     </div>
 
-                    {/* Cores */}
                     <div className="mb-6">
                       <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-400">
                         Escolha a cor
@@ -1052,7 +955,6 @@ export default function NissanPage() {
                       </div>
                     </div>
 
-                    {/* Equipamentos */}
                     <div className="mb-6">
                       <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-400">
                         Principais equipamentos
@@ -1077,7 +979,6 @@ export default function NissanPage() {
                     </div>
                   </>
                 ) : (
-                  /* ========== FORMULÁRIO DO CLIENTE ========== */
                   <div className="flex h-full flex-col">
                     <button
                       onClick={() => {
@@ -1095,7 +996,6 @@ export default function NissanPage() {
                     </p>
 
                     <div className="space-y-4">
-                      {/* Nome */}
                       <div>
                         <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
                           Nome Completo *
@@ -1105,11 +1005,10 @@ export default function NissanPage() {
                           value={clientName}
                           onChange={(e) => setClientName(e.target.value)}
                           placeholder="Nome completo do cliente"
-                          className="h-11 w-full border border-zinc-200 px-3 text-sm outline-none transition focus:border-black"
+                          className={INPUT_CLASS}
                         />
                       </div>
 
-                      {/* CPF */}
                       <div>
                         <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
                           CPF *
@@ -1119,11 +1018,10 @@ export default function NissanPage() {
                           value={clientCpf}
                           onChange={(e) => setClientCpf(maskCPF(e.target.value))}
                           placeholder="000.000.000-00"
-                          className="h-11 w-full border border-zinc-200 px-3 text-sm outline-none transition focus:border-black"
+                          className={INPUT_CLASS}
                         />
                       </div>
 
-                      {/* Email */}
                       <div>
                         <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
                           Email *
@@ -1133,11 +1031,10 @@ export default function NissanPage() {
                           value={clientEmail}
                           onChange={(e) => setClientEmail(e.target.value)}
                           placeholder="cliente@email.com"
-                          className="h-11 w-full border border-zinc-200 px-3 text-sm outline-none transition focus:border-black"
+                          className={INPUT_CLASS}
                         />
                       </div>
 
-                      {/* Telefone */}
                       <div>
                         <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
                           Telefone *
@@ -1147,14 +1044,13 @@ export default function NissanPage() {
                           value={clientPhone}
                           onChange={(e) => setClientPhone(maskPhone(e.target.value))}
                           placeholder="91 9XXXX XXXX"
-                          className="h-11 w-full border border-zinc-200 px-3 text-sm outline-none transition focus:border-black"
+                          className={INPUT_CLASS}
                         />
                         <p className="mt-1 text-[10px] text-zinc-400">
                           Dica: digite assim: 91 9XXXX XXXX
                         </p>
                       </div>
 
-                      {/* Vendedor */}
                       <div>
                         <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
                           Vendedor *
@@ -1164,7 +1060,7 @@ export default function NissanPage() {
                           value={clientSeller}
                           onChange={(e) => setClientSeller(e.target.value)}
                           placeholder="Nome do vendedor responsável"
-                          className="h-11 w-full border border-zinc-200 px-3 text-sm outline-none transition focus:border-black"
+                          className={INPUT_CLASS}
                         />
                       </div>
                     </div>
@@ -1192,7 +1088,6 @@ export default function NissanPage() {
         </div>
       )}
 
-      {/* Animações */}
       <style jsx global>{`
         @keyframes float {
           0%, 100% { transform: translateY(0) rotate(-1deg); }
