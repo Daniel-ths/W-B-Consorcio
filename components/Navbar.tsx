@@ -26,9 +26,7 @@ import MobileCatalogModal from "./MobileCatalogModal";
 // =====================================================================
 const LOGO_NAVBAR =
   "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/chevrolet-logo.svg";
-const LOGO_SIDEBAR =
-  "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/parceirologo.png";
-// =====================================================================
+
 
 export default function Navbar() {
   const [menuAberto, setMenuAberto] = useState<string | null>(null);
@@ -386,11 +384,6 @@ export default function Navbar() {
         }`}
       >
         <div className="flex h-20 items-center justify-between border-b border-gray-100 p-6">
-          <img
-            src={LOGO_SIDEBAR}
-            alt="Logo"
-            className="h-12 w-auto object-contain"
-          />
           <button
             onClick={() => setSidebarOpen(false)}
             className="rounded-full bg-gray-50 p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-black"

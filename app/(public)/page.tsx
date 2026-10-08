@@ -49,7 +49,7 @@ export default function ChooseBrandPage() {
         accent: "from-yellow-400 via-amber-400 to-orange-500",
         accentSolid: "#f59e0b",
         soft: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-400/10 dark:text-amber-300 dark:border-amber-400/20",
-        description: "Acesso ao ambiente Chevrolet",
+        description: "",
       },
       {
         key: "hyundai",
@@ -58,7 +58,7 @@ export default function ChooseBrandPage() {
         accent: "from-sky-500 via-cyan-500 to-blue-600",
         accentSolid: "#0ea5e9",
         soft: "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-400/10 dark:text-sky-300 dark:border-sky-400/20",
-        description: "Acesso ao ambiente Hyundai",
+        description: "",
       },
       {
         key: "fiat",
@@ -67,7 +67,7 @@ export default function ChooseBrandPage() {
         accent: "from-red-500 via-rose-500 to-orange-500",
         accentSolid: "#ef4444",
         soft: "bg-red-50 text-red-700 border-red-200 dark:bg-red-400/10 dark:text-red-300 dark:border-red-400/20",
-        description: "Acesso ao ambiente Fiat",
+        description: "",
       },
       {
         key: "volkswagen",
@@ -76,7 +76,7 @@ export default function ChooseBrandPage() {
         accent: "from-blue-600 via-blue-500 to-cyan-400",
         accentSolid: "#2563eb",
         soft: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-400/10 dark:text-blue-300 dark:border-blue-400/20",
-        description: "Acesso ao ambiente Volkswagen",
+        description: "",
       },
       {
         key: "renault",
@@ -85,7 +85,7 @@ export default function ChooseBrandPage() {
         accent: "from-yellow-400 via-amber-500 to-orange-500",
         accentSolid: "#eab308",
         soft: "bg-yellow-50 text-yellow-800 border-yellow-200 dark:bg-yellow-400/10 dark:text-yellow-300 dark:border-yellow-400/20",
-        description: "Acesso ao ambiente Renault",
+        description: "",
       },
       {
         key: "nissan",
@@ -94,7 +94,7 @@ export default function ChooseBrandPage() {
         accent: "from-red-600 via-red-500 to-orange-500",
         accentSolid: "#dc2626",
         soft: "bg-red-50 text-red-700 border-red-200 dark:bg-red-400/10 dark:text-red-300 dark:border-red-400/20",
-        description: "Acesso ao ambiente Nissan",
+        description: "",
       },
     ],
     []
@@ -257,21 +257,6 @@ export default function ChooseBrandPage() {
           </motion.div>
 
           {/* Status */}
-          <motion.div
-            initial={{ opacity: 0, x: 15 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.45 }}
-            className="flex items-center gap-2 rounded-full border border-zinc-200/80 bg-white/75 px-3 py-2 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.04]"
-          >
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-            </span>
-
-            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-600 dark:text-zinc-300 sm:text-xs">
-              Sistema online
-            </span>
-          </motion.div>
         </div>
       </header>
 
@@ -334,13 +319,6 @@ export default function ChooseBrandPage() {
           >
             {/* Small badge */}
             <div className="mb-5 flex justify-center">
-              <div className="inline-flex items-center gap-2 rounded-full border border-zinc-200/80 bg-white/70 px-3 py-1.5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.04]">
-                <Sparkles className="h-3.5 w-3.5 text-zinc-500 dark:text-zinc-400" />
-
-                <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500 dark:text-zinc-400 sm:text-[11px]">
-                  Ambiente comercial
-                </span>
-              </div>
             </div>
 
             {/* Title */}
@@ -517,17 +495,7 @@ export default function ChooseBrandPage() {
 
                     {/* Bottom */}
                     <div className="mt-5 flex items-center justify-between">
-                      <span
-                        className={`
-                          inline-flex items-center rounded-full
-                          border px-2.5 py-1
-                          text-[9px] font-bold uppercase
-                          tracking-[0.14em]
-                          ${brand.soft}
-                        `}
-                      >
-                        {brand.disabled ? "Em breve" : "Disponível"}
-                      </span>
+
 
                       {!brand.disabled && (
                         <span className="text-[10px] font-medium text-zinc-400 opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-100 dark:text-zinc-500">

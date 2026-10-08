@@ -28,7 +28,7 @@ import MobileCatalogModal from "@/components/MobileCatalogModal";
 const LOGO_NAVBAR =
   "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/chevrolet-logo.svg";
 const LOGO_SIDEBAR =
-  "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/parceirologo.png";
+  "https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/Concessionária referência logo.png";
 // =====================================================================
 
 const CONSULTA_CLIENTE_LINK = "/vendedor/consulta-cliente";

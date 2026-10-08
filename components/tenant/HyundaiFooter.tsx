@@ -9,20 +9,6 @@ export default function Footer() {
         
         {/* Coluna 1: Marca */}
         <div className="space-y-6">
-            <Link href="/" className="flex items-center gap-1 group">
-                <img 
-                    src="https://qkpfsisyaohpdetyhtjd.supabase.co/storage/v1/object/public/cars/parceirologo.png"
-                    alt="WB Auto" 
-                    className="h-32 w-auto object-contain mix-blend-multiply" 
-                />
-                <span className="text-lg font-bold tracking-widest uppercase text-gray-900">
-                    Nacional <span className="text-gray-500 font-normal">Consórcio</span>
-                </span>
-            </Link>
-            <p className="leading-relaxed text-xs">
-                Concessionária referência em veículos Chevrolet no Pará. 
-                Qualidade, garantia e as melhores condições do mercado.
-            </p>
             <div className="flex gap-4">
             </div>
         </div>
